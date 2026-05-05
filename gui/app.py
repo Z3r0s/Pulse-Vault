@@ -17,8 +17,9 @@ from tkinterdnd2 import TkinterDnD, DND_FILES
 from core.vault import EncryptedVault, VaultError
 from gui.dialogs import ask_password
 
-APP_NAME = "PulseVault"
-APP_VERSION = "2.0.0"
+APP_NAME = "Pulse-Vault"
+APP_VERSION = "5.0.0"
+APP_SUBTITLE = "by Z3r0s · DNSPulse"
 
 def human_size(size: int) -> str:
     units = ["B", "KB", "MB", "GB", "TB"]
@@ -33,8 +34,8 @@ class VaultGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title(f"{APP_NAME} v{APP_VERSION}")
-        self.geometry("1000x650")
+        self.title(f"{APP_NAME}  v{APP_VERSION}  —  {APP_SUBTITLE}")
+        self.geometry("1080x680")
         self.minsize(900, 600)
         
         # Configure grid
@@ -61,33 +62,74 @@ class VaultGUI(ctk.CTk):
             pass
 
     def build_sidebar(self):
-        self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0)
+        self.sidebar_frame = ctk.CTkFrame(self, width=210, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, rowspan=2, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(5, weight=1)
+        self.sidebar_frame.grid_rowconfigure(6, weight=1)
 
-        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="PulseVault", font=ctk.CTkFont(size=20, weight="bold"))
-        self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
+        # Logo block
+        self.logo_label = ctk.CTkLabel(
+            self.sidebar_frame,
+            text="⚡ Pulse-Vault",
+            font=ctk.CTkFont(size=22, weight="bold"),
+            text_color=("#10b981", "#10b981")
+        )
+        self.logo_label.grid(row=0, column=0, padx=20, pady=(22, 0))
 
-        self.btn_new = ctk.CTkButton(self.sidebar_frame, text="New Vault", command=self.create_vault, fg_color="#10b981", hover_color="#059669")
-        self.btn_new.grid(row=1, column=0, padx=20, pady=10)
+        self.version_badge = ctk.CTkLabel(
+            self.sidebar_frame,
+            text=f"v{APP_VERSION}  ·  {APP_SUBTITLE}",
+            font=ctk.CTkFont(size=10),
+            text_color="gray"
+        )
+        self.version_badge.grid(row=1, column=0, padx=20, pady=(0, 18))
 
-        self.btn_open = ctk.CTkButton(self.sidebar_frame, text="Open Vault", command=self.open_vault, fg_color="#3b82f6", hover_color="#2563eb")
-        self.btn_open.grid(row=2, column=0, padx=20, pady=10)
+        sep = ctk.CTkFrame(self.sidebar_frame, height=1, fg_color="gray25")
+        sep.grid(row=2, column=0, sticky="ew", padx=16, pady=(0, 14))
 
-        self.btn_lock = ctk.CTkButton(self.sidebar_frame, text="Lock Vault", command=self.lock_vault, state="disabled")
-        self.btn_lock.grid(row=3, column=0, padx=20, pady=10)
+        self.btn_new = ctk.CTkButton(
+            self.sidebar_frame, text="＋  New Vault", command=self.create_vault,
+            fg_color="#10b981", hover_color="#059669", height=38,
+            font=ctk.CTkFont(size=13, weight="bold")
+        )
+        self.btn_new.grid(row=3, column=0, padx=20, pady=6)
+
+        self.btn_open = ctk.CTkButton(
+            self.sidebar_frame, text="📂  Open Vault", command=self.open_vault,
+            fg_color="#3b82f6", hover_color="#2563eb", height=38,
+            font=ctk.CTkFont(size=13)
+        )
+        self.btn_open.grid(row=4, column=0, padx=20, pady=6)
+
+        self.btn_lock = ctk.CTkButton(
+            self.sidebar_frame, text="🔒  Lock Vault", command=self.lock_vault,
+            state="disabled", height=38, font=ctk.CTkFont(size=13)
+        )
+        self.btn_lock.grid(row=5, column=0, padx=20, pady=6)
         
-        self.btn_change_pw = ctk.CTkButton(self.sidebar_frame, text="Change Password", command=self.change_password, state="disabled", fg_color="transparent", border_width=1)
-        self.btn_change_pw.grid(row=4, column=0, padx=20, pady=10)
+        self.btn_change_pw = ctk.CTkButton(
+            self.sidebar_frame, text="🔑  Change Password", command=self.change_password,
+            state="disabled", fg_color="transparent", border_width=1, height=36,
+            font=ctk.CTkFont(size=12)
+        )
+        self.btn_change_pw.grid(row=6, column=0, padx=20, pady=6)
 
-        self.btn_about = ctk.CTkButton(self.sidebar_frame, text="About PulseVault", command=self.show_about, fg_color="transparent", border_width=1, text_color="#10b981")
-        self.btn_about.grid(row=5, column=0, padx=20, pady=10)
+        self.btn_about = ctk.CTkButton(
+            self.sidebar_frame, text="ℹ  About Pulse-Vault", command=self.show_about,
+            fg_color="transparent", border_width=1, text_color="#10b981",
+            hover_color=("gray90", "gray20"), height=36, font=ctk.CTkFont(size=12)
+        )
+        self.btn_about.grid(row=7, column=0, padx=20, pady=(6, 18))
 
-        self.appearance_mode_label = ctk.CTkLabel(self.sidebar_frame, text="Appearance Mode:", anchor="w")
-        self.appearance_mode_label.grid(row=6, column=0, padx=20, pady=(10, 0))
-        self.appearance_mode_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["System", "Light", "Dark"],
-                                                                       command=self.change_appearance_mode_event)
-        self.appearance_mode_optionemenu.grid(row=7, column=0, padx=20, pady=(10, 20))
+        sep2 = ctk.CTkFrame(self.sidebar_frame, height=1, fg_color="gray25")
+        sep2.grid(row=8, column=0, sticky="ew", padx=16, pady=(0, 10))
+
+        self.appearance_mode_label = ctk.CTkLabel(self.sidebar_frame, text="Appearance:", anchor="w", font=ctk.CTkFont(size=11))
+        self.appearance_mode_label.grid(row=9, column=0, padx=20, pady=(8, 0))
+        self.appearance_mode_optionemenu = ctk.CTkOptionMenu(
+            self.sidebar_frame, values=["System", "Dark", "Light"],
+            command=self.change_appearance_mode_event, height=32
+        )
+        self.appearance_mode_optionemenu.grid(row=10, column=0, padx=20, pady=(4, 20))
 
     def build_main_view(self):
         self.main_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
@@ -128,29 +170,37 @@ class VaultGUI(ctk.CTk):
 
         style = ttk.Style()
         style.theme_use("default")
-        style.configure("Treeview", 
-                        background="#2b2b2b",
-                        foreground="white",
-                        rowheight=30,
-                        fieldbackground="#2b2b2b",
-                        borderwidth=0)
-        style.map('Treeview', background=[('selected', '#1f538d')])
-        style.configure("Treeview.Heading",
-                        background="#565b5e",
-                        foreground="white",
-                        relief="flat")
-        style.map("Treeview.Heading",
-                  background=[('active', '#3484F0')])
+        style.configure("Pulse.Treeview",
+                        background="#1e1e1e",
+                        foreground="#e5e7eb",
+                        rowheight=34,
+                        fieldbackground="#1e1e1e",
+                        borderwidth=0,
+                        font=("Segoe UI", 10))
+        style.map("Pulse.Treeview", background=[("selected", "#1d4ed8")])
+        style.configure("Pulse.Treeview.Heading",
+                        background="#111827",
+                        foreground="#9ca3af",
+                        relief="flat",
+                        font=("Segoe UI", 10, "bold"))
+        style.map("Pulse.Treeview.Heading", background=[("active", "#1e3a5f")])
 
-        columns = ("name", "size", "type")
-        self.tree = ttk.Treeview(self.tree_frame, columns=columns, show="headings", selectmode="extended")
-        self.tree.heading("name", text="Name")
-        self.tree.heading("size", text="Size")
-        self.tree.heading("type", text="Type")
+        columns = ("name", "size", "type", "added")
+        self.tree = ttk.Treeview(self.tree_frame, columns=columns, show="headings",
+                                  selectmode="extended", style="Pulse.Treeview")
+        self.tree.heading("name", text="  Name", anchor="w")
+        self.tree.heading("size", text="Size", anchor="e")
+        self.tree.heading("type", text="Type", anchor="center")
+        self.tree.heading("added", text="Added", anchor="center")
 
-        self.tree.column("name", width=400, anchor="w")
-        self.tree.column("size", width=100, anchor="e")
-        self.tree.column("type", width=100, anchor="center")
+        self.tree.column("name", width=420, anchor="w", minwidth=200)
+        self.tree.column("size", width=90, anchor="e", minwidth=70)
+        self.tree.column("type", width=100, anchor="center", minwidth=80)
+        self.tree.column("added", width=140, anchor="center", minwidth=100)
+
+        # Alternating row tags
+        self.tree.tag_configure("odd", background="#1e1e1e")
+        self.tree.tag_configure("even", background="#252525")
 
         yscroll = ttk.Scrollbar(self.tree_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=yscroll.set)
@@ -158,29 +208,63 @@ class VaultGUI(ctk.CTk):
         self.tree.grid(row=0, column=0, sticky="nsew")
         yscroll.grid(row=0, column=1, sticky="ns")
 
-        self.tree.bind("<Double-1>", lambda _: self.extract_selected())
+        self.tree.bind("<Double-1>", lambda _: self.secure_view())
+        self.tree.bind("<Button-3>", self.show_context_menu)
+
+        # Right-click context menu
+        self.context_menu = tk.Menu(self, tearoff=0,
+                                     bg="#1e1e1e", fg="white",
+                                     activebackground="#1d4ed8", activeforeground="white",
+                                     font=("Segoe UI", 10))
+        self.context_menu.add_command(label="💾  Extract...",       command=self.extract_selected)
+        self.context_menu.add_command(label="🔍  Secure Open",      command=self.secure_view)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="✏️  Rename",          command=self.rename_selected)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="🗑️  Delete",         command=self.delete_selected)
 
         # Action Buttons
         self.action_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.action_frame.grid(row=3, column=0, sticky="ew")
+        self.action_frame.grid(row=3, column=0, sticky="ew", pady=(6, 0))
 
-        self.btn_add_file = ctk.CTkButton(self.action_frame, text="Add File", command=self.add_file, state="disabled")
-        self.btn_add_file.pack(side="left", padx=(0, 10))
+        self.btn_add_file = ctk.CTkButton(
+            self.action_frame, text="➕ Add File", command=self.add_file,
+            state="disabled", height=36, font=ctk.CTkFont(size=12)
+        )
+        self.btn_add_file.pack(side="left", padx=(0, 8))
 
-        self.btn_add_folder = ctk.CTkButton(self.action_frame, text="Add Folder as ZIP", command=self.add_folder, state="disabled")
-        self.btn_add_folder.pack(side="left", padx=(0, 10))
+        self.btn_add_folder = ctk.CTkButton(
+            self.action_frame, text="📁 Add Folder", command=self.add_folder,
+            state="disabled", height=36, font=ctk.CTkFont(size=12)
+        )
+        self.btn_add_folder.pack(side="left", padx=(0, 8))
 
-        self.btn_extract = ctk.CTkButton(self.action_frame, text="Extract", command=self.extract_selected, state="disabled")
-        self.btn_extract.pack(side="left", padx=(0, 10))
+        self.btn_extract = ctk.CTkButton(
+            self.action_frame, text="💾 Extract", command=self.extract_selected,
+            state="disabled", height=36, font=ctk.CTkFont(size=12)
+        )
+        self.btn_extract.pack(side="left", padx=(0, 8))
 
-        self.btn_view = ctk.CTkButton(self.action_frame, text="View (Secure Open)", command=self.secure_view, state="disabled", fg_color="#f59e0b", hover_color="#d97706")
-        self.btn_view.pack(side="left", padx=(0, 10))
+        self.btn_view = ctk.CTkButton(
+            self.action_frame, text="🔍 Secure Open", command=self.secure_view,
+            state="disabled", fg_color="#f59e0b", hover_color="#d97706",
+            height=36, font=ctk.CTkFont(size=12)
+        )
+        self.btn_view.pack(side="left", padx=(0, 8))
 
-        self.btn_delete = ctk.CTkButton(self.action_frame, text="Delete", command=self.delete_selected, state="disabled", fg_color="#ef4444", hover_color="#dc2626")
+        self.btn_delete = ctk.CTkButton(
+            self.action_frame, text="🗑 Delete", command=self.delete_selected,
+            state="disabled", fg_color="#ef4444", hover_color="#dc2626",
+            height=36, font=ctk.CTkFont(size=12)
+        )
         self.btn_delete.pack(side="right")
         
-        self.btn_rename = ctk.CTkButton(self.action_frame, text="Rename", command=self.rename_selected, state="disabled", fg_color="transparent", border_width=1)
-        self.btn_rename.pack(side="right", padx=(0, 10))
+        self.btn_rename = ctk.CTkButton(
+            self.action_frame, text="✏ Rename", command=self.rename_selected,
+            state="disabled", fg_color="transparent", border_width=1,
+            height=36, font=ctk.CTkFont(size=12)
+        )
+        self.btn_rename.pack(side="right", padx=(0, 8))
 
     def change_appearance_mode_event(self, new_appearance_mode: str):
         ctk.set_appearance_mode(new_appearance_mode)
@@ -190,22 +274,27 @@ class VaultGUI(ctk.CTk):
 
     def update_stats(self):
         if not self.vault or not self.vault.is_unlocked:
-            self.stats_label.configure(text="Files: 0 · Vault size: 0 B")
+            self.stats_label.configure(text="No vault loaded.")
             return
 
         try:
             stats = self.vault.stats()
-            if self.vault.version == 3:
-                v = "v3 (Cascade + Scrypt)"
-            elif self.vault.version == 2:
-                v = "v2 (Streaming)"
+            v = self.vault.version
+            if v >= 5:
+                fmt = "V5 · LZMA + Cascade · Scrypt"
+            elif v == 4:
+                fmt = "V4 · Cascade · Scrypt"
+            elif v == 3:
+                fmt = "V3 · Cascade · Scrypt"
+            elif v == 2:
+                fmt = "V2 · AES-GCM · PBKDF2"
             else:
-                v = "v1 (Legacy)"
+                fmt = "V1 · Legacy"
                 
             self.stats_label.configure(
-                text=f"Files: {stats['file_count']} · "
-                     f"Vault size: {human_size(stats['vault_disk_size'])} · "
-                     f"Format: {v}"
+                text=f"Files: {stats['file_count']}  ·  "
+                     f"Vault size: {human_size(stats['vault_disk_size'])}  ·  "
+                     f"Format: {fmt}"
             )
         except Exception:
             self.stats_label.configure(text="Stats unavailable.")
@@ -240,6 +329,13 @@ class VaultGUI(ctk.CTk):
         if total > 0:
             self.progress_bar.set(current / total)
 
+    def show_context_menu(self, event):
+        """Show right-click context menu on the file list"""
+        row = self.tree.identify_row(event.y)
+        if row:
+            self.tree.selection_set(row)
+            self.context_menu.tk_popup(event.x_root, event.y_root)
+
     def refresh_list(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -251,7 +347,9 @@ class VaultGUI(ctk.CTk):
             return
 
         query = self.search_entry.get().strip().lower()
+        import datetime
 
+        row_index = 0
         for filename in self.vault.list_files():
             if query and query not in filename.lower():
                 continue
@@ -262,10 +360,19 @@ class VaultGUI(ctk.CTk):
                 continue
 
             file_type = meta.get("type", "file")
+            type_display = "📁 Folder" if file_type == "folder_zip" else "📄 File"
             size = int(meta.get("size", 0))
 
-            self.tree.insert("", "end", values=(filename, human_size(size), file_type))
+            added_ts = meta.get("added_at", 0)
+            try:
+                added_str = datetime.datetime.fromtimestamp(added_ts).strftime("%Y-%m-%d %H:%M")
+            except Exception:
+                added_str = "—"
+
+            tag = "even" if row_index % 2 == 0 else "odd"
+            self.tree.insert("", "end", values=(filename, human_size(size), type_display, added_str), tags=(tag,))
             self.filtered_files.append(filename)
+            row_index += 1
 
         self.update_stats()
 
@@ -389,20 +496,21 @@ class VaultGUI(ctk.CTk):
         if not paths:
             return
 
+        skipped = []
         def task():
             for raw_path in paths:
                 path = Path(raw_path)
-                overwrite = False
                 if path.name in self.vault.data.get("files", {}):
-                    # Show warning in main thread, thread will block
-                    # Since we are in a thread, messagebox might have issues, 
-                    # but for now we'll assume it's okay or just skip. 
-                    # For a robust solution we'd need thread-safe prompts.
-                    # We will just overwrite for simplicity in thread, or skip.
-                    # Best approach: skip if exists, user must delete first.
+                    skipped.append(path.name)
                     continue
                 
                 self.vault.add_file(path, overwrite=True)
+
+            if skipped:
+                self.after(0, lambda: messagebox.showwarning(
+                    "Skipped Files", 
+                    f"{len(skipped)} file(s) were skipped because they already exist in the vault:\n" + "\n".join(skipped[:5]) + ("..." if len(skipped) > 5 else "")
+                ))
 
         self._run_in_thread(task)
 
@@ -510,59 +618,107 @@ class VaultGUI(ctk.CTk):
             
         filenames = [self.tree.item(s, "values")[0] for s in selections]
 
+        def open_file(path: Path):
+            """Must run on main thread"""
+            try:
+                if os.name == 'nt':
+                    os.startfile(path)
+                elif sys.platform == 'darwin':
+                    subprocess.Popen(['open', str(path)])
+                else:
+                    subprocess.Popen(['xdg-open', str(path)])
+            except Exception as e:
+                messagebox.showerror("Open Failed", f"Could not open file:\n{e}")
+
         def task():
+            paths_to_open = []
             for fname in filenames:
                 output_path = self.vault.extract_file(fname, self.secure_temp_dir, overwrite=True)
-                
-                # Open the file via OS
-                if os.name == 'nt': # Windows
-                    os.startfile(output_path)
-                elif sys.platform == 'darwin': # macOS
-                    subprocess.call(('open', output_path))
-                else: # Linux / Parrot
-                    subprocess.call(('xdg-open', output_path))
+                paths_to_open.append(output_path)
+            # Schedule all file opens back on the main thread
+            for p in paths_to_open:
+                self.after(0, lambda path=p: open_file(path))
 
         self._run_in_thread(task)
 
     def show_about(self):
         about_win = ctk.CTkToplevel(self)
-        about_win.title("About PulseVault")
-        about_win.geometry("750x500")
+        about_win.title("About Pulse-Vault")
+        about_win.geometry("820x580")
         about_win.resizable(False, False)
         
-        # Center the dialog on the parent window
         about_win.update_idletasks()
         if self.winfo_viewable():
-            x = self.winfo_x() + (self.winfo_width() // 2) - (about_win.winfo_width() // 2)
-            y = self.winfo_y() + (self.winfo_height() // 2) - (about_win.winfo_height() // 2)
+            x = self.winfo_x() + (self.winfo_width() // 2) - (820 // 2)
+            y = self.winfo_y() + (self.winfo_height() // 2) - (580 // 2)
             about_win.geometry(f"+{x}+{y}")
 
         about_win.transient(self)
         about_win.grab_set()
-
         about_win.grid_columnconfigure(0, weight=1)
-        about_win.grid_rowconfigure(0, weight=1)
+        about_win.grid_rowconfigure(1, weight=1)
+
+        # Header
+        header = ctk.CTkFrame(about_win, fg_color="#0f172a", corner_radius=0)
+        header.grid(row=0, column=0, sticky="ew")
+        header.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            header, text="⚡ Pulse-Vault",
+            font=ctk.CTkFont(size=28, weight="bold"),
+            text_color="#10b981"
+        ).grid(row=0, column=0, padx=30, pady=(24, 4))
+        ctk.CTkLabel(
+            header,
+            text=f"Version {APP_VERSION}  ·  by Z3r0s  ·  DNSPulse",
+            font=ctk.CTkFont(size=12),
+            text_color="#6b7280"
+        ).grid(row=1, column=0, padx=30, pady=(0, 20))
 
         about_text = (
-            "💀 PulseVault by z3r0s (DNSPulse) 💀\n\n"
-            "This isn't your standard encrypted folder. This is a paranoid-level, zero-trust cryptographic fortress "
-            "designed specifically for high-risk, hostile environments.\n\n"
-            "Unlike default Kali Linux or Parrot OS vaults, PulseVault deploys a Custom Cascading Cipher Suite (PULSEVAULT3). "
-            "Every file is independently encrypted twice: first with ChaCha20-Poly1305, and then entirely encapsulated in AES-256-GCM. "
-            "Even if a 0-day is discovered in one algorithm, the secondary layer holds the line.\n\n"
-            "Key Derivation is powered by memory-hard SCRYPT, completely neutering GPU cluster brute-forcing. "
-            "Unencrypted buffers are systematically purged from RAM. Extraction uses secure, hidden memory spaces.\n\n"
-            "We take ultimate pride in our encryption architectures. We are always evolving, always adapting, and relentlessly making it better. "
-            "Your security is an arms race, and we intend to win it.\n\n"
-            "No telemetry. No networking. No APIs. Pure Cryptography."
+            "Pulse-Vault is not a standard encrypted folder. It is a paranoid-level, zero-trust "
+            "cryptographic fortress engineered specifically for hostile, adversarial environments.\n\n"
+
+            "━━  ARCHITECTURE  ━━\n"
+            "Every file is compressed with LZMA (XZ) before encryption, then independently encrypted "
+            "through a streaming cascade cipher pipeline. Each 1 MB block passes through two independent "
+            "authenticated encryption algorithms back-to-back. Even if a 0-day is discovered in "
+            "one algorithm, the second layer holds the line. RAM usage is locked to 1 MB regardless "
+            "of file size — you can encrypt a 1 TB drive on a machine with 2 GB of RAM.\n\n"
+
+            "━━  KEY DERIVATION  ━━\n"
+            "Master keys are derived using a memory-hard KDF requiring significant RAM to compute. "
+            "This completely neutralizes GPU cluster and ASIC brute-force attacks.\n\n"
+
+            "━━  STEGANOGRAPHY  ━━\n"
+            "Vaults can be hidden inside legitimate media files (PNG, JPG, MP4). "
+            "The vault is appended after the carrier's data, making it invisible to "
+            "standard file inspection tools. Only Pulse-Vault knows how to find it.\n\n"
+
+            "━━  ANTI-FORENSICS  ━━\n"
+            "Secure Open extracts files into a randomized hidden directory in /tmp which is "
+            "automatically wiped by an exit handler. Unencrypted data never touches your disk.\n\n"
+
+            "We take ultimate pride in our encryption architectures. We are always evolving, "
+            "always adapting, and relentlessly making it better. Your security is an arms race "
+            "— and Pulse-Vault intends to win it.\n\n"
+            "No telemetry.  No networking.  No cloud.  Pure cryptography."
         )
 
-        textbox = ctk.CTkTextbox(about_win, wrap="word", font=ctk.CTkFont(size=15), fg_color="transparent")
-        textbox.grid(row=0, column=0, sticky="nsew", padx=40, pady=(40, 20))
+        textbox = ctk.CTkTextbox(
+            about_win, wrap="word",
+            font=ctk.CTkFont(family="Segoe UI", size=13),
+            fg_color="transparent",
+            text_color="#d1d5db"
+        )
+        textbox.grid(row=1, column=0, sticky="nsew", padx=36, pady=(20, 10))
         textbox.insert("1.0", about_text)
         textbox.configure(state="disabled")
 
-        btn_close = ctk.CTkButton(about_win, text="Close", command=about_win.destroy, width=140, height=40, font=ctk.CTkFont(size=14, weight="bold"))
-        btn_close.grid(row=1, column=0, pady=(0, 30))
-        
+        btn_close = ctk.CTkButton(
+            about_win, text="Close", command=about_win.destroy,
+            width=140, height=40, font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color="#10b981", hover_color="#059669"
+        )
+        btn_close.grid(row=2, column=0, pady=(0, 28))
         about_win.focus()

@@ -6,6 +6,10 @@
 .vscode/
 .idea/
 
+# Local planning & sensitive files
+pip_library_guide.txt
+recovery_keys.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

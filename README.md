@@ -22,22 +22,26 @@
 
 ---
 
-## 🚀 Installation & Packaging
+## 🚀 Quick Start
 
-PulseVault is designed to be shipped as a native OS feature. It is fully ready for APT packaging (`.deb`).
+Get PulseVault running instantly on any system:
 
-### Option 1: Run via Python (Development)
 ```bash
-# Clone the repository
 git clone https://github.com/z3r0s/pulsevault.git
 cd pulsevault
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Run the vault
 python main.py
 ```
+
+### Parrot OS Native Installer
+PulseVault includes a dedicated wrapper script that safely bypasses Debian's `EXTERNALLY-MANAGED` warnings by isolating dependencies, allowing you to launch PulseVault globally.
+```bash
+chmod +x install_parrot.sh
+./install_parrot.sh
+pulsevault
+```
+
+---
 
 ### Option 2: Build APT / `.deb` Package
 PulseVault includes configuration files to compile directly into a Debian package.

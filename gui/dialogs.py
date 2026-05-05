@@ -45,6 +45,8 @@ class PasswordDialog(ctk.CTkToplevel):
         if show_generate:
             import secrets
             def generate_key():
+                import secrets
+                from pathlib import Path
                 key = secrets.token_hex(24)
                 self.password_entry.delete(0, 'end')
                 self.password_entry.insert(0, key)
@@ -53,10 +55,16 @@ class PasswordDialog(ctk.CTkToplevel):
                     self.confirm_entry.delete(0, 'end')
                     self.confirm_entry.insert(0, key)
                     self.confirm_entry.configure(show="")
-                # Save it to a file so they don't lose it
-                with open("recovery_keys.txt", "a") as f:
-                    f.write(f"Auto-Generated Key: {key}\n")
-                messagebox.showinfo("Key Generated", "A secure backend key was generated and saved to recovery_keys.txt.", parent=self)
+                # Save to home directory so it's always findable and never accidentally committed
+                recovery_path = Path.home() / ".pulse_vault_recovery_keys.txt"
+                with open(recovery_path, "a") as f:
+                    import datetime
+                    f.write(f"[{datetime.datetime.now().isoformat()}]  {key}\n")
+                messagebox.showinfo(
+                    "Key Generated",
+                    f"A secure key was generated and saved to:\n{recovery_path}\n\nStore this somewhere safe!",
+                    parent=self
+                )
 
             gen_btn = ctk.CTkButton(button_frame, text="Auto-Generate Key", width=120, fg_color="#8b5cf6", hover_color="#7c3aed", command=generate_key)
             gen_btn.pack(side="left")
