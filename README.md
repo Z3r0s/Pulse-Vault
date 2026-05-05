@@ -38,7 +38,7 @@ PulseVault includes a dedicated wrapper script that safely bypasses Debian's `EX
 ```bash
 chmod +x install_parrot.sh
 ./install_parrot.sh
-pulsevault
+pulse-vault
 ```
 
 ---
@@ -62,7 +62,7 @@ sudo dpkg -i deb_dist/python3-pulse-vault_*.deb
 ## 📸 Interface Sneak Peek
 
 *(Imagine a beautiful UI animation here)*
-![PulseVault UI](https://raw.githubusercontent.com/placeholder-ui-animation/pulse-vault.gif)
+![PulseVault Banner](banner.png)
 
 ---
 
