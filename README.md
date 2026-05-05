@@ -60,8 +60,6 @@ sudo dpkg -i deb_dist/python3-pulse-vault_*.deb
 ---
 
 ## 📸 Interface Sneak Peek
-
-*(Imagine a beautiful UI animation here)*
 ![PulseVault Banner](PulseVault.png)
 
 ---
