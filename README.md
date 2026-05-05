@@ -7,7 +7,7 @@
 [![Security](https://img.shields.io/badge/security-Custom_Cascade-red.svg)](#)
 [![Packaging](https://img.shields.io/badge/package-APT%2FDEB-orange.svg)](#)
 
-**PulseVault** is a next-generation, high-performance encrypted file vault designed by **DNSPulse**. Built to handle massive files securely and quickly, PulseVault creates fully isolated, self-contained local vaults that are completely immune to network tracking.
+**Pulse-Vault** is a next-generation, high-performance encrypted file vault designed by **DNSPulse**. Built to handle massive files securely and quickly, PulseVault creates fully isolated, self-contained local vaults that are completely immune to network tracking.
 
 ---
 
@@ -27,8 +27,8 @@
 Get PulseVault running instantly on any system:
 
 ```bash
-git clone https://github.com/z3r0s/pulsevault.git
-cd pulsevault
+git clone https://github.com/z3r0s/pulse-vault.git
+cd pulse-vault
 pip install -r requirements.txt
 python main.py
 ```
@@ -54,7 +54,7 @@ sudo apt install python3-stdeb fakeroot python3-all
 python3 setup.py --command-packages=stdeb.command bdist_deb
 
 # Install on your system
-sudo dpkg -i deb_dist/python3-pulsevault_*.deb
+sudo dpkg -i deb_dist/python3-pulse-vault_*.deb
 ```
 
 ---
@@ -62,7 +62,7 @@ sudo dpkg -i deb_dist/python3-pulsevault_*.deb
 ## 📸 Interface Sneak Peek
 
 *(Imagine a beautiful UI animation here)*
-![PulseVault UI](https://raw.githubusercontent.com/placeholder-ui-animation/pulsevault.gif)
+![PulseVault UI](https://raw.githubusercontent.com/placeholder-ui-animation/pulse-vault.gif)
 
 ---
 
