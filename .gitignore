@@ -86,5 +86,9 @@ Thumbs.db
 # PulseVault specific
 *.PulseVault
 *.PulseVault.tmp
+pulse_test_*/
+.pulse_test_*/
+pulse_tmp_*
 keys/
 recovery_keys.txt
+/tests

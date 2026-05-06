@@ -1,30 +1,19 @@
-# 🛡️ PulseVault (by DNSPulse)
+# PulseVault
 
-![PulseVault Banner](https://raw.githubusercontent.com/placeholder-banner/pulsevault.png)
+PulseVault is a local encrypted file vault desktop app by DNSPulse. It stores files in a portable vault container, keeps operations offline, and streams large files so they do not need to be loaded fully into memory.
 
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://python.org)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Security](https://img.shields.io/badge/security-Custom_Cascade-red.svg)](#)
-[![Packaging](https://img.shields.io/badge/package-APT%2FDEB-orange.svg)](#)
+## Features
 
-**PulseVault** is a next-generation, high-performance encrypted file vault designed by **DNSPulse**. Built to handle massive files securely and quickly, PulseVault creates fully isolated, self-contained local vaults that are completely immune to network tracking.
+- **Local-only design:** No telemetry, cloud service, API keys, or network dependency.
+- **Streaming file encryption:** Large files are processed in chunks and stored as encrypted entries inside the vault.
+- **Scrypt key derivation:** Passwords are converted into encryption keys with a memory-hard KDF.
+- **Cascade encryption:** File data is encrypted through ChaCha20-Poly1305 and AES-GCM.
+- **Compression:** V5 vault entries use LZMA compression before encryption.
+- **Password changes:** Existing file entries are re-encrypted when the vault password changes.
+- **Optional carrier files:** A vault can be appended to a PNG, JPG, or MP4 carrier file for casual disguise.
+- **Desktop UI:** Built with CustomTkinter.
 
----
-
-## ✨ Features
-
-- **Military-Grade Cascading Cipher:** Your data is encrypted multiple times sequentially through independent cryptographic algorithms. Even if one algorithm is theoretically broken in the future, your files remain completely inaccessible.
-- **Memory-Hard Key Derivation:** We use advanced cryptographic functions that mathematically require massive amounts of RAM to execute. This physically prevents attackers from brute-forcing your password using GPU clusters or ASIC hardware.
-- **Auto-Generated Backend Keys:** Implements dynamic internal key management (Key Encryption Keys) for secure data streaming and instantaneous password changing.
-- **Zero-Network Architecture:** Fully local execution. No telemetry, no AI plugins, no API keys.
-- **Large File Streaming (V3 Container):** Encrypts files as separate blocks within a containerized format, supporting gigabyte-sized files without exhausting system RAM.
-- **Modern UI:** Built on `CustomTkinter` for a stunning dark-mode desktop experience.
-
----
-
-## 🚀 Quick Start
-
-Get PulseVault running instantly on any system:
+## Quick Start
 
 ```bash
 git clone https://github.com/z3r0s/pulsevault.git
@@ -33,51 +22,40 @@ pip install -r requirements.txt
 python main.py
 ```
 
-### Parrot OS Native Installer
-PulseVault includes a dedicated wrapper script that safely bypasses Debian's `EXTERNALLY-MANAGED` warnings by isolating dependencies, allowing you to launch PulseVault globally.
+## Parrot OS Native Installer
+
+PulseVault includes a wrapper script that installs dependencies in a dedicated virtual environment.
+
 ```bash
 chmod +x install_parrot.sh
 ./install_parrot.sh
 pulsevault
 ```
 
----
-
-### Option 2: Build APT / `.deb` Package
-PulseVault includes configuration files to compile directly into a Debian package.
+## Build a Debian Package
 
 ```bash
-# Install debian packaging tools
 sudo apt install python3-stdeb fakeroot python3-all
-
-# Build the .deb file
 python3 setup.py --command-packages=stdeb.command bdist_deb
-
-# Install on your system
 sudo dpkg -i deb_dist/python3-pulsevault_*.deb
 ```
 
----
+## Security Notes
 
-## 📸 Interface Sneak Peek
+- PulseVault depends on the strength and secrecy of your password.
+- Generated passwords are shown in the UI but are not saved for you.
+- Secure Open extracts plaintext files to a temporary app directory before launching them. The directory is removed when the app exits normally, but external viewers may create caches, thumbnails, recent-file records, or other artifacts.
+- Carrier-file support appends vault data after the carrier. This can be useful for casual disguise, but it is not forensic protection.
+- Keep backups of important vaults. Corruption or password loss can make contents unrecoverable.
 
-*(Imagine a beautiful UI animation here)*
-![PulseVault UI](https://raw.githubusercontent.com/placeholder-ui-animation/pulsevault.gif)
+## Current Vault Format
 
----
+- **KDF:** Scrypt
+- **File encryption:** ChaCha20-Poly1305 followed by AES-GCM
+- **Compression:** LZMA/XZ before encryption
+- **Container:** ZIP with encrypted metadata and encrypted `data/*.enc` entries
+- **Current marker:** `PULSEVAULT5_COMPRESSED_CASCADE`
 
-## 🔒 Security Specifications
+## License
 
-- **KDF:** Memory-Hard High-Iteration Derivation Function.
-- **Encryption:** Multi-Layer Custom Cascading Cipher Suite.
-- **Container Format:** Encrypted block streaming (`PULSEVAULT3`).
-- All cryptographic operations run strictly within local memory buffers. Unencrypted memory buffers are systematically wiped upon application exit or vault lock.
-
----
-
-## 👨‍💻 Contributing
-
-We are an open-source project! Contributions are welcome. Please ensure that NO API keys, external service configs, or tracking scripts are included in pull requests.
-
-### License
 MIT License. Created by DNSPulse.

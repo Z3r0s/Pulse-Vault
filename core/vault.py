@@ -1,6 +1,7 @@
 import os
 import json
 import base64
+import hashlib
 import zipfile
 import tempfile
 import shutil
@@ -11,7 +12,6 @@ from typing import Optional, Dict, Any, List, Callable
 
 from core.crypto import (
     VAULT1_MAGIC,
-    VAULT4_MAGIC,
     SALT_SIZE,
     NONCE_SIZE,
     derive_key,
@@ -24,12 +24,29 @@ from core.crypto import (
     decrypt_stream_v4,
     encrypt_stream_v5,
     decrypt_stream_v5,
-    sha256_bytes,
     CryptoError
 )
 
 class VaultError(Exception):
     pass
+
+
+class HashWriter:
+    def __init__(self):
+        self.hasher = hashlib.sha256()
+        self.size = 0
+
+    def write(self, data: bytes):
+        self.hasher.update(data)
+        self.size += len(data)
+        return len(data)
+
+    def hexdigest(self) -> str:
+        return self.hasher.hexdigest()
+
+FORMAT_V5 = b"PULSEVAULT5_COMPRESSED_CASCADE"
+FORMAT_V4 = b"PULSEVAULT4_CASCADE"
+FORMAT_V3 = b"PULSEVAULT3_CASCADE"
 
 def now_unix() -> int:
     return int(time.time())
@@ -44,7 +61,35 @@ def safe_filename(name: str) -> str:
     name = name.strip().replace("\\", "_").replace("/", "_")
     if not name or name in {".", ".."}:
         raise VaultError("Invalid filename.")
+    reserved = {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    }
+    if Path(name).stem.upper() in reserved:
+        raise VaultError("Filename is reserved by the operating system.")
     return name
+
+def secure_unlink(path: Path):
+    """Best-effort overwrite before deleting temporary plaintext files."""
+    try:
+        if path.exists() and path.is_file():
+            size = path.stat().st_size
+            with open(path, "r+b", buffering=0) as f:
+                remaining = size
+                zero_block = b"\x00" * (1024 * 1024)
+                while remaining > 0:
+                    block = zero_block[:min(len(zero_block), remaining)]
+                    f.write(block)
+                    remaining -= len(block)
+                f.flush()
+                os.fsync(f.fileno())
+    except Exception:
+        pass
+    try:
+        path.unlink(missing_ok=True)
+    except Exception:
+        pass
 
 class EncryptedVault:
     def __init__(self, vault_path: Path):
@@ -53,7 +98,7 @@ class EncryptedVault:
         self.salt: Optional[bytes] = None
         self.key: Optional[bytes] = None
         self.data: Dict[str, Any] = self.default_data()
-        self.version = 5 # Default to the new paranoid compressed cascade version
+        self.version = 5
         self.carrier_data: bytes = b"" # Stores steganography carrier image/video
 
     @staticmethod
@@ -118,9 +163,9 @@ class EncryptedVault:
             format_txt = b""
             if "format.txt" in z.namelist():
                 format_txt = z.read("format.txt")
-            is_v5 = format_txt == b"PULSEVAULT5_COMPRESSED_CASCADE"
-            is_v4 = format_txt == b"PULSEVAULT4_CASCADE"
-            is_v3 = format_txt == b"PULSEVAULT3_CASCADE"
+            is_v5 = format_txt == FORMAT_V5
+            is_v4 = format_txt == FORMAT_V4
+            is_v3 = format_txt == FORMAT_V3
             is_v2 = not is_v3 and not is_v4 and not is_v5
             
             with z.open("salt.bin") as f:
@@ -178,6 +223,23 @@ class EncryptedVault:
         loaded = json.loads(plaintext.decode("utf-8"))
         self._load_data(loaded, password, salt, key, version=2)
 
+    def _unlock_v3(self, password: str, salt: bytes, enc_meta: bytes):
+        key = derive_key_v3(password, salt)
+        if len(enc_meta) < (NONCE_SIZE * 2):
+            raise VaultError("Corrupted V3 metadata.")
+
+        chacha_nonce = enc_meta[:NONCE_SIZE]
+        aes_nonce = enc_meta[NONCE_SIZE:(NONCE_SIZE*2)]
+        ciphertext = enc_meta[(NONCE_SIZE*2):]
+
+        try:
+            plaintext = decrypt_data_v3(key, chacha_nonce, aes_nonce, ciphertext)
+        except CryptoError:
+            raise VaultError("Invalid password or corrupted vault (Cascade Layer Failed).")
+
+        loaded = json.loads(plaintext.decode("utf-8"))
+        self._load_data(loaded, password, salt, key, version=3)
+
     def _unlock_v4(self, password: str, salt: bytes, enc_meta: bytes):
         key = derive_key_v3(password, salt)
         # In V4, metadata is still encrypted with V3 in-memory method for speed
@@ -217,21 +279,13 @@ class EncryptedVault:
         if "files" not in loaded or not isinstance(loaded["files"], dict):
             loaded["files"] = {}
             
-        # Upgrade internal key state to V5 automatically if opening an older vault
+        self.password = password
+        self.salt = salt
+        self.key = key
+        self.data = loaded
+        self.version = version
         if version < 5:
-            self.version = 5
-            self.salt = os.urandom(SALT_SIZE)
-            self.key = derive_key_v3(password, self.salt)
-            self.password = password
-            self.data = loaded
-            self.data["version"] = 5
-            self.save() # Re-encrypt entire vault in V5
-        else:
-            self.password = password
-            self.salt = salt
-            self.key = key
-            self.data = loaded
-            self.version = 5
+            self.change_password(password, password)
 
     def lock(self):
         self.password = None
@@ -247,17 +301,12 @@ class EncryptedVault:
         self.data["version"] = 5
         self.version = 5
 
-        plaintext = json.dumps(self.data, indent=2).encode("utf-8")
-        c_nonce, a_nonce, ciphertext = encrypt_data_v3(self.key, plaintext) # Metadata uses V3
-        enc_meta = c_nonce + a_nonce + ciphertext
-
         with tempfile.NamedTemporaryFile(delete=False) as tf:
             temp_zip_path = Path(tf.name)
 
         with zipfile.ZipFile(temp_zip_path, "w", zipfile.ZIP_STORED) as z:
             z.writestr("salt.bin", self.salt)
-            z.writestr("format.txt", b"PULSEVAULT5_COMPRESSED_CASCADE")
-            z.writestr("metadata.enc", enc_meta)
+            z.writestr("format.txt", FORMAT_V5)
             
             if self.vault_path.exists() and zipfile.is_zipfile(self.vault_path):
                 # Copy existing data blocks
@@ -282,11 +331,23 @@ class EncryptedVault:
                     content_bytes = b64d(meta["content"])
                     internal_id = str(uuid.uuid4())
                     
-                    c_n, a_n, f_cipher = encrypt_data_v3(self.key, content_bytes)
-                    z.writestr(f"data/{internal_id}.enc", c_n + a_n + f_cipher)
-                    
+                    with tempfile.NamedTemporaryFile(delete=False) as plain_tf:
+                        plain_path = Path(plain_tf.name)
+                        plain_tf.write(content_bytes)
+
+                    try:
+                        with open(plain_path, "rb") as source:
+                            with z.open(f"data/{internal_id}.enc", "w") as target:
+                                encrypt_stream_v5(self.key, source, target)
+                    finally:
+                        secure_unlink(plain_path)
+
                     meta["internal_id"] = internal_id
                     del meta["content"]
+
+            plaintext = json.dumps(self.data, indent=2).encode("utf-8")
+            c_nonce, a_nonce, ciphertext = encrypt_data_v3(self.key, plaintext)
+            z.writestr("metadata.enc", c_nonce + a_nonce + ciphertext)
 
         tmp_path = self.vault_path.with_suffix(self.vault_path.suffix + ".tmp")
         with open(tmp_path, "wb") as out:
@@ -308,7 +369,7 @@ class EncryptedVault:
             with open(temp_zip_path, "rb") as z_in:
                 shutil.copyfileobj(z_in, out)
                 
-        temp_zip_path.unlink()
+        temp_zip_path.unlink(missing_ok=True)
         tmp_path.replace(self.vault_path)
 
     def list_files(self) -> List[str]:
@@ -319,6 +380,51 @@ class EncryptedVault:
         if filename not in files:
             raise VaultError("File not found in vault.")
         return files[filename]
+
+    def _decrypt_file_to_target(self, item: Dict[str, Any], target):
+        if "content" in item:
+            target.write(b64d(item["content"]))
+            return
+
+        internal_id = item.get("internal_id")
+        if not internal_id:
+            raise VaultError("File metadata missing content reference.")
+        if not zipfile.is_zipfile(self.vault_path):
+            raise VaultError("Vault is not a valid zip container.")
+
+        with zipfile.ZipFile(self.vault_path, "r") as z:
+            format_txt = z.read("format.txt") if "format.txt" in z.namelist() else b""
+            source_name = f"data/{internal_id}.enc"
+            if source_name not in z.namelist():
+                raise VaultError("Internal data file missing from vault.")
+
+            if format_txt == FORMAT_V5:
+                with z.open(source_name, "r") as source:
+                    decrypt_stream_v5(self.key, source, target)
+            elif format_txt == FORMAT_V4:
+                with z.open(source_name, "r") as source:
+                    decrypt_stream_v4(self.key, source, target)
+            elif format_txt == FORMAT_V3:
+                enc_data = z.read(source_name)
+                if len(enc_data) < (NONCE_SIZE * 2):
+                    raise VaultError("Corrupted file data.")
+                c_n = enc_data[:NONCE_SIZE]
+                a_n = enc_data[NONCE_SIZE:(NONCE_SIZE*2)]
+                f_cipher = enc_data[(NONCE_SIZE*2):]
+                try:
+                    target.write(decrypt_data_v3(self.key, c_n, a_n, f_cipher))
+                except CryptoError:
+                    raise VaultError("Failed to decrypt file (Cascade Layer failed).")
+            else:
+                enc_data = z.read(source_name)
+                if len(enc_data) < NONCE_SIZE:
+                    raise VaultError("Corrupted file data.")
+                f_nonce = enc_data[:NONCE_SIZE]
+                f_cipher = enc_data[NONCE_SIZE:]
+                try:
+                    target.write(decrypt_data(self.key, f_nonce, f_cipher))
+                except CryptoError:
+                    raise VaultError("Failed to decrypt file.")
 
     def add_file(self, file_path: Path, overwrite: bool = False, progress_cb: Callable[[int, int], None] = None, skip_save: bool = False):
         if not file_path.exists() or not file_path.is_file():
@@ -407,62 +513,8 @@ class EncryptedVault:
         if output_path.exists() and not overwrite:
             raise VaultError(f"'{output_path.name}' already exists in the output folder.")
 
-        if "content" in item:
-            # Legacy V1
-            content = b64d(item["content"])
-            output_path.write_bytes(content)
-        elif "internal_id" in item:
-            internal_id = item["internal_id"]
-            if not zipfile.is_zipfile(self.vault_path):
-                raise VaultError("Vault is not a valid zip container.")
-                
-            with zipfile.ZipFile(self.vault_path, "r") as z:
-                format_txt = b""
-                if "format.txt" in z.namelist():
-                    format_txt = z.read("format.txt")
-                is_v5 = format_txt == b"PULSEVAULT5_COMPRESSED_CASCADE"
-                is_v4 = format_txt == b"PULSEVAULT4_CASCADE"
-                is_v3 = format_txt == b"PULSEVAULT3_CASCADE"
-                
-                if f"data/{internal_id}.enc" not in z.namelist():
-                    raise VaultError("Internal data file missing from vault.")
-                    
-                if is_v5:
-                    with z.open(f"data/{internal_id}.enc", "r") as source:
-                        with open(output_path, "wb") as target:
-                            decrypt_stream_v5(self.key, source, target)
-                elif is_v4:
-                    with z.open(f"data/{internal_id}.enc", "r") as source:
-                        with open(output_path, "wb") as target:
-                            decrypt_stream_v4(self.key, source, target)
-                elif is_v3:
-                    with z.open(f"data/{internal_id}.enc") as f:
-                        enc_data = f.read()
-                    if len(enc_data) < (NONCE_SIZE * 2):
-                        raise VaultError("Corrupted file data.")
-                    c_n = enc_data[:NONCE_SIZE]
-                    a_n = enc_data[NONCE_SIZE:(NONCE_SIZE*2)]
-                    f_cipher = enc_data[(NONCE_SIZE*2):]
-                    try:
-                        content = decrypt_data_v3(self.key, c_n, a_n, f_cipher)
-                    except CryptoError:
-                        raise VaultError("Failed to decrypt file (Cascade Layer failed).")
-                    output_path.write_bytes(content)
-                else:
-                    # V2 legacy
-                    with z.open(f"data/{internal_id}.enc") as f:
-                        enc_data = f.read()
-                    if len(enc_data) < NONCE_SIZE:
-                        raise VaultError("Corrupted file data.")
-                    f_nonce = enc_data[:NONCE_SIZE]
-                    f_cipher = enc_data[NONCE_SIZE:]
-                    try:
-                        content = decrypt_data(self.key, f_nonce, f_cipher)
-                    except CryptoError:
-                        raise VaultError("Failed to decrypt file.")
-                    output_path.write_bytes(content)
-        else:
-            raise VaultError("File metadata missing content reference.")
+        with open(output_path, "wb") as target:
+            self._decrypt_file_to_target(item, target)
 
         if progress_cb:
             progress_cb(item.get("size", 0), item.get("size", 0))
@@ -485,6 +537,43 @@ class EncryptedVault:
                 raise VaultError("Extracted file hash mismatch. Output was removed.")
 
         return output_path
+
+    def verify_file(self, filename: str) -> Dict[str, Any]:
+        item = self.get_file_meta(filename)
+        writer = HashWriter()
+        self._decrypt_file_to_target(item, writer)
+
+        expected_hash = item.get("sha256")
+        actual_hash = writer.hexdigest()
+        hash_checked = bool(expected_hash and expected_hash != "skipped_large_file")
+        hash_ok = True if not hash_checked else actual_hash == expected_hash
+        size_ok = writer.size == int(item.get("size", writer.size))
+
+        if not hash_ok:
+            raise VaultError(f"Hash mismatch for '{filename}'.")
+        if not size_ok:
+            raise VaultError(f"Size mismatch for '{filename}'.")
+
+        return {
+            "name": filename,
+            "size": writer.size,
+            "sha256": actual_hash,
+            "hash_checked": hash_checked,
+        }
+
+    def verify_all(self, progress_cb: Callable[[int, int], None] = None) -> Dict[str, Any]:
+        filenames = self.list_files()
+        verified = []
+        for index, filename in enumerate(filenames, start=1):
+            verified.append(self.verify_file(filename))
+            if progress_cb:
+                progress_cb(index, len(filenames))
+
+        return {
+            "file_count": len(verified),
+            "bytes_checked": sum(item["size"] for item in verified),
+            "hash_checked_count": sum(1 for item in verified if item["hash_checked"]),
+        }
 
     def delete_file(self, filename: str):
         files = self.data.get("files", {})
@@ -510,107 +599,120 @@ class EncryptedVault:
         if old_password != self.password:
             raise VaultError("Current password is incorrect.")
 
-        # Derive the new key
         new_salt = os.urandom(SALT_SIZE)
         new_key = derive_key_v3(new_password, new_salt)
-        
-        # BUGFIX: We cannot just change the metadata key, otherwise all the files encrypted with the old key become unreadable!
-        # We must re-encrypt all existing files with the new key.
-        files_to_reencrypt = {}
-        if zipfile.is_zipfile(self.vault_path):
-            with zipfile.ZipFile(self.vault_path, "r") as z:
-                for meta in self.data.get("files", {}).values():
-                    if "internal_id" in meta:
-                        internal_id = meta["internal_id"]
-                        # If V5, we must stream re-encrypt it to a temp file, then write it to the new zip
-                        format_txt = z.read("format.txt") if "format.txt" in z.namelist() else b""
-                        if format_txt == b"PULSEVAULT5_COMPRESSED_CASCADE":
-                            with tempfile.NamedTemporaryFile(delete=False) as tf:
-                                tmp_decrypted_path = Path(tf.name)
-                            
-                            try:
-                                with z.open(f"data/{internal_id}.enc", "r") as source:
-                                    with open(tmp_decrypted_path, "wb") as target:
-                                        decrypt_stream_v5(self.key, source, target)
-                                        
-                                with open(tmp_decrypted_path, "rb") as source:
-                                    with z.open(f"data/{internal_id}.enc", "w") as target:
-                                        encrypt_stream_v5(new_key, source, target)
-                            finally:
-                                tmp_decrypted_path.unlink(missing_ok=True)
-                        elif format_txt == b"PULSEVAULT4_CASCADE":
-                            with tempfile.NamedTemporaryFile(delete=False) as tf:
-                                tmp_decrypted_path = Path(tf.name)
-                            
-                            try:
-                                with z.open(f"data/{internal_id}.enc", "r") as source:
-                                    with open(tmp_decrypted_path, "wb") as target:
-                                        decrypt_stream_v4(self.key, source, target)
-                                        
-                                with open(tmp_decrypted_path, "rb") as source:
-                                    with z.open(f"data/{internal_id}.enc", "w") as target:
-                                        encrypt_stream_v5(new_key, source, target)
-                            finally:
-                                tmp_decrypted_path.unlink(missing_ok=True)
-                        else:
-                            # V3 or older
-                            enc_data = z.read(f"data/{internal_id}.enc")
-                            c_n = enc_data[:NONCE_SIZE]
-                            a_n = enc_data[NONCE_SIZE:(NONCE_SIZE*2)]
-                            f_cipher = enc_data[(NONCE_SIZE*2):]
-                            
-                            # Decrypt with OLD key
-                            plaintext = decrypt_data_v3(self.key, c_n, a_n, f_cipher)
-                            
-                            # Encrypt with NEW key using V5 Streaming
-                            with tempfile.NamedTemporaryFile(delete=False) as tf:
-                                tmp_pt_path = Path(tf.name)
-                                tf.write(plaintext)
-                            
-                            try:
-                                with open(tmp_pt_path, "rb") as source:
-                                    with z.open(f"data/{internal_id}.enc", "w") as target:
-                                        encrypt_stream_v5(new_key, source, target)
-                            finally:
-                                tmp_pt_path.unlink(missing_ok=True)
-        
-        self.salt = new_salt
-        self.key = new_key
-        self.password = new_password
-        
-        # We must manually save and write the new encrypted blocks
-        self.data["updated_at"] = now_unix()
-        plaintext_meta = json.dumps(self.data, indent=2).encode("utf-8")
-        c_nonce, a_nonce, ciphertext_meta = encrypt_data_v3(self.key, plaintext_meta)
-        enc_meta = c_nonce + a_nonce + ciphertext_meta
+
+        old_key = self.key
+        if old_key is None:
+            raise VaultError("Vault is locked.")
 
         with tempfile.NamedTemporaryFile(delete=False) as tf:
             temp_zip_path = Path(tf.name)
 
-        with zipfile.ZipFile(temp_zip_path, "w", zipfile.ZIP_STORED) as z:
-            z.writestr("salt.bin", self.salt)
-            z.writestr("format.txt", b"PULSEVAULT5_COMPRESSED_CASCADE")
-            z.writestr("metadata.enc", enc_meta)
+        try:
+            with zipfile.ZipFile(temp_zip_path, "w", zipfile.ZIP_STORED) as new_z:
+                new_z.writestr("salt.bin", new_salt)
+                new_z.writestr("format.txt", FORMAT_V5)
 
-        tmp_path = self.vault_path.with_suffix(self.vault_path.suffix + ".tmp")
-        with open(tmp_path, "wb") as out:
-            if getattr(self, "carrier_path", None) and self.carrier_path.exists():
-                with open(self.carrier_path, "rb") as c_in:
-                    shutil.copyfileobj(c_in, out)
-            elif getattr(self, "carrier_offset", 0) > 0 and self.vault_path.exists():
-                with open(self.vault_path, "rb") as c_in:
-                    bytes_left = self.carrier_offset
-                    while bytes_left > 0:
-                        chunk = c_in.read(min(bytes_left, 1024 * 1024 * 4))
-                        if not chunk: break
-                        out.write(chunk)
-                        bytes_left -= len(chunk)
-                        
-            with open(temp_zip_path, "rb") as z_in:
-                shutil.copyfileobj(z_in, out)
-                
-        temp_zip_path.unlink()
-        tmp_path.replace(self.vault_path)
+                if zipfile.is_zipfile(self.vault_path):
+                    with zipfile.ZipFile(self.vault_path, "r") as old_z:
+                        format_txt = old_z.read("format.txt") if "format.txt" in old_z.namelist() else b""
+                        for meta in self.data.get("files", {}).values():
+                            internal_id = meta.get("internal_id")
+                            if not internal_id:
+                                continue
+
+                            source_name = f"data/{internal_id}.enc"
+                            if source_name not in old_z.namelist():
+                                raise VaultError(f"Internal data file missing from vault: {internal_id}")
+
+                            with tempfile.NamedTemporaryFile(delete=False) as plain_tf:
+                                plain_path = Path(plain_tf.name)
+
+                            try:
+                                if format_txt == FORMAT_V5:
+                                    with old_z.open(source_name, "r") as source:
+                                        with open(plain_path, "wb") as target:
+                                            decrypt_stream_v5(old_key, source, target)
+                                elif format_txt == FORMAT_V4:
+                                    with old_z.open(source_name, "r") as source:
+                                        with open(plain_path, "wb") as target:
+                                            decrypt_stream_v4(old_key, source, target)
+                                elif format_txt == FORMAT_V3:
+                                    enc_data = old_z.read(source_name)
+                                    if len(enc_data) < (NONCE_SIZE * 2):
+                                        raise VaultError("Corrupted file data.")
+                                    c_n = enc_data[:NONCE_SIZE]
+                                    a_n = enc_data[NONCE_SIZE:(NONCE_SIZE*2)]
+                                    f_cipher = enc_data[(NONCE_SIZE*2):]
+                                    plaintext = decrypt_data_v3(old_key, c_n, a_n, f_cipher)
+                                    plain_path.write_bytes(plaintext)
+                                else:
+                                    enc_data = old_z.read(source_name)
+                                    if len(enc_data) < NONCE_SIZE:
+                                        raise VaultError("Corrupted file data.")
+                                    f_nonce = enc_data[:NONCE_SIZE]
+                                    f_cipher = enc_data[NONCE_SIZE:]
+                                    plaintext = decrypt_data(old_key, f_nonce, f_cipher)
+                                    plain_path.write_bytes(plaintext)
+
+                                with open(plain_path, "rb") as source:
+                                    with new_z.open(source_name, "w") as target:
+                                        encrypt_stream_v5(new_key, source, target)
+                            finally:
+                                secure_unlink(plain_path)
+
+                for meta in self.data.get("files", {}).values():
+                    if "content" not in meta:
+                        continue
+
+                    internal_id = str(uuid.uuid4())
+                    meta["internal_id"] = internal_id
+                    content_bytes = b64d(meta.pop("content"))
+
+                    with tempfile.NamedTemporaryFile(delete=False) as plain_tf:
+                        plain_path = Path(plain_tf.name)
+                        plain_tf.write(content_bytes)
+
+                    try:
+                        with open(plain_path, "rb") as source:
+                            with new_z.open(f"data/{internal_id}.enc", "w") as target:
+                                encrypt_stream_v5(new_key, source, target)
+                    finally:
+                        secure_unlink(plain_path)
+
+                self.data["updated_at"] = now_unix()
+                self.data["version"] = 5
+                plaintext_meta = json.dumps(self.data, indent=2).encode("utf-8")
+                c_nonce, a_nonce, ciphertext_meta = encrypt_data_v3(new_key, plaintext_meta)
+                new_z.writestr("metadata.enc", c_nonce + a_nonce + ciphertext_meta)
+
+            tmp_path = self.vault_path.with_suffix(self.vault_path.suffix + ".tmp")
+            with open(tmp_path, "wb") as out:
+                if getattr(self, "carrier_path", None) and self.carrier_path.exists():
+                    with open(self.carrier_path, "rb") as c_in:
+                        shutil.copyfileobj(c_in, out)
+                elif getattr(self, "carrier_offset", 0) > 0 and self.vault_path.exists():
+                    with open(self.vault_path, "rb") as c_in:
+                        bytes_left = self.carrier_offset
+                        while bytes_left > 0:
+                            chunk = c_in.read(min(bytes_left, 1024 * 1024 * 4))
+                            if not chunk:
+                                break
+                            out.write(chunk)
+                            bytes_left -= len(chunk)
+
+                with open(temp_zip_path, "rb") as z_in:
+                    shutil.copyfileobj(z_in, out)
+
+            tmp_path.replace(self.vault_path)
+        finally:
+            temp_zip_path.unlink(missing_ok=True)
+
+        self.salt = new_salt
+        self.key = new_key
+        self.password = new_password
+        self.version = 5
 
     def stats(self) -> Dict[str, Any]:
         files = self.data.get("files", {})
