@@ -1,78 +1,78 @@
-# AI Assistant / Editor files
+# Local editor / assistant state
 .claude/
 .chatgpt/
 .cursor/
 .cursorrules
-.vscode/
 .idea/
+.vscode/
+*.swp
+*.swo
+*~
 
-# Local planning & sensitive files
-pip_library_guide.txt
-recovery_keys.txt
-
-# Byte-compiled / optimized / DLL files
+# Python bytecode and caches
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.hypothesis/
 
-# C extensions
-*.so
+# Virtual environments
+.env
+.env.*
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
 
-# Distribution / packaging
-.Python
+# Build, package, and installer output
 build/
-develop-eggs/
 dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
+*.egg-info/
+*.egg
 wheels/
 share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
 MANIFEST
-
-# PyInstaller
+.installed.cfg
 *.manifest
 *.spec
+*.so
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
+# Test and coverage output
+tests/
 .coverage
 .coverage.*
-.cache
-nosetests.xml
 coverage.xml
+htmlcov/
+cover/
 *.cover
 *.py,cover
-.hypothesis/
-.pytest_cache/
-cover/
+nosetests.xml
+.tox/
+.nox/
 
-# Translations
-*.mo
-*.pot
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+.cache/
+.pip-tmp/
+pip-log.txt
+pip-delete-this-directory.txt
+pip-wheel-metadata/
+__pypackages__/
 
 # OS generated files
 .DS_Store
@@ -82,13 +82,30 @@ venv.bak/
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# PulseVault specific
+# Local-only docs and notes
+docs/
+
+# Pulse-Vault local/sensitive artifacts
+*.pulsevault
+*.pulsevault.tmp
 *.PulseVault
 *.PulseVault.tmp
+*.vault
+*.vault.tmp
+keys/
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.csr
+recovery_keys.txt
+recovery_keys/
+.pulse_vault_recovery_keys.txt
+
+# Local test scratch directories
 pulse_test_*/
 .pulse_test_*/
 pulse_tmp_*
-keys/
-recovery_keys.txt
-/tests

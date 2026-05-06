@@ -13,8 +13,8 @@ import tkinter as tk
 
 import customtkinter as ctk
 
-from core.vault import EncryptedVault, VaultError, secure_unlink
-from gui.dialogs import ask_password
+from pulsevault.core.vault import EncryptedVault, VaultError, safe_filename, secure_unlink
+from pulsevault.gui.dialogs import ask_password
 
 
 APP_NAME = "Pulse-Vault"
@@ -65,7 +65,9 @@ class VaultGUI(ctk.CTk):
         try:
             if self.secure_temp_dir.exists():
                 for path in sorted(self.secure_temp_dir.rglob("*"), reverse=True):
-                    if path.is_file():
+                    if path.is_symlink():
+                        path.unlink(missing_ok=True)
+                    elif path.is_file():
                         secure_unlink(path)
                     elif path.is_dir():
                         path.rmdir()
@@ -476,8 +478,8 @@ class VaultGUI(ctk.CTk):
     def create_vault(self):
         path = filedialog.asksaveasfilename(
             title="Create encrypted vault",
-            defaultextension=".PulseVault",
-            filetypes=[("PulseVault files", "*.PulseVault"), ("All files", "*.*")],
+            defaultextension=".pulsevault",
+            filetypes=[("Pulse-Vault files", "*.pulsevault"), ("Legacy PulseVault files", "*.PulseVault"), ("All files", "*.*")],
         )
         if not path:
             return
@@ -517,7 +519,7 @@ class VaultGUI(ctk.CTk):
     def open_vault(self):
         path = filedialog.askopenfilename(
             title="Open encrypted vault",
-            filetypes=[("PulseVault files", "*.PulseVault"), ("All files", "*.*")],
+            filetypes=[("Pulse-Vault files", "*.pulsevault"), ("Legacy PulseVault files", "*.PulseVault"), ("All files", "*.*")],
         )
         if path:
             self.auto_open_vault(path)
@@ -532,8 +534,8 @@ class VaultGUI(ctk.CTk):
             vault = EncryptedVault(target_path)
             vault.unlock(password)
 
-            if target_path.suffix == ".vault":
-                new_path = target_path.with_suffix(".PulseVault")
+            if target_path.suffix in {".vault", ".PulseVault"}:
+                new_path = target_path.with_suffix(".pulsevault")
                 if not new_path.exists():
                     target_path.rename(new_path)
                     vault.vault_path = new_path
@@ -640,10 +642,20 @@ class VaultGUI(ctk.CTk):
             return
 
         filenames = [self.tree.item(s, "values")[0] for s in selections]
+        output_path = Path(output_dir)
+        existing = [fname for fname in filenames if (output_path / safe_filename(fname)).exists()]
+        overwrite = False
+        if existing:
+            overwrite = messagebox.askyesno(
+                "Overwrite existing files?",
+                f"{len(existing)} selected file(s) already exist in that folder. Overwrite them?",
+            )
+            if not overwrite:
+                return
 
         def task():
             for fname in filenames:
-                self.vault.extract_file(fname, Path(output_dir), overwrite=True)
+                self.vault.extract_file(fname, output_path, overwrite=overwrite)
 
         def done():
             messagebox.showinfo("Extracted", f"Extracted {len(filenames)} file(s) to:\n{output_dir}")

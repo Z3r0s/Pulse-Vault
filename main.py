@@ -1,23 +1,9 @@
 import sys
-import os
+from pathlib import Path
 
-# Suppress VMware/LibEGL 3D acceleration warnings on Linux VMs
-os.environ["LIBGL_ALWAYS_SOFTWARE"] = "1"
-os.environ["GALLIUM_DRIVER"] = "llvmpipe"
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
-import customtkinter as ctk
-from gui.app import VaultGUI
-
-def main():
-    ctk.set_appearance_mode("System")
-    ctk.set_default_color_theme("blue")
-    
-    app = VaultGUI()
-    
-    if len(sys.argv) > 1:
-        app.auto_open_vault(sys.argv[1])
-        
-    app.mainloop()
+from pulsevault.main import main
 
 if __name__ == "__main__":
     main()

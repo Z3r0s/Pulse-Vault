@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.z3r0s.PulseVault</id>
+  <name>Pulse-Vault</name>
+  <summary>Local encrypted file vault for Linux desktops</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <developer_name>DNSPulse / Z3r0s</developer_name>
+  <launchable type="desktop-id">pulse-vault.desktop</launchable>
+  <content_rating type="oars-1.1"/>
+  <description>
+    <p>
+      Pulse-Vault stores files and folders in a portable encrypted vault.
+      It is local-first, has no cloud dependency, and uses authenticated
+      encryption with a memory-hard password derivation function.
+    </p>
+  </description>
+  <url type="homepage">https://github.com/Z3r0s/Pulse-Vault</url>
+  <url type="bugtracker">https://github.com/Z3r0s/Pulse-Vault/issues</url>
+  <releases>
+    <release version="5.1.0" date="2026-05-06"/>
+  </releases>
+</component>

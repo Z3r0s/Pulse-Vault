@@ -21,7 +21,9 @@ NONCE_SIZE = 12
 KEY_SIZE = 32
 KDF_ITERATIONS = 600_000
 
-SCRYPT_N = int(os.environ.get("PULSEVAULT_SCRYPT_N", str(2**15)))
+SCRYPT_N = 2**15
+if os.environ.get("PULSEVAULT_TEST_FAST_KDF") == "1":
+    SCRYPT_N = int(os.environ.get("PULSEVAULT_SCRYPT_N", "16"))
 SCRYPT_R = 8
 SCRYPT_P = 1
 V3_KEY_SIZE = 64
