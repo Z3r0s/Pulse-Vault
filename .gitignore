@@ -84,9 +84,6 @@ ehthumbs.db
 Thumbs.db
 desktop.ini
 
-# Local-only docs and notes
-docs/
-
 # Pulse-Vault local/sensitive artifacts
 *.pulsevault
 *.pulsevault.tmp
