@@ -5,7 +5,7 @@ import customtkinter as ctk
 
 def password_strength(password: str) -> tuple[str, str]:
     score = 0
-    if len(password) >= 12:
+    if len(password) >= 14:
         score += 1
     if len(password) >= 18:
         score += 1
@@ -15,10 +15,12 @@ def password_strength(password: str) -> tuple[str, str]:
         score += 1
     if any(not ch.isalnum() for ch in password):
         score += 1
+    if len(set(password)) >= 8:
+        score += 1
 
-    if score >= 5:
+    if score >= 6:
         return "Strong", "#10b981"
-    if score >= 3:
+    if score >= 4:
         return "Moderate", "#f59e0b"
     return "Weak", "#ef4444"
 

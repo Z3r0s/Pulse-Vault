@@ -46,7 +46,6 @@ MANIFEST
 *.so
 
 # Test and coverage output
-tests/
 .coverage
 .coverage.*
 coverage.xml

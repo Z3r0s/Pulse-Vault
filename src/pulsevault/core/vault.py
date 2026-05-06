@@ -2,6 +2,7 @@ import os
 import json
 import base64
 import copy
+import hmac
 import hashlib
 import zipfile
 import tempfile
@@ -10,7 +11,8 @@ import time
 import uuid
 import queue
 import threading
-from pathlib import Path
+from contextlib import contextmanager
+from pathlib import Path, PurePosixPath
 from typing import Optional, Dict, Any, List, Callable
 
 from pulsevault.core.crypto import (
@@ -156,6 +158,13 @@ FORMAT_V5 = b"PULSEVAULT5_COMPRESSED_CASCADE"
 FORMAT_V4 = b"PULSEVAULT4_CASCADE"
 FORMAT_V3 = b"PULSEVAULT3_CASCADE"
 
+MAX_ZIP_ENTRIES = 20_000
+MAX_FORMAT_SIZE = 128
+MAX_METADATA_SIZE = 16 * 1024 * 1024
+MAX_DATA_BLOB_SIZE = 512 * 1024 * 1024 * 1024
+MAX_FOLDER_FILES = 10_000
+MAX_FOLDER_BYTES = 25 * 1024 * 1024 * 1024
+
 def now_unix() -> int:
     return int(time.time())
 
@@ -168,6 +177,7 @@ def b64d(data: str) -> bytes:
 def safe_filename(name: str) -> str:
     name = name.strip().replace("\\", "_").replace("/", "_")
     name = "".join("_" if ord(ch) < 32 or ch in '<>:"|?*' else ch for ch in name)
+    name = name.rstrip(" .")
     if not name or name in {".", ".."}:
         raise VaultError("Invalid filename.")
     reserved = {
@@ -182,6 +192,9 @@ def safe_filename(name: str) -> str:
 def secure_unlink(path: Path):
     """Best-effort overwrite before deleting temporary plaintext files."""
     try:
+        if path.is_symlink():
+            path.unlink(missing_ok=True)
+            return
         if path.exists() and path.is_file():
             size = path.stat().st_size
             with open(path, "r+b", buffering=0) as f:
@@ -210,10 +223,83 @@ def stream_sha256(file_path: Path) -> str:
             h.update(block)
     return h.hexdigest()
 
+
+def make_private_temp(target_path: Path, suffix: str):
+    # Same-directory temps keep os.replace atomic and avoid predictable .tmp names.
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    prefix = f".{target_path.name}.{uuid.uuid4().hex}."
+    fd, raw_path = tempfile.mkstemp(prefix=prefix, suffix=suffix, dir=target_path.parent)
+    return Path(raw_path), os.fdopen(fd, "w+b")
+
+
+def ensure_not_symlink(path: Path, label: str):
+    if path.is_symlink():
+        raise VaultError(f"Refusing to write through a symbolic link: {label}")
+
+
+def validate_zip_member(info: zipfile.ZipInfo):
+    # Vault ZIP entries are never extracted directly, but strict names keep the
+    # parser honest and make malformed containers fail early.
+    name = info.filename
+    parts = PurePosixPath(name).parts
+    if name.startswith(("/", "\\")) or "\\" in name or ".." in parts:
+        raise VaultError("Invalid vault entry path.")
+    if info.compress_type != zipfile.ZIP_STORED:
+        raise VaultError("Invalid vault entry compression.")
+    if name == "salt.bin" and info.file_size != SALT_SIZE:
+        raise VaultError("Invalid vault salt size.")
+    if name == "format.txt" and info.file_size > MAX_FORMAT_SIZE:
+        raise VaultError("Invalid vault format marker size.")
+    if name == "metadata.enc" and info.file_size > MAX_METADATA_SIZE:
+        raise VaultError("Vault metadata is too large.")
+    if name.startswith("data/") and info.file_size > MAX_DATA_BLOB_SIZE:
+        raise VaultError("Vault data entry is too large.")
+
+
+def validate_vault_zip(z: zipfile.ZipFile):
+    infos = z.infolist()
+    if len(infos) > MAX_ZIP_ENTRIES:
+        raise VaultError("Vault contains too many internal entries.")
+
+    seen = set()
+    for info in infos:
+        if info.filename in seen:
+            raise VaultError("Vault contains duplicate internal entries.")
+        seen.add(info.filename)
+        validate_zip_member(info)
+
+    if "salt.bin" not in seen or "metadata.enc" not in seen:
+        raise VaultError("Invalid vault structure.")
+
+
+def read_zip_entry(z: zipfile.ZipFile, name: str, max_size: int, exact_size: int = None) -> bytes:
+    try:
+        info = z.getinfo(name)
+    except KeyError:
+        raise VaultError(f"Missing vault entry: {name}")
+
+    if exact_size is not None and info.file_size != exact_size:
+        raise VaultError(f"Invalid size for vault entry: {name}")
+    if info.file_size > max_size:
+        raise VaultError(f"Vault entry is too large: {name}")
+
+    data = z.read(name)
+    if exact_size is not None and len(data) != exact_size:
+        raise VaultError(f"Invalid size for vault entry: {name}")
+    if len(data) > max_size:
+        raise VaultError(f"Vault entry is too large: {name}")
+    return data
+
+
+@contextmanager
+def checked_zip(path: Path):
+    with zipfile.ZipFile(path, "r") as z:
+        validate_vault_zip(z)
+        yield z
+
 class EncryptedVault:
     def __init__(self, vault_path: Path):
         self.vault_path = vault_path
-        self.password: Optional[str] = None
         self.salt: Optional[bytes] = None
         self.key: Optional[bytes] = None
         self.data: Dict[str, Any] = self.default_data()
@@ -239,7 +325,6 @@ class EncryptedVault:
 
         self.carrier_path = carrier_path if (carrier_path and carrier_path.exists()) else None
 
-        self.password = password
         self.salt = os.urandom(SALT_SIZE)
         self.key = derive_key_v3(password, self.salt)
         self.data = self.default_data()
@@ -250,48 +335,36 @@ class EncryptedVault:
         if not self.vault_path.exists():
             raise VaultError("Vault file does not exist.")
 
-        # Read only the first MB to check for V1 or Carrier signatures
+        # A small header probe is enough to catch legacy raw vaults.
         with open(self.vault_path, "rb") as f:
-            header_chunk = f.read(1024 * 1024 * 5) # Read up to 5MB for carrier probing
+            header_chunk = f.read(1024 * 1024 * 5)
         
-        # Check if legacy Z3R0VAULT1
         if header_chunk.startswith(VAULT1_MAGIC):
-            # For V1, the file is usually small anyway, but we should read it safely.
-            # V1 loads the whole JSON so we just read it.
+            # V1 predates the ZIP container and stores one encrypted JSON blob.
             raw = self.vault_path.read_bytes()
             self._unlock_v1(password, raw)
             return
 
-        # It's a ZIP container (V2 or V3)
         if not zipfile.is_zipfile(self.vault_path):
             raise VaultError("Invalid vault format. ZIP container corrupted.")
 
-        with zipfile.ZipFile(self.vault_path, "r") as z:
-            if "salt.bin" not in z.namelist() or "metadata.enc" not in z.namelist():
-                raise VaultError("Invalid vault structure.")
-                
-            # Determine carrier size accurately using the offset of the first file
+        with checked_zip(self.vault_path) as z:
             infolist = z.infolist()
             if infolist:
-                # Find the minimum header offset
                 self.carrier_offset = min(info.header_offset for info in infolist)
             else:
                 self.carrier_offset = 0
-            
-            # Check version marker to determine which crypto to use
+
             format_txt = b""
             if "format.txt" in z.namelist():
-                format_txt = z.read("format.txt")
+                format_txt = read_zip_entry(z, "format.txt", MAX_FORMAT_SIZE)
             is_v5 = format_txt == FORMAT_V5
             is_v4 = format_txt == FORMAT_V4
             is_v3 = format_txt == FORMAT_V3
             is_v2 = not is_v3 and not is_v4 and not is_v5
-            
-            with z.open("salt.bin") as f:
-                salt = f.read()
-                
-            with z.open("metadata.enc") as f:
-                enc_meta = f.read()
+
+            salt = read_zip_entry(z, "salt.bin", SALT_SIZE, exact_size=SALT_SIZE)
+            enc_meta = read_zip_entry(z, "metadata.enc", MAX_METADATA_SIZE)
 
         if is_v5:
             self._unlock_v5(password, salt, enc_meta)
@@ -397,8 +470,7 @@ class EncryptedVault:
     def _load_data(self, loaded: dict, password: str, salt: bytes, key: bytes, version: int):
         if "files" not in loaded or not isinstance(loaded["files"], dict):
             loaded["files"] = {}
-            
-        self.password = password
+
         self.salt = salt
         self.key = key
         self.data = loaded
@@ -407,10 +479,18 @@ class EncryptedVault:
             self.change_password(password, password)
 
     def lock(self):
-        self.password = None
         self.salt = None
         self.key = None
         self.data = self.default_data()
+
+    def _password_matches_current_key(self, password: str) -> bool:
+        if not self.salt or not self.key:
+            return False
+        try:
+            candidate = derive_key(password, self.salt) if self.version < 3 else derive_key_v3(password, self.salt)
+        except CryptoError:
+            return False
+        return hmac.compare_digest(candidate, self.key)
 
     def save(self):
         if not self.key or not self.salt:
@@ -424,7 +504,7 @@ class EncryptedVault:
 
         def write_entries(z):
             if self.vault_path.exists() and zipfile.is_zipfile(self.vault_path):
-                with zipfile.ZipFile(self.vault_path, "r") as old_z:
+                with checked_zip(self.vault_path) as old_z:
                     for item in old_z.infolist():
                         if item.filename.startswith("data/"):
                             keep = False
@@ -458,40 +538,51 @@ class EncryptedVault:
             raise
 
     def _write_vault_zip(self, salt: bytes, key: bytes, write_entries: Callable):
-        with tempfile.NamedTemporaryFile(delete=False) as tf:
-            temp_zip_path = Path(tf.name)
-        tmp_path = self.vault_path.with_suffix(self.vault_path.suffix + ".tmp")
+        ensure_not_symlink(self.vault_path, self.vault_path.name)
+        temp_zip_path = None
+        tmp_path = None
 
         try:
-            with zipfile.ZipFile(temp_zip_path, "w", zipfile.ZIP_STORED) as z:
-                z.writestr("salt.bin", salt)
-                z.writestr("format.txt", FORMAT_V5)
-                write_entries(z)
-                plaintext = json.dumps(self.data, indent=2).encode("utf-8")
-                c_nonce, a_nonce, ciphertext = encrypt_data_v3(key, plaintext)
-                z.writestr("metadata.enc", c_nonce + a_nonce + ciphertext)
+            temp_zip_path, temp_zip = make_private_temp(self.vault_path, ".zip")
+            with temp_zip:
+                with zipfile.ZipFile(temp_zip, "w", zipfile.ZIP_STORED) as z:
+                    z.writestr("salt.bin", salt)
+                    z.writestr("format.txt", FORMAT_V5)
+                    write_entries(z)
+                    plaintext = json.dumps(self.data, indent=2).encode("utf-8")
+                    c_nonce, a_nonce, ciphertext = encrypt_data_v3(key, plaintext)
+                    z.writestr("metadata.enc", c_nonce + a_nonce + ciphertext)
 
-            with open(tmp_path, "wb") as out:
-                if getattr(self, "carrier_path", None) and self.carrier_path.exists():
-                    with open(self.carrier_path, "rb") as c_in:
-                        shutil.copyfileobj(c_in, out)
-                elif getattr(self, "carrier_offset", 0) > 0 and self.vault_path.exists():
-                    with open(self.vault_path, "rb") as c_in:
-                        bytes_left = self.carrier_offset
-                        while bytes_left > 0:
-                            chunk = c_in.read(min(bytes_left, 1024 * 1024 * 4))
-                            if not chunk:
-                                break
-                            out.write(chunk)
-                            bytes_left -= len(chunk)
-
+            tmp_path, out = make_private_temp(self.vault_path, ".tmp")
+            with out:
+                self._write_carrier_prefix(out)
                 with open(temp_zip_path, "rb") as z_in:
                     shutil.copyfileobj(z_in, out)
 
+            ensure_not_symlink(self.vault_path, self.vault_path.name)
             tmp_path.replace(self.vault_path)
         finally:
-            temp_zip_path.unlink(missing_ok=True)
-            tmp_path.unlink(missing_ok=True)
+            if temp_zip_path:
+                temp_zip_path.unlink(missing_ok=True)
+            if tmp_path:
+                tmp_path.unlink(missing_ok=True)
+
+    def _write_carrier_prefix(self, target):
+        carrier_path = getattr(self, "carrier_path", None)
+        if carrier_path and carrier_path.exists():
+            with open(carrier_path, "rb") as c_in:
+                shutil.copyfileobj(c_in, target)
+            return
+
+        if getattr(self, "carrier_offset", 0) > 0 and self.vault_path.exists():
+            with open(self.vault_path, "rb") as c_in:
+                bytes_left = self.carrier_offset
+                while bytes_left > 0:
+                    chunk = c_in.read(min(bytes_left, 1024 * 1024 * 4))
+                    if not chunk:
+                        break
+                    target.write(chunk)
+                    bytes_left -= len(chunk)
 
     def list_files(self) -> List[str]:
         return sorted(self.data.get("files", {}).keys(), key=lambda s: s.lower())
@@ -513,8 +604,8 @@ class EncryptedVault:
         if not zipfile.is_zipfile(self.vault_path):
             raise VaultError("Vault is not a valid zip container.")
 
-        with zipfile.ZipFile(self.vault_path, "r") as z:
-            format_txt = z.read("format.txt") if "format.txt" in z.namelist() else b""
+        with checked_zip(self.vault_path) as z:
+            format_txt = read_zip_entry(z, "format.txt", MAX_FORMAT_SIZE) if "format.txt" in z.namelist() else b""
             source_name = f"data/{internal_id}.enc"
             if source_name not in z.namelist():
                 raise VaultError("Internal data file missing from vault.")
@@ -553,11 +644,17 @@ class EncryptedVault:
                 except CryptoError:
                     raise VaultError("Failed to decrypt file.")
 
-    def add_file(self, file_path: Path, overwrite: bool = False, progress_cb: Callable[[int, int], None] = None):
+    def add_file(
+        self,
+        file_path: Path,
+        overwrite: bool = False,
+        progress_cb: Callable[[int, int], None] = None,
+        vault_name: str = None,
+    ):
         if not file_path.exists() or not file_path.is_file():
             raise VaultError("Selected path is not a file.")
 
-        filename = safe_filename(file_path.name)
+        filename = safe_filename(vault_name or file_path.name)
         files = self.data.setdefault("files", {})
 
         if filename in files and not overwrite:
@@ -585,7 +682,7 @@ class EncryptedVault:
         try:
             def write_entries(z):
                 if self.vault_path.exists() and zipfile.is_zipfile(self.vault_path):
-                    with zipfile.ZipFile(self.vault_path, "r") as old_z:
+                    with checked_zip(self.vault_path) as old_z:
                         for item in old_z.infolist():
                             if not item.filename.startswith("data/"):
                                 continue
@@ -614,31 +711,59 @@ class EncryptedVault:
             raise
 
     def _update_metadata_only(self):
-        """Alias for save() — zip format requires full rewrite to update any entry."""
+        """Alias for save(); ZIP updates require a full rewrite."""
         self.save()
 
-    def add_folder_as_zip(self, folder_path: Path, overwrite: bool = False, progress_cb: Callable[[int, int], None] = None):
+    def add_folder_as_zip(
+        self,
+        folder_path: Path,
+        overwrite: bool = False,
+        progress_cb: Callable[[int, int], None] = None,
+        max_files: int = MAX_FOLDER_FILES,
+        max_bytes: int = MAX_FOLDER_BYTES,
+    ):
         if not folder_path.exists() or not folder_path.is_dir():
             raise VaultError("Selected path is not a folder.")
 
         zip_name = safe_filename(folder_path.name.rstrip("/").rstrip("\\") + ".zip")
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmp_zip = Path(tmpdir) / zip_name
-            with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as z:
-                for root, _, files in os.walk(folder_path):
-                    for file in files:
-                        full_path = Path(root) / file
-                        if full_path.is_symlink() or not full_path.is_file():
-                            continue
-                        try:
-                            archive_name = full_path.relative_to(folder_path.parent)
-                        except ValueError:
-                            archive_name = full_path.name
-                        z.write(full_path, archive_name)
-            
-            self.add_file(tmp_zip, overwrite=overwrite, progress_cb=progress_cb)
-            
+        tmp_zip = None
+        try:
+            tmp_zip, tmp_zip_file = make_private_temp(self.vault_path, ".folder.zip")
+            file_count = 0
+            total_bytes = 0
+            with tmp_zip_file:
+                # The folder ZIP is plaintext until it is added to the vault, so
+                # it lives in a private temp file and is wiped in the finally block.
+                with zipfile.ZipFile(tmp_zip_file, "w", zipfile.ZIP_DEFLATED) as z:
+                    for root, _, files in os.walk(folder_path):
+                        for file in files:
+                            full_path = Path(root) / file
+                            if full_path.is_symlink() or not full_path.is_file():
+                                continue
+                            try:
+                                size = full_path.stat().st_size
+                            except OSError as exc:
+                                raise VaultError(f"Could not read folder item: {full_path.name}") from exc
+
+                            file_count += 1
+                            total_bytes += size
+                            if file_count > max_files:
+                                raise VaultError(f"Folder import limit exceeded ({max_files} files).")
+                            if total_bytes > max_bytes:
+                                raise VaultError("Folder import is too large.")
+
+                            try:
+                                archive_name = full_path.relative_to(folder_path.parent)
+                            except ValueError:
+                                archive_name = full_path.name
+                            z.write(full_path, archive_name)
+
+            self.add_file(tmp_zip, overwrite=overwrite, progress_cb=progress_cb, vault_name=zip_name)
+        finally:
+            if tmp_zip:
+                secure_unlink(tmp_zip)
+
         self.data["files"][zip_name]["type"] = "folder_zip"
         self._update_metadata_only()
 
@@ -647,15 +772,15 @@ class EncryptedVault:
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / safe_filename(filename)
 
+        ensure_not_symlink(output_path, output_path.name)
         if output_path.exists() and not overwrite:
             raise VaultError(f"'{output_path.name}' already exists in the output folder.")
 
-        tmp_output = output_path.with_name(output_path.name + ".part")
-        if tmp_output.exists():
-            secure_unlink(tmp_output)
+        tmp_output = None
 
         try:
-            with open(tmp_output, "wb") as target:
+            tmp_output, target = make_private_temp(output_path, ".part")
+            with target:
                 self._decrypt_file_to_target(item, target)
 
             if progress_cb:
@@ -666,9 +791,11 @@ class EncryptedVault:
                 if stream_sha256(tmp_output) != expected_hash:
                     raise VaultError("Extracted file hash mismatch. Output was removed.")
 
+            ensure_not_symlink(output_path, output_path.name)
             tmp_output.replace(output_path)
         except Exception:
-            secure_unlink(tmp_output)
+            if tmp_output:
+                secure_unlink(tmp_output)
             raise
 
         return output_path
@@ -731,7 +858,7 @@ class EncryptedVault:
         self._update_metadata_only()
 
     def change_password(self, old_password: str, new_password: str):
-        if old_password != self.password:
+        if not self._password_matches_current_key(old_password):
             raise VaultError("Current password is incorrect.")
 
         new_salt = os.urandom(SALT_SIZE)
@@ -746,8 +873,8 @@ class EncryptedVault:
         try:
             def write_entries(new_z):
                 if zipfile.is_zipfile(self.vault_path):
-                    with zipfile.ZipFile(self.vault_path, "r") as old_z:
-                        format_txt = old_z.read("format.txt") if "format.txt" in old_z.namelist() else b""
+                    with checked_zip(self.vault_path) as old_z:
+                        format_txt = read_zip_entry(old_z, "format.txt", MAX_FORMAT_SIZE) if "format.txt" in old_z.namelist() else b""
                         for meta in self.data.get("files", {}).values():
                             internal_id = meta.get("internal_id")
                             if not internal_id:
@@ -806,7 +933,6 @@ class EncryptedVault:
 
         self.salt = new_salt
         self.key = new_key
-        self.password = new_password
         self.version = 5
 
     def stats(self) -> Dict[str, Any]:

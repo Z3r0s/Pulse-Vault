@@ -20,6 +20,15 @@ from pulsevault.gui.dialogs import ask_password
 APP_NAME = "Pulse-Vault"
 APP_VERSION = "5.1.0"
 APP_SUBTITLE = "DNSPulse hardened local vault"
+COMMON_PASSWORDS = {
+    "password",
+    "password123",
+    "123456789012",
+    "qwerty123456",
+    "letmein123456",
+    "adminadminadmin",
+    "pulsevault",
+}
 
 
 def human_size(size: int) -> str:
@@ -32,8 +41,33 @@ def human_size(size: int) -> str:
     return f"{value:.1f} PB"
 
 
+def password_policy_error(password: str) -> Optional[str]:
+    if len(password) < 14:
+        return "Use at least 14 characters, or generate a secure key."
+
+    lowered = password.lower()
+    if lowered in COMMON_PASSWORDS or any(piece in lowered for piece in ("password", "qwerty", "letmein", "123456")):
+        return "Avoid common words, keyboard patterns, and obvious number runs."
+
+    if len(set(password)) < 5:
+        return "Use a less repetitive password."
+
+    categories = sum(
+        (
+            any(ch.islower() for ch in password),
+            any(ch.isupper() for ch in password),
+            any(ch.isdigit() for ch in password),
+            any(not ch.isalnum() for ch in password),
+        )
+    )
+    if categories < 3 and len(password) < 20:
+        return "Use more variety, or make it at least 20 characters."
+
+    return None
+
+
 def is_reasonable_password(password: str) -> bool:
-    return len(password) >= 12
+    return password_policy_error(password) is None
 
 
 class VaultGUI(ctk.CTk):
@@ -500,8 +534,9 @@ class VaultGUI(ctk.CTk):
         password = ask_password(self, "Create Vault Password", confirm=True, show_generate=True)
         if not password:
             return
-        if not is_reasonable_password(password):
-            messagebox.showwarning("Weak password", "Use at least 12 characters for a vault password.")
+        password_error = password_policy_error(password)
+        if password_error:
+            messagebox.showwarning("Weak password", password_error)
             return
 
         try:
@@ -703,8 +738,9 @@ class VaultGUI(ctk.CTk):
         new_pw = ask_password(self, "New Password", confirm=True, show_generate=True)
         if not new_pw:
             return
-        if not is_reasonable_password(new_pw):
-            messagebox.showwarning("Weak password", "Use at least 12 characters for a vault password.")
+        password_error = password_policy_error(new_pw)
+        if password_error:
+            messagebox.showwarning("Weak password", password_error)
             return
 
         def done():
