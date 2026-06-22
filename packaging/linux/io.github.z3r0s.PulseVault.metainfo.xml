@@ -15,9 +15,9 @@
       encryption with a memory-hard password derivation function.
     </p>
   </description>
-  <url type="homepage">https://github.com/Z3r0s/Pulse-Vault</url>
+  <url type="homepage">https://dnspulse.org</url>
   <url type="bugtracker">https://github.com/Z3r0s/Pulse-Vault/issues</url>
   <releases>
-    <release version="0.1.0" date="2026-06-22"/>
+    <release version="0.2.0" date="2026-06-22"/>
   </releases>
 </component>

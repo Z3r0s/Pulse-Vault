@@ -1,6 +1,8 @@
 # Pulse-Vault
 
-Pulse-Vault is a local encrypted file vault for Linux desktops. It stores files and folders in a portable `.pulsevault` container, works offline, and uses authenticated encryption with a memory-hard password derivation function.
+Official site: [dnspulse.org](https://dnspulse.org)
+
+Pulse-Vault is a local encrypted file vault from DNSPulse for Linux desktops. It stores files and folders in a portable `.pulsevault` container, works offline, and uses authenticated encryption with a memory-hard password derivation function.
 
 Windows can still run Pulse-Vault from source, but the primary packaging target is the Linux desktop.
 
@@ -95,6 +97,10 @@ Read the security docs:
 - Compression: LZMA/XZ before encryption
 - Container: ZIP with encrypted metadata and encrypted `data/*.enc` entries
 - Current marker: `PULSEVAULT5_COMPRESSED_CASCADE`
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for planned distribution, GUI, and performance work.
 
 ## Changelog
 

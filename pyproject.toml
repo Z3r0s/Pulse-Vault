@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pulse-vault"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local-first encrypted file vault for Linux desktops."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["encryption", "vault", "privacy", "desktop", "linux", "security"]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 3 - Alpha",
   "Environment :: X11 Applications",
   "Intended Audience :: End Users/Desktop",
   "License :: OSI Approved :: MIT License",
@@ -35,7 +35,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Z3r0s/Pulse-Vault"
+Homepage = "https://dnspulse.org"
+Documentation = "https://github.com/Z3r0s/Pulse-Vault/blob/main/docs/THREAT_MODEL.md"
 Repository = "https://github.com/Z3r0s/Pulse-Vault"
 Issues = "https://github.com/Z3r0s/Pulse-Vault/issues"
 

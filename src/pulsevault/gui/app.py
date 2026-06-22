@@ -16,6 +16,7 @@ import customtkinter as ctk
 from pulsevault import __version__
 from pulsevault.core.vault import EncryptedVault, VaultError, safe_filename, secure_unlink
 from pulsevault.gui.dialogs import ask_password
+from pulsevault.gui.theme import resolve_appearance_mode, tree_fonts, tree_palette
 
 
 APP_NAME = "Pulse-Vault"
@@ -83,6 +84,9 @@ class VaultGUI(ctk.CTk):
 
         self.vault: Optional[EncryptedVault] = None
         self.filtered_files: List[str] = []
+        self._search_after_id = None
+        self._icon_image = None
+        self._status_restore = None
         self.secure_temp_dir = Path(tempfile.mkdtemp(prefix=".pulse_secure_"))
         try:
             self.secure_temp_dir.chmod(0o700)
@@ -92,7 +96,10 @@ class VaultGUI(ctk.CTk):
 
         self.build_sidebar()
         self.build_main_view()
+        self.setup_window_icon()
+        self.apply_tree_theme()
         self.setup_drag_drop()
+        self.update_empty_state()
         self.bind("<<RefreshList>>", lambda _: self.refresh_list())
         self.bind("<<ClearProgress>>", lambda _: self.hide_progress())
 
@@ -268,35 +275,42 @@ class VaultGUI(ctk.CTk):
 
         self.search_entry = ctk.CTkEntry(self.search_frame, placeholder_text="Search encrypted file index...")
         self.search_entry.grid(row=0, column=0, sticky="ew", padx=(0, 10))
-        self.search_entry.bind("<KeyRelease>", lambda _: self.refresh_list())
+        self.search_entry.bind("<KeyRelease>", self.schedule_refresh_list)
 
-        self.progress_bar = ctk.CTkProgressBar(self.main_frame)
+        self.progress_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        self.progress_bar = ctk.CTkProgressBar(self.progress_frame)
         self.progress_bar.set(0)
+        self.progress_label = ctk.CTkLabel(
+            self.progress_frame,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color="#94a3b8",
+        )
 
         self.tree_frame = ctk.CTkFrame(self.main_frame, corner_radius=6)
         self.tree_frame.grid(row=3, column=0, sticky="nsew", pady=(0, 10))
         self.tree_frame.grid_columnconfigure(0, weight=1)
         self.tree_frame.grid_rowconfigure(0, weight=1)
 
-        style = ttk.Style()
-        style.theme_use("default")
-        style.configure(
-            "Pulse.Treeview",
-            background="#111827",
-            foreground="#e5e7eb",
-            rowheight=34,
-            fieldbackground="#111827",
-            borderwidth=0,
-            font=("Segoe UI", 10),
-        )
-        style.map("Pulse.Treeview", background=[("selected", "#1d4ed8")])
-        style.configure(
-            "Pulse.Treeview.Heading",
-            background="#0f172a",
-            foreground="#a7f3d0",
-            relief="flat",
-            font=("Segoe UI", 10, "bold"),
-        )
+        self.empty_panel = ctk.CTkFrame(self.tree_frame, fg_color="transparent")
+        self.empty_panel.grid(row=0, column=0, sticky="nsew")
+        self.empty_panel.grid_columnconfigure(0, weight=1)
+        self.empty_panel.grid_rowconfigure(0, weight=1)
+        ctk.CTkLabel(
+            self.empty_panel,
+            text="No vault loaded",
+            font=ctk.CTkFont(size=18, weight="bold"),
+        ).grid(row=0, column=0, pady=(0, 6))
+        ctk.CTkLabel(
+            self.empty_panel,
+            text="Create or open a vault from the sidebar.\nDrag files here once a vault is unlocked.",
+            font=ctk.CTkFont(size=13),
+            text_color="#94a3b8",
+            justify="center",
+        ).grid(row=1, column=0)
+
+        self.tree_style = ttk.Style()
+        self.tree_style.theme_use("default")
 
         columns = ("name", "size", "type", "added", "hash")
         self.tree = ttk.Treeview(
@@ -318,27 +332,16 @@ class VaultGUI(ctk.CTk):
         self.tree.column("added", width=145, anchor="center", minwidth=110)
         self.tree.column("hash", width=220, anchor="w", minwidth=140)
 
-        self.tree.tag_configure("odd", background="#111827")
-        self.tree.tag_configure("even", background="#182235")
-
         yscroll = ttk.Scrollbar(self.tree_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=yscroll.set)
         self.tree.grid(row=0, column=0, sticky="nsew")
         yscroll.grid(row=0, column=1, sticky="ns")
 
-        self.tree.bind("<Double-1>", lambda _: self.secure_view())
+        self.tree.bind("<Double-1>", lambda _: self.extract_selected())
         self.tree.bind("<Button-3>", self.show_context_menu)
         self.tree.bind("<<TreeviewSelect>>", lambda _: self.update_selection_label())
 
-        self.context_menu = tk.Menu(
-            self,
-            tearoff=0,
-            bg="#111827",
-            fg="white",
-            activebackground="#1d4ed8",
-            activeforeground="white",
-            font=("Segoe UI", 10),
-        )
+        self.context_menu = tk.Menu(self, tearoff=0)
         self.context_menu.add_command(label="Extract...", command=self.extract_selected)
         self.context_menu.add_command(label="Secure Open", command=self.secure_view)
         self.context_menu.add_separator()
@@ -426,8 +429,65 @@ class VaultGUI(ctk.CTk):
 
         self._run_in_thread(task)
 
+    def setup_window_icon(self):
+        icon_path = Path(__file__).resolve().parent.parent / "assets" / "pulse-vault.png"
+        if not icon_path.exists():
+            return
+        try:
+            self._icon_image = tk.PhotoImage(file=str(icon_path))
+            self.iconphoto(True, self._icon_image)
+        except Exception:
+            pass
+
+    def apply_tree_theme(self):
+        mode = resolve_appearance_mode(ctk.get_appearance_mode())
+        palette = tree_palette(mode)
+        body_font, heading_font = tree_fonts(self)
+
+        self.tree_style.configure(
+            "Pulse.Treeview",
+            background=palette["bg"],
+            foreground=palette["fg"],
+            rowheight=34,
+            fieldbackground=palette["field"],
+            borderwidth=0,
+            font=body_font,
+        )
+        self.tree_style.map("Pulse.Treeview", background=[("selected", palette["select"])])
+        self.tree_style.configure(
+            "Pulse.Treeview.Heading",
+            background=palette["heading_bg"],
+            foreground=palette["heading_fg"],
+            relief="flat",
+            font=heading_font,
+        )
+        self.tree.tag_configure("odd", background=palette["odd"])
+        self.tree.tag_configure("even", background=palette["even"])
+        self.context_menu.configure(
+            bg=palette["menu_bg"],
+            fg=palette["menu_fg"],
+            activebackground=palette["select"],
+            activeforeground=palette["menu_fg"],
+            font=body_font,
+        )
+
+    def update_empty_state(self):
+        unlocked = bool(self.vault and self.vault.is_unlocked)
+        if unlocked:
+            self.empty_panel.grid_remove()
+            self.tree.grid()
+        else:
+            self.tree.grid_remove()
+            self.empty_panel.grid()
+
+    def schedule_refresh_list(self, event=None):
+        if self._search_after_id is not None:
+            self.after_cancel(self._search_after_id)
+        self._search_after_id = self.after(150, self._refresh_list_now)
+
     def change_appearance_mode_event(self, new_appearance_mode: str):
         ctk.set_appearance_mode(new_appearance_mode)
+        self.apply_tree_theme()
 
     def set_status(self, message: str):
         self.status_label.configure(text=message)
@@ -484,14 +544,31 @@ class VaultGUI(ctk.CTk):
             return False
         return True
 
-    def show_progress(self):
-        self.progress_bar.grid(row=2, column=0, sticky="ew", pady=(6, 10))
+    def show_progress(self, message: str = "Working..."):
+        self._status_restore = self.status_label.cget("text")
+        self.set_status(message)
+        self.progress_frame.grid(row=2, column=0, sticky="ew", pady=(6, 10))
+        self.progress_frame.grid_columnconfigure(0, weight=1)
+        self.progress_bar.grid(row=0, column=0, sticky="ew")
+        self.progress_label.grid(row=1, column=0, sticky="w", pady=(4, 0))
         self.progress_bar.set(0)
+        self.progress_label.configure(text="")
         self.search_frame.grid_forget()
 
     def hide_progress(self):
-        self.progress_bar.grid_forget()
+        self.progress_frame.grid_forget()
         self.search_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+        if self._status_restore:
+            self.set_status(self._status_restore)
+            self._status_restore = None
+
+    def _update_progress(self, current: int, total: int, label: str = ""):
+        if total > 0:
+            self.progress_bar.stop()
+            self.progress_bar.configure(mode="determinate")
+            self.progress_bar.set(min(current / total, 1.0))
+        if label:
+            self.progress_label.configure(text=label)
 
     def show_context_menu(self, event):
         row = self.tree.identify_row(event.y)
@@ -500,10 +577,18 @@ class VaultGUI(ctk.CTk):
             self.context_menu.tk_popup(event.x_root, event.y_root)
 
     def refresh_list(self):
+        if self._search_after_id is not None:
+            self.after_cancel(self._search_after_id)
+            self._search_after_id = None
+        self._refresh_list_now()
+
+    def _refresh_list_now(self):
+        self._search_after_id = None
         for item in self.tree.get_children():
             self.tree.delete(item)
 
         self.filtered_files = []
+        self.update_empty_state()
         if not self.vault or not self.vault.is_unlocked:
             self.update_stats()
             self.update_selection_label()
@@ -655,9 +740,9 @@ class VaultGUI(ctk.CTk):
         self.update_button_states(False)
         self.refresh_list()
 
-    def _run_in_thread(self, task_func, on_complete=None):
+    def _run_in_thread(self, task_func, on_complete=None, status: str = "Working..."):
         self.update_button_states(False)
-        self.show_progress()
+        self.show_progress(status)
         self.progress_bar.configure(mode="indeterminate")
         self.progress_bar.start()
 
@@ -693,13 +778,23 @@ class VaultGUI(ctk.CTk):
 
         skipped = []
 
+        pending = [Path(p) for p in paths]
+
         def task():
-            for raw_path in paths:
-                path = Path(raw_path)
+            total = len(pending)
+            for index, path in enumerate(pending, start=1):
                 if path.name in self.vault.data.get("files", {}):
                     skipped.append(path.name)
                     continue
-                self.vault.add_file(path, overwrite=True)
+
+                def progress_cb(done, file_total, i=index, n=total, name=path.name):
+                    label = f"Adding {name} ({i}/{n})"
+                    if file_total > 0:
+                        self.after(0, lambda d=done, t=file_total, l=label: self._update_progress(d, t, l))
+                    else:
+                        self.after(0, lambda l=label: self.progress_label.configure(text=l))
+
+                self.vault.add_file(path, overwrite=True, progress_cb=progress_cb)
 
             if skipped:
                 self.after(
@@ -712,7 +807,7 @@ class VaultGUI(ctk.CTk):
                     ),
                 )
 
-        self._run_in_thread(task)
+        self._run_in_thread(task, status="Adding files...")
 
     def add_folder(self):
         if not self.require_vault():
@@ -749,13 +844,21 @@ class VaultGUI(ctk.CTk):
                 return
 
         def task():
-            for fname in filenames:
-                self.vault.extract_file(fname, output_path, overwrite=overwrite)
+            total = len(filenames)
+            for index, fname in enumerate(filenames, start=1):
+                def progress_cb(done, file_total, i=index, n=total, name=fname):
+                    label = f"Extracting {name} ({i}/{n})"
+                    if file_total > 0:
+                        self.after(0, lambda d=done, t=file_total, l=label: self._update_progress(d, t, l))
+                    else:
+                        self.after(0, lambda l=label: self.progress_label.configure(text=l))
+
+                self.vault.extract_file(fname, output_path, overwrite=overwrite, progress_cb=progress_cb)
 
         def done():
             messagebox.showinfo("Extracted", f"Extracted {len(filenames)} file(s) to:\n{output_dir}")
 
-        self._run_in_thread(task, done)
+        self._run_in_thread(task, done, status="Extracting files...")
 
     def delete_selected(self):
         if not self.require_vault():
@@ -812,13 +915,12 @@ class VaultGUI(ctk.CTk):
         if not self.require_vault():
             return
 
-        def task():
-            return self.vault.verify_all()
-
         result_holder = {}
 
         def wrapped_task():
-            result_holder["result"] = task()
+            def progress_cb(current, total):
+                self.after(0, lambda: self._update_progress(current, total, f"Verifying {current}/{total}"))
+            result_holder["result"] = self.vault.verify_all(progress_cb=progress_cb)
 
         def done():
             result = result_holder.get("result", {})
@@ -830,7 +932,7 @@ class VaultGUI(ctk.CTk):
                 f"SHA-256 hashes checked: {result.get('hash_checked_count', 0)}",
             )
 
-        self._run_in_thread(wrapped_task, done)
+        self._run_in_thread(wrapped_task, done, status="Verifying vault...")
 
     def secure_view(self):
         if not self.require_vault():
@@ -922,7 +1024,8 @@ class VaultGUI(ctk.CTk):
             "Secure Open extracts files into a randomized temporary directory which is removed when the "
             "app exits normally. The opened file is plaintext while viewed, and external applications may "
             "create caches or recent-file entries.\n\n"
-            "No telemetry. No networking. No cloud service dependency."
+            "No telemetry. No networking. No cloud service dependency.\n\n"
+            "Official site: https://dnspulse.org"
         )
 
         textbox = ctk.CTkTextbox(
