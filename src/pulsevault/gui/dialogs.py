@@ -1,3 +1,4 @@
+import secrets
 import tkinter as tk
 from tkinter import messagebox
 import customtkinter as ctk
@@ -76,9 +77,7 @@ class PasswordDialog(ctk.CTkToplevel):
         button_frame.grid(row=4 if confirm else 3, column=0, padx=20, pady=(8, 20), sticky="ew")
 
         if show_generate:
-            import secrets
             def generate_key():
-                import secrets
                 key = secrets.token_urlsafe(32)
                 self.password_entry.delete(0, 'end')
                 self.password_entry.insert(0, key)

@@ -8,8 +8,12 @@ Thanks for helping improve Pulse-Vault.
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-python -m unittest
+PULSEVAULT_TEST_FAST_KDF=1 python -m unittest discover -s tests -v
 ```
+
+Tests use a fast Scrypt setting through `PULSEVAULT_TEST_FAST_KDF=1`. GitHub
+Actions sets the same variable automatically. You do not need your own server for
+that; GitHub provides the runner machine.
 
 ## Guidelines
 

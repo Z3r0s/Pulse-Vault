@@ -21,6 +21,7 @@ Windows can still run Pulse-Vault from source, but the primary packaging target 
 - Vault verification without extracting plaintext files.
 - Password rotation that re-encrypts file entries.
 - Optional carrier-file disguise by appending vault data to media files.
+- Drag-and-drop file import into an unlocked vault.
 
 ## Install From Source
 
@@ -40,9 +41,19 @@ pip install -r requirements.txt
 python main.py
 ```
 
-## Linux Desktop Packaging
+## Linux Install
 
-Initial Linux desktop metadata is staged under `packaging/linux/`:
+On Parrot OS or other Debian-style desktops:
+
+```bash
+chmod +x install_parrot.sh
+./install_parrot.sh
+```
+
+That installs Pulse-Vault into `~/.local/share/pulse-vault`, adds a `pulse-vault`
+command, registers the `.pulsevault` MIME type, and installs the desktop launcher.
+
+Desktop metadata also lives under `packaging/linux/`:
 
 - desktop launcher
 - MIME type registration
@@ -60,7 +71,8 @@ The intended vault extension is:
 .pulsevault
 ```
 
-Legacy `.PulseVault` files remain supported.
+Legacy `.PulseVault` files remain supported. Opening one prompts before it is
+renamed to `.pulsevault`.
 
 ## Security Notes
 
@@ -83,6 +95,11 @@ Read the security docs:
 - Compression: LZMA/XZ before encryption
 - Container: ZIP with encrypted metadata and encrypted `data/*.enc` entries
 - Current marker: `PULSEVAULT5_COMPRESSED_CASCADE`
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md). GitHub Releases are cut from tagged versions
+and pull their notes from the matching changelog section.
 
 ## License
 

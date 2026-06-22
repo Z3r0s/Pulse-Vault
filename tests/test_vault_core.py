@@ -9,6 +9,8 @@ import uuid
 import zipfile
 from pathlib import Path
 
+os.environ.setdefault("PULSEVAULT_TEST_FAST_KDF", "1")
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import pulsevault.core.crypto as crypto
@@ -19,7 +21,6 @@ from pulsevault.gui.app import is_reasonable_password, password_policy_error
 
 class VaultCoreTests(unittest.TestCase):
     def setUp(self):
-        crypto.SCRYPT_N = 16
         self.root = Path.cwd() / f"pulse_test_{uuid.uuid4().hex}"
         self.root.mkdir()
         tempfile.tempdir = str(self.root)

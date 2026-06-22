@@ -13,12 +13,12 @@ import tkinter as tk
 
 import customtkinter as ctk
 
+from pulsevault import __version__
 from pulsevault.core.vault import EncryptedVault, VaultError, safe_filename, secure_unlink
 from pulsevault.gui.dialogs import ask_password
 
 
 APP_NAME = "Pulse-Vault"
-APP_VERSION = "5.1.0"
 APP_SUBTITLE = "DNSPulse hardened local vault"
 COMMON_PASSWORDS = {
     "password",
@@ -74,7 +74,7 @@ class VaultGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title(f"{APP_NAME} v{APP_VERSION} - {APP_SUBTITLE}")
+        self.title(f"{APP_NAME} v{__version__} - {APP_SUBTITLE}")
         self.geometry("1120x700")
         self.minsize(940, 620)
 
@@ -92,6 +92,7 @@ class VaultGUI(ctk.CTk):
 
         self.build_sidebar()
         self.build_main_view()
+        self.setup_drag_drop()
         self.bind("<<RefreshList>>", lambda _: self.refresh_list())
         self.bind("<<ClearProgress>>", lambda _: self.hide_progress())
 
@@ -124,7 +125,7 @@ class VaultGUI(ctk.CTk):
 
         self.version_badge = ctk.CTkLabel(
             self.sidebar_frame,
-            text=f"v{APP_VERSION}\n{APP_SUBTITLE}",
+            text=f"v{__version__}\n{APP_SUBTITLE}",
             justify="left",
             font=ctk.CTkFont(size=11),
             text_color="#94a3b8",
@@ -389,6 +390,42 @@ class VaultGUI(ctk.CTk):
         )
         self.btn_rename.pack(side="right", padx=(0, 8))
 
+    def setup_drag_drop(self):
+        try:
+            from tkinterdnd2 import DND_FILES, TkinterDnD
+
+            TkinterDnD._require(self)
+        except Exception:
+            return
+
+        for widget in (self.tree, self.tree_frame):
+            try:
+                widget.drop_target_register(DND_FILES)
+                widget.dnd_bind("<<Drop>>", self.on_drop_files)
+            except Exception:
+                pass
+
+    def on_drop_files(self, event):
+        if not self.vault or not self.vault.is_unlocked:
+            messagebox.showinfo("No vault", "Open a vault before adding files.")
+            return
+
+        try:
+            raw_paths = self.tk.splitlist(event.data)
+        except tk.TclError:
+            return
+
+        paths = [Path(p) for p in raw_paths if Path(p).is_file()]
+        if not paths:
+            return
+
+        def task():
+            for path in paths:
+                if path.name not in self.vault.data.get("files", {}):
+                    self.vault.add_file(path, overwrite=True)
+
+        self._run_in_thread(task)
+
     def change_appearance_mode_event(self, new_appearance_mode: str):
         ctk.set_appearance_mode(new_appearance_mode)
 
@@ -560,22 +597,45 @@ class VaultGUI(ctk.CTk):
             self.auto_open_vault(path)
 
     def auto_open_vault(self, path: str):
+        target_path = Path(path)
+        legacy_suffix = target_path.suffix in {".vault", ".PulseVault"}
+        new_path = target_path.with_suffix(".pulsevault") if legacy_suffix else target_path
+
+        if legacy_suffix and not new_path.exists():
+            if not messagebox.askyesno(
+                "Rename vault file",
+                f"This vault uses the legacy {target_path.suffix} extension.\n\n"
+                f"It will be renamed to:\n{new_path.name}\n\nContinue?",
+            ):
+                return
+        elif legacy_suffix and new_path.exists():
+            messagebox.showerror(
+                "Rename blocked",
+                f"A file named {new_path.name} already exists in that folder.",
+            )
+            return
+
         password = ask_password(self, "Unlock Vault")
         if not password:
             return
 
         try:
-            target_path = Path(path)
             vault = EncryptedVault(target_path)
             vault.unlock(password)
 
-            if target_path.suffix in {".vault", ".PulseVault"}:
-                new_path = target_path.with_suffix(".pulsevault")
-                if not new_path.exists():
-                    target_path.rename(new_path)
-                    vault.vault_path = new_path
-                    vault.save()
-                    target_path = new_path
+            if legacy_suffix and not new_path.exists():
+                target_path.rename(new_path)
+                vault.vault_path = new_path
+                target_path = new_path
+
+            if vault.version < 5:
+                if messagebox.askyesno(
+                    "Upgrade vault format",
+                    f"This vault uses format V{vault.version}.\n\n"
+                    "Upgrade to the current format now? All file entries will be "
+                    "re-encrypted. Large vaults can take a while.",
+                ):
+                    vault.migrate_to_current_format(password)
 
             self.vault = vault
             self.set_status(f"Unlocked: {target_path.name}")
@@ -839,7 +899,7 @@ class VaultGUI(ctk.CTk):
         ).grid(row=0, column=0, padx=30, pady=(24, 4))
         ctk.CTkLabel(
             header,
-            text=f"Version {APP_VERSION} | DNSPulse hardened local vault",
+            text=f"Version {__version__} | DNSPulse hardened local vault",
             font=ctk.CTkFont(size=12),
             text_color="#94a3b8",
         ).grid(row=1, column=0, padx=30, pady=(0, 20))

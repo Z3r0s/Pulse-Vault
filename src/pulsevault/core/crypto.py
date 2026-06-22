@@ -11,9 +11,6 @@ from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
 
 VAULT1_MAGIC = b"Z3R0VAULT1"
-VAULT2_MAGIC = b"Z3R0VAULT2"
-VAULT3_MAGIC = b"PULSEVAULT3"
-VAULT4_MAGIC = b"PULSEVAULT4"
 STREAM_V5_MAGIC = b"PV5STRM1"
 
 SALT_SIZE = 16

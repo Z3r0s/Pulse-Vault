@@ -304,8 +304,6 @@ class EncryptedVault:
         self.key: Optional[bytes] = None
         self.data: Dict[str, Any] = self.default_data()
         self.version = 5
-        self.carrier_data: bytes = b"" # Stores steganography carrier image/video
-
     @staticmethod
     def default_data() -> Dict[str, Any]:
         return {
@@ -475,8 +473,13 @@ class EncryptedVault:
         self.key = key
         self.data = loaded
         self.version = version
-        if version < 5:
-            self.change_password(password, password)
+
+    def migrate_to_current_format(self, password: str):
+        if self.version >= 5:
+            return
+        if not self._password_matches_current_key(password):
+            raise VaultError("Password does not match unlocked vault.")
+        self.change_password(password, password)
 
     def lock(self):
         self.salt = None
