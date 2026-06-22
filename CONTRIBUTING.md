@@ -2,8 +2,8 @@
 
 Thanks for helping improve Pulse-Vault.
 
-End-user downloads are distributed through [dnspulse.org](https://dnspulse.org).
-This GitHub repo is for source, development, and bug reports.
+Official site: [dnspulse.org](https://dnspulse.org). Packaged downloads will be hosted there later.
+For now, install from source in this repository.
 
 ## Development Setup
 

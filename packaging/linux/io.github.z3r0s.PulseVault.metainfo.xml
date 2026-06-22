@@ -16,7 +16,6 @@
     </p>
   </description>
   <url type="homepage">https://dnspulse.org</url>
-  <url type="download">https://dnspulse.org</url>
   <url type="bugtracker">https://github.com/Z3r0s/Pulse-Vault/issues</url>
   <releases>
     <release version="0.2.0" date="2026-06-22"/>
