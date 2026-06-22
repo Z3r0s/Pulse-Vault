@@ -17,7 +17,6 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Light and dark file table theming tied to appearance mode.
 - Determinate progress feedback for add, extract, and verify operations.
 - Search debounce to reduce table rebuilds while typing.
-- [`ROADMAP.md`](ROADMAP.md) with distribution, GUI overhaul, and performance milestones.
 - Theme unit tests in `tests/test_gui_theme.py`.
 
 ### Changed

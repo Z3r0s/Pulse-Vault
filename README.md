@@ -98,10 +98,6 @@ Read the security docs:
 - Container: ZIP with encrypted metadata and encrypted `data/*.enc` entries
 - Current marker: `PULSEVAULT5_COMPRESSED_CASCADE`
 
-## Roadmap
-
-See [ROADMAP.md](ROADMAP.md) for planned distribution, GUI, and performance work.
-
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md). GitHub Releases are cut from tagged versions
