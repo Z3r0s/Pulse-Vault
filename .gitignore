@@ -1,7 +1,12 @@
-# Local editor / assistant state
+# Local editor and tooling state
+.grok/
 .claude/
 .chatgpt/
+.continue/
 .cursor/
+.windsurf/
+.aider*
+.codex/
 .cursorrules
 .idea/
 .vscode/
@@ -72,6 +77,7 @@ pip-log.txt
 pip-delete-this-directory.txt
 pip-wheel-metadata/
 __pypackages__/
+terminals/
 
 # OS generated files
 .DS_Store
@@ -83,13 +89,14 @@ ehthumbs.db
 Thumbs.db
 desktop.ini
 
-# Pulse-Vault local/sensitive artifacts
+# Pulse-Vault local and sensitive artifacts
 *.pulsevault
 *.pulsevault.tmp
 *.PulseVault
 *.PulseVault.tmp
 *.vault
 *.vault.tmp
+*.part
 keys/
 *.key
 *.pem
@@ -100,8 +107,12 @@ keys/
 recovery_keys.txt
 recovery_keys/
 .pulse_vault_recovery_keys.txt
+.pulse_secure_*/
+secrets.json
+credentials.json
+.secrets/
 
 # Local test scratch directories
 pulse_test_*/
 .pulse_test_*/
-pulse_tmp_*
+pulse_tmp_*/
