@@ -2,6 +2,9 @@
 
 Thanks for helping improve Pulse-Vault.
 
+End-user downloads are distributed through [dnspulse.org](https://dnspulse.org).
+This GitHub repo is for source, development, and bug reports.
+
 ## Development Setup
 
 ```bash

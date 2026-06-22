@@ -36,6 +36,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://dnspulse.org"
+Download = "https://dnspulse.org"
 Documentation = "https://github.com/Z3r0s/Pulse-Vault/blob/main/docs/THREAT_MODEL.md"
 Repository = "https://github.com/Z3r0s/Pulse-Vault"
 Issues = "https://github.com/Z3r0s/Pulse-Vault/issues"

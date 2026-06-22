@@ -1,8 +1,10 @@
 # Pulse-Vault
 
-Official site: [dnspulse.org](https://dnspulse.org)
-
 Pulse-Vault is a local encrypted file vault from DNSPulse for Linux desktops. It stores files and folders in a portable `.pulsevault` container, works offline, and uses authenticated encryption with a memory-hard password derivation function.
+
+**Download and install:** [dnspulse.org](https://dnspulse.org)
+
+This repository is source code and issue tracking for developers. End users should get Pulse-Vault from [dnspulse.org](https://dnspulse.org), not from GitHub releases or raw clones.
 
 Windows can still run Pulse-Vault from source, but the primary packaging target is the Linux desktop.
 
@@ -25,7 +27,13 @@ Windows can still run Pulse-Vault from source, but the primary packaging target 
 - Optional carrier-file disguise by appending vault data to media files.
 - Drag-and-drop file import into an unlocked vault.
 
-## Install From Source
+## Download
+
+Get the current release, installers, and install steps from **[dnspulse.org](https://dnspulse.org)**.
+
+## Developers
+
+Build from a clone when working on the project:
 
 ```bash
 git clone https://github.com/Z3r0s/Pulse-Vault.git
@@ -36,26 +44,19 @@ pip install -e .
 pulse-vault
 ```
 
-Development shortcut:
+Shortcut while iterating on the GUI:
 
 ```bash
 pip install -r requirements.txt
 python main.py
 ```
 
-## Linux Install
+### Linux packaging (maintainers)
 
-On Parrot OS or other Debian-style desktops:
+`install_parrot.sh` is a reference installer for Parrot OS / Debian-style desktops.
+Production installs are published through [dnspulse.org](https://dnspulse.org).
 
-```bash
-chmod +x install_parrot.sh
-./install_parrot.sh
-```
-
-That installs Pulse-Vault into `~/.local/share/pulse-vault`, adds a `pulse-vault`
-command, registers the `.pulsevault` MIME type, and installs the desktop launcher.
-
-Desktop metadata also lives under `packaging/linux/`:
+Desktop metadata lives under `packaging/linux/`:
 
 - desktop launcher
 - MIME type registration
@@ -100,8 +101,7 @@ Read the security docs:
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md). GitHub Releases are cut from tagged versions
-and pull their notes from the matching changelog section.
+See [CHANGELOG.md](CHANGELOG.md). Release packages are published on [dnspulse.org](https://dnspulse.org).
 
 ## License
 
