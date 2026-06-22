@@ -14,8 +14,14 @@ pip install -e .
 PULSEVAULT_TEST_FAST_KDF=1 python -m unittest discover -s tests -v
 ```
 
-Tests use a fast Scrypt setting through `PULSEVAULT_TEST_FAST_KDF=1` so the suite
+Tests use the `fast` Scrypt profile through `PULSEVAULT_TEST_FAST_KDF=1` so the suite
 finishes quickly on developer machines. CI uses the same variable.
+
+To regenerate golden crypto vectors after format or KDF changes:
+
+```bash
+PULSEVAULT_SCRYPT_PROFILE=fast python tests/generate_vectors.py
+```
 
 ## Guidelines
 

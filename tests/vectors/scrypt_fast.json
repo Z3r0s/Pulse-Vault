@@ -1,0 +1,11 @@
+{
+  "profile": "fast",
+  "password": "vector-test-password!",
+  "salt_hex": "000102030405060708090a0b0c0d0e0f",
+  "scrypt_n": 16,
+  "scrypt_r": 8,
+  "scrypt_p": 1,
+  "key64_hex": "e1e88dd057658b4ae8e20287b3bdfcc8757307cff7fa1697cc2a4da7396a322e1c43ef72c2b635123394868e5b157ef8d3dc003393490f8aecd3cebd9cc6143e",
+  "chacha_key_hex": "e1e88dd057658b4ae8e20287b3bdfcc8757307cff7fa1697cc2a4da7396a322e",
+  "aes_key_hex": "1c43ef72c2b635123394868e5b157ef8d3dc003393490f8aecd3cebd9cc6143e"
+}

@@ -2,7 +2,7 @@ import hashlib
 import lzma
 import os
 import struct
-from typing import Tuple
+from typing import Dict, Tuple
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM, ChaCha20Poly1305
@@ -18,11 +18,35 @@ NONCE_SIZE = 12
 KEY_SIZE = 32
 KDF_ITERATIONS = 600_000
 
-SCRYPT_N = 2**15
-if os.environ.get("PULSEVAULT_TEST_FAST_KDF") == "1":
-    SCRYPT_N = int(os.environ.get("PULSEVAULT_SCRYPT_N", "16"))
-SCRYPT_R = 8
-SCRYPT_P = 1
+SCRYPT_PROFILES: Dict[str, Dict[str, int]] = {
+    "fast": {"n": 16, "r": 8, "p": 1},
+    "standard": {"n": 2**15, "r": 8, "p": 1},
+    "hardened": {"n": 2**20, "r": 8, "p": 1},
+}
+
+
+def active_scrypt_profile() -> str:
+    profile = os.environ.get("PULSEVAULT_SCRYPT_PROFILE", "").strip().lower()
+    if profile in SCRYPT_PROFILES:
+        return profile
+    if os.environ.get("PULSEVAULT_TEST_FAST_KDF") == "1":
+        return "fast"
+    return "standard"
+
+
+def scrypt_params_for_profile(profile: str) -> Tuple[int, int, int]:
+    if profile not in SCRYPT_PROFILES:
+        raise ValueError(f"Unknown Scrypt profile: {profile}")
+
+    params = SCRYPT_PROFILES[profile]
+    n = params["n"]
+    if profile == "fast" and os.environ.get("PULSEVAULT_SCRYPT_N"):
+        n = int(os.environ["PULSEVAULT_SCRYPT_N"])
+    return n, params["r"], params["p"]
+
+
+_active_profile = active_scrypt_profile()
+SCRYPT_N, SCRYPT_R, SCRYPT_P = scrypt_params_for_profile(_active_profile)
 V3_KEY_SIZE = 64
 
 CHUNK_SIZE = 1024 * 1024

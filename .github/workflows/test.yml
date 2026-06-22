@@ -26,5 +26,5 @@ jobs:
 
       - name: Run tests
         env:
-          PULSEVAULT_TEST_FAST_KDF: "1"
+          PULSEVAULT_SCRYPT_PROFILE: fast
         run: python -m unittest discover -s tests -v

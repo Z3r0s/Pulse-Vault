@@ -33,6 +33,21 @@ Pulse-Vault derives a 64-byte key from the user password and random salt using S
 
 The salt is stored in `salt.bin`.
 
+### Scrypt Profiles
+
+Runtime KDF cost is selected by `PULSEVAULT_SCRYPT_PROFILE`:
+
+| Profile | N | r | p | Intended use |
+| --- | ---: | ---: | ---: | --- |
+| `fast` | 16 | 8 | 1 | CI and local test runs |
+| `standard` | 32768 | 8 | 1 | Default production setting |
+| `hardened` | 1048576 | 8 | 1 | Higher-cost unlock for sensitive vaults |
+
+`PULSEVAULT_TEST_FAST_KDF=1` selects the `fast` profile for backward compatibility.
+`PULSEVAULT_SCRYPT_N` can override `N` when the active profile is `fast`.
+
+Deterministic KDF and stream vectors for the `fast` profile live in `tests/vectors/`.
+
 ## Metadata
 
 `metadata.enc` stores encrypted JSON metadata, including file names, sizes, timestamps, SHA-256 digests, and internal blob IDs.
