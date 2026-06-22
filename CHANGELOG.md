@@ -7,6 +7,14 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Changed
+
+- Vault I/O uses larger copy buffers and compact JSON metadata to reduce rewrite overhead.
+- File import hashes and encrypts in a single disk pass instead of reading twice.
+- Unlock probes only the vault header instead of a 5 MiB prefix; format marker is cached after unlock.
+- V5 LZMA compression preset lowered for faster adds with modest size trade-off.
+- Create-vault Scrypt runs off the UI thread; unlock status shows hardened profile when applicable.
+
 ## [0.2.1] - 2026-06-22
 
 ### Added

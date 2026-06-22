@@ -1,4 +1,5 @@
 import atexit
+import datetime
 import os
 import shutil
 import subprocess
@@ -595,8 +596,6 @@ class VaultGUI(ctk.CTk):
             return
 
         query = self.search_entry.get().strip().lower()
-        import datetime
-
         row_index = 0
         for filename in self.vault.list_files():
             if query and query not in filename.lower():
@@ -665,17 +664,33 @@ class VaultGUI(ctk.CTk):
             messagebox.showwarning("Weak password", password_error)
             return
 
-        try:
-            vault = EncryptedVault(Path(path))
-            vault.create(password, carrier_path=carrier_path, scrypt_profile=scrypt_profile)
-            self.vault = vault
-            self.set_status(f"Unlocked: {Path(path).name}")
+        create_state = {
+            "vault": None,
+            "error": None,
+            "path": Path(path),
+        }
+
+        def create_task():
+            try:
+                vault = EncryptedVault(create_state["path"])
+                vault.create(password, carrier_path=carrier_path, scrypt_profile=scrypt_profile)
+                create_state["vault"] = vault
+            except Exception as exc:
+                create_state["error"] = exc
+
+        def create_complete():
+            if create_state["error"]:
+                self.vault = None
+                self.refresh_list()
+                messagebox.showerror("Error", str(create_state["error"]))
+                return
+            self.vault = create_state["vault"]
+            self.set_status(f"Unlocked: {create_state['path'].name}")
             self.update_button_states(True)
             self.refresh_list()
-        except Exception as e:
-            self.vault = None
-            self.refresh_list()
-            messagebox.showerror("Error", str(e))
+
+        profile_label = "hardened" if scrypt_profile == "hardened" else "standard"
+        self._run_in_thread(create_task, create_complete, status=f"Creating vault ({profile_label})...")
 
     def open_vault(self):
         path = filedialog.askopenfilename(
@@ -747,7 +762,9 @@ class VaultGUI(ctk.CTk):
             self.update_button_states(True)
             self.refresh_list()
 
-        self._run_in_thread(unlock_task, unlock_complete, status="Deriving key...")
+        profile = EncryptedVault.peek_scrypt_profile(target_path) or "standard"
+        status = "Deriving key (hardened)..." if profile == "hardened" else "Deriving key..."
+        self._run_in_thread(unlock_task, unlock_complete, status=status)
 
     def lock_vault(self):
         if self.vault:

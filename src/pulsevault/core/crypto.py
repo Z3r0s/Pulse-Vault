@@ -229,7 +229,7 @@ def encrypt_stream_v5(key64: bytes, source_file, target_file, compress: bool = T
 
     chacha = ChaCha20Poly1305(chacha_key)
     aesgcm = AESGCM(aes_key)
-    compressor = lzma.LZMACompressor(format=lzma.FORMAT_XZ, preset=3) if compress else None
+    compressor = lzma.LZMACompressor(format=lzma.FORMAT_XZ, preset=1) if compress else None
 
     def encrypt_and_write(data: bytes, idx: int):
         aad = _stream_aad(flag, chacha_nonce, aes_nonce, idx)
