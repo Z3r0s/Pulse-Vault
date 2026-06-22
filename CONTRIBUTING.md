@@ -21,6 +21,13 @@ To regenerate golden crypto vectors after format or KDF changes:
 
 ```bash
 PULSEVAULT_SCRYPT_PROFILE=fast python tests/generate_vectors.py
+python tests/generate_vectors.py --profile standard
+```
+
+Optional fuzz dependencies:
+
+```bash
+pip install hypothesis
 ```
 
 ## Guidelines

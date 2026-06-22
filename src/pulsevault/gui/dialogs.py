@@ -158,3 +158,88 @@ def ask_password(parent, title: str, confirm: bool = False, show_generate: bool 
     dialog = PasswordDialog(parent, title=title, confirm=confirm, show_generate=show_generate)
     parent.wait_window(dialog)
     return dialog.result
+
+
+class ScryptProfileDialog(ctk.CTkToplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.result = None
+        self.title("Key Derivation Strength")
+        self.geometry("460x300")
+        self.resizable(False, False)
+        self.update_idletasks()
+        if parent.winfo_viewable():
+            x = parent.winfo_x() + (parent.winfo_width() // 2) - (self.winfo_width() // 2)
+            y = parent.winfo_y() + (parent.winfo_height() // 2) - (self.winfo_height() // 2)
+            self.geometry(f"+{x}+{y}")
+
+        self.transient(parent)
+        self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self.cancel)
+
+        self.grid_columnconfigure(0, weight=1)
+
+        title_label = ctk.CTkLabel(
+            self,
+            text="Choose Scrypt strength",
+            font=ctk.CTkFont(size=18, weight="bold"),
+        )
+        title_label.grid(row=0, column=0, padx=20, pady=(20, 8), sticky="w")
+
+        help_label = ctk.CTkLabel(
+            self,
+            text="Stronger settings slow down password guessing but also make unlock slower.",
+            wraplength=400,
+            justify="left",
+        )
+        help_label.grid(row=1, column=0, padx=20, pady=(0, 12), sticky="w")
+
+        self.profile_var = tk.StringVar(value="standard")
+        standard = ctk.CTkRadioButton(
+            self,
+            text="Standard (recommended)",
+            variable=self.profile_var,
+            value="standard",
+        )
+        standard.grid(row=2, column=0, padx=20, pady=4, sticky="w")
+
+        hardened = ctk.CTkRadioButton(
+            self,
+            text="Hardened (slower unlock, higher guessing cost)",
+            variable=self.profile_var,
+            value="hardened",
+        )
+        hardened.grid(row=3, column=0, padx=20, pady=4, sticky="w")
+
+        button_frame = ctk.CTkFrame(self, fg_color="transparent")
+        button_frame.grid(row=4, column=0, padx=20, pady=(18, 20), sticky="e")
+
+        cancel_btn = ctk.CTkButton(
+            button_frame,
+            text="Cancel",
+            width=80,
+            fg_color="transparent",
+            border_width=1,
+            text_color=("gray10", "#DCE4EE"),
+            command=self.cancel,
+        )
+        cancel_btn.pack(side="right", padx=(10, 0))
+
+        ok_btn = ctk.CTkButton(button_frame, text="Continue", width=90, command=self.ok)
+        ok_btn.pack(side="right")
+
+        self.bind("<Escape>", lambda _: self.cancel())
+
+    def ok(self):
+        self.result = self.profile_var.get()
+        self.destroy()
+
+    def cancel(self):
+        self.result = None
+        self.destroy()
+
+
+def ask_scrypt_profile(parent):
+    dialog = ScryptProfileDialog(parent)
+    parent.wait_window(dialog)
+    return dialog.result

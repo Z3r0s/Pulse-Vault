@@ -15,7 +15,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import pulsevault.core.crypto as crypto
 from pulsevault.core.vault import FORMAT_V5, EncryptedVault, VaultError
-from vault_fixtures import build_legacy_v3_vault, build_legacy_v4_vault
+from vault_fixtures import (
+    build_legacy_v1_vault,
+    build_legacy_v2_vault,
+    build_legacy_v3_vault,
+    build_legacy_v4_vault,
+)
 
 
 class VaultExtendedTests(unittest.TestCase):
@@ -27,6 +32,23 @@ class VaultExtendedTests(unittest.TestCase):
     def tearDown(self):
         tempfile.tempdir = None
         shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_carrier_offset_preserved_without_carrier_path(self):
+        carrier = self.root / "cover.png"
+        carrier_payload = b"\x89PNG\r\n\x1a\n" + b"carrier" * 64
+        carrier.write_bytes(carrier_payload)
+
+        source = self.root / "secret.txt"
+        source.write_bytes(b"carrier offset payload")
+        vault_path = self.root / "offset-carrier.pulsevault"
+        vault = EncryptedVault(vault_path)
+        vault.create("offset-password-123!", carrier_path=carrier)
+        vault.add_file(source)
+        del vault.carrier_path
+
+        vault.add_file(source, overwrite=True)
+        raw = vault_path.read_bytes()
+        self.assertTrue(raw.startswith(carrier_payload))
 
     def test_carrier_file_round_trip(self):
         carrier = self.root / "cover.jpg"
@@ -54,6 +76,50 @@ class VaultExtendedTests(unittest.TestCase):
         reopened.add_file(self.root / "carrier-out" / "hidden.txt", overwrite=True)
         raw_after = vault_path.read_bytes()
         self.assertTrue(raw_after.startswith(carrier_payload))
+
+    def test_legacy_v1_vault_unlock_and_migrate(self):
+        payload = b"v1 inline payload"
+        vault_path = self.root / "legacy-v1.pulsevault"
+        build_legacy_v1_vault(
+            vault_path,
+            "legacy-v1-password-123!",
+            {"legacy-v1.txt": payload},
+        )
+
+        vault = EncryptedVault(vault_path)
+        vault.unlock("legacy-v1-password-123!")
+        self.assertEqual(vault.version, 1)
+
+        extracted = vault.extract_file("legacy-v1.txt", self.root / "v1-out")
+        self.assertEqual(extracted.read_bytes(), payload)
+
+        vault.migrate_to_current_format("legacy-v1-password-123!")
+        migrated = EncryptedVault(vault_path)
+        migrated.unlock("legacy-v1-password-123!")
+        extracted_again = migrated.extract_file("legacy-v1.txt", self.root / "v1-migrated")
+        self.assertEqual(extracted_again.read_bytes(), payload)
+
+    def test_legacy_v2_vault_unlock_and_migrate(self):
+        payload = b"v2 blob payload" * 4
+        vault_path = self.root / "legacy-v2.pulsevault"
+        build_legacy_v2_vault(
+            vault_path,
+            "legacy-v2-password-123!",
+            {"legacy-v2.txt": payload},
+        )
+
+        vault = EncryptedVault(vault_path)
+        vault.unlock("legacy-v2-password-123!")
+        self.assertEqual(vault.version, 2)
+
+        extracted = vault.extract_file("legacy-v2.txt", self.root / "v2-out")
+        self.assertEqual(extracted.read_bytes(), payload)
+
+        vault.migrate_to_current_format("legacy-v2-password-123!")
+        migrated = EncryptedVault(vault_path)
+        migrated.unlock("legacy-v2-password-123!")
+        extracted_again = migrated.extract_file("legacy-v2.txt", self.root / "v2-migrated")
+        self.assertEqual(extracted_again.read_bytes(), payload)
 
     def test_legacy_v3_vault_unlock_and_migrate(self):
         payload = b"v3 legacy payload" * 8

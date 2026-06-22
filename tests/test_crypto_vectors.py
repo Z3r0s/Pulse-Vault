@@ -59,6 +59,22 @@ class CryptoVectorTests(unittest.TestCase):
         self.assertGreater(crypto.SCRYPT_PROFILES["hardened"]["n"], crypto.SCRYPT_PROFILES["standard"]["n"])
         self.assertGreater(crypto.SCRYPT_PROFILES["standard"]["n"], crypto.SCRYPT_PROFILES["fast"]["n"])
 
+    def test_scrypt_standard_vector_when_present(self):
+        vector_path = VECTOR_DIR / "scrypt_standard.json"
+        if not vector_path.exists():
+            self.skipTest("standard vectors not generated on this machine")
+
+        vector = json.loads(vector_path.read_text(encoding="utf-8"))
+        salt = bytes.fromhex(vector["salt_hex"])
+        key64 = crypto.derive_key_v3(
+            vector["password"],
+            salt,
+            n=vector["scrypt_n"],
+            r=vector["scrypt_r"],
+            p=vector["scrypt_p"],
+        )
+        self.assertEqual(key64.hex(), vector["key64_hex"])
+
 
 if __name__ == "__main__":
     unittest.main()

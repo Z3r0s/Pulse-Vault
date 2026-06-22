@@ -19,7 +19,10 @@ from pulsevault.core.crypto import (
     VAULT1_MAGIC,
     SALT_SIZE,
     NONCE_SIZE,
+    SCRYPT_PROFILES,
+    active_scrypt_profile,
     derive_key,
+    derive_key_scrypt,
     derive_key_v3,
     encrypt_data,
     decrypt_data,
@@ -29,7 +32,9 @@ from pulsevault.core.crypto import (
     decrypt_stream_v4,
     encrypt_stream_v5,
     decrypt_stream_v5,
-    CryptoError
+    parse_kdf_record,
+    scrypt_params_for_profile,
+    CryptoError,
 )
 
 class VaultError(Exception):
@@ -160,6 +165,7 @@ FORMAT_V3 = b"PULSEVAULT3_CASCADE"
 
 MAX_ZIP_ENTRIES = 20_000
 MAX_FORMAT_SIZE = 128
+MAX_KDF_JSON_SIZE = 512
 MAX_METADATA_SIZE = 16 * 1024 * 1024
 MAX_DATA_BLOB_SIZE = 512 * 1024 * 1024 * 1024
 MAX_FOLDER_FILES = 10_000
@@ -250,6 +256,8 @@ def validate_zip_member(info: zipfile.ZipInfo):
         raise VaultError("Invalid vault salt size.")
     if name == "format.txt" and info.file_size > MAX_FORMAT_SIZE:
         raise VaultError("Invalid vault format marker size.")
+    if name == "kdf.json" and info.file_size > MAX_KDF_JSON_SIZE:
+        raise VaultError("Invalid vault KDF record size.")
     if name == "metadata.enc" and info.file_size > MAX_METADATA_SIZE:
         raise VaultError("Vault metadata is too large.")
     if name.startswith("data/") and info.file_size > MAX_DATA_BLOB_SIZE:
@@ -304,6 +312,8 @@ class EncryptedVault:
         self.key: Optional[bytes] = None
         self.data: Dict[str, Any] = self.default_data()
         self.version = 5
+        self.scrypt_profile = active_scrypt_profile()
+        self.kdf_n, self.kdf_r, self.kdf_p = scrypt_params_for_profile(self.scrypt_profile)
     @staticmethod
     def default_data() -> Dict[str, Any]:
         return {
@@ -317,14 +327,52 @@ class EncryptedVault:
     def is_unlocked(self) -> bool:
         return self.key is not None and self.salt is not None
 
-    def create(self, password: str, carrier_path: Optional[Path] = None):
+    def _set_kdf_params(self, profile: str, n: Optional[int] = None, r: Optional[int] = None, p: Optional[int] = None):
+        if profile not in SCRYPT_PROFILES:
+            raise VaultError("Unknown Scrypt profile.")
+        default_n, default_r, default_p = scrypt_params_for_profile(profile)
+        self.scrypt_profile = profile
+        self.kdf_n = default_n if n is None else n
+        self.kdf_r = default_r if r is None else r
+        self.kdf_p = default_p if p is None else p
+
+    def _derive_v3_key(self, password: str, salt: bytes) -> bytes:
+        return derive_key_scrypt(password, salt, self.kdf_n, self.kdf_r, self.kdf_p)
+
+    def _kdf_record(self) -> Dict[str, object]:
+        return {
+            "algorithm": "scrypt",
+            "profile": self.scrypt_profile,
+            "n": self.kdf_n,
+            "r": self.kdf_r,
+            "p": self.kdf_p,
+        }
+
+    def _load_kdf_record(self, raw: Optional[Dict[str, object]]):
+        if raw is None:
+            self._set_kdf_params(active_scrypt_profile())
+            return
+        try:
+            profile, n, r, p = parse_kdf_record(raw)
+        except CryptoError as exc:
+            raise VaultError("Invalid vault KDF record.") from exc
+        self._set_kdf_params(profile, n=n, r=r, p=p)
+
+    def create(self, password: str, carrier_path: Optional[Path] = None, scrypt_profile: Optional[str] = None):
         if self.vault_path.exists():
             raise VaultError("A vault already exists at that location.")
 
+        profile = scrypt_profile or active_scrypt_profile()
+        if profile not in SCRYPT_PROFILES:
+            raise VaultError("Unknown Scrypt profile.")
+
         self.carrier_path = carrier_path if (carrier_path and carrier_path.exists()) else None
+        if self.carrier_path:
+            self.carrier_offset = self.carrier_path.stat().st_size
+        self._set_kdf_params(profile)
 
         self.salt = os.urandom(SALT_SIZE)
-        self.key = derive_key_v3(password, self.salt)
+        self.key = derive_key_scrypt(password, self.salt, self.kdf_n, self.kdf_r, self.kdf_p)
         self.data = self.default_data()
         self.version = 5
         self.save()
@@ -363,6 +411,17 @@ class EncryptedVault:
 
             salt = read_zip_entry(z, "salt.bin", SALT_SIZE, exact_size=SALT_SIZE)
             enc_meta = read_zip_entry(z, "metadata.enc", MAX_METADATA_SIZE)
+            kdf_raw = None
+            if "kdf.json" in z.namelist():
+                try:
+                    kdf_raw = json.loads(
+                        read_zip_entry(z, "kdf.json", MAX_KDF_JSON_SIZE).decode("utf-8")
+                    )
+                except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    raise VaultError("Invalid vault KDF record.") from exc
+
+        if is_v5 or is_v4 or is_v3:
+            self._load_kdf_record(kdf_raw)
 
         if is_v5:
             self._unlock_v5(password, salt, enc_meta)
@@ -414,7 +473,7 @@ class EncryptedVault:
         self._load_data(loaded, password, salt, key, version=2)
 
     def _unlock_v3(self, password: str, salt: bytes, enc_meta: bytes):
-        key = derive_key_v3(password, salt)
+        key = self._derive_v3_key(password, salt)
         if len(enc_meta) < (NONCE_SIZE * 2):
             raise VaultError("Corrupted V3 metadata.")
 
@@ -431,7 +490,7 @@ class EncryptedVault:
         self._load_data(loaded, password, salt, key, version=3)
 
     def _unlock_v4(self, password: str, salt: bytes, enc_meta: bytes):
-        key = derive_key_v3(password, salt)
+        key = self._derive_v3_key(password, salt)
         # In V4, metadata is still encrypted with V3 in-memory method for speed
         if len(enc_meta) < (NONCE_SIZE * 2):
             raise VaultError("Corrupted V4 metadata.")
@@ -449,7 +508,7 @@ class EncryptedVault:
         self._load_data(loaded, password, salt, key, version=4)
 
     def _unlock_v5(self, password: str, salt: bytes, enc_meta: bytes):
-        key = derive_key_v3(password, salt)
+        key = self._derive_v3_key(password, salt)
         if len(enc_meta) < (NONCE_SIZE * 2):
             raise VaultError("Corrupted V5 metadata.")
             
@@ -490,7 +549,11 @@ class EncryptedVault:
         if not self.salt or not self.key:
             return False
         try:
-            candidate = derive_key(password, self.salt) if self.version < 3 else derive_key_v3(password, self.salt)
+            candidate = (
+                derive_key(password, self.salt)
+                if self.version < 3
+                else self._derive_v3_key(password, self.salt)
+            )
         except CryptoError:
             return False
         return hmac.compare_digest(candidate, self.key)
@@ -551,6 +614,7 @@ class EncryptedVault:
                 with zipfile.ZipFile(temp_zip, "w", zipfile.ZIP_STORED) as z:
                     z.writestr("salt.bin", salt)
                     z.writestr("format.txt", FORMAT_V5)
+                    z.writestr("kdf.json", json.dumps(self._kdf_record(), indent=2).encode("utf-8"))
                     write_entries(z)
                     plaintext = json.dumps(self.data, indent=2).encode("utf-8")
                     c_nonce, a_nonce, ciphertext = encrypt_data_v3(key, plaintext)
@@ -865,7 +929,7 @@ class EncryptedVault:
             raise VaultError("Current password is incorrect.")
 
         new_salt = os.urandom(SALT_SIZE)
-        new_key = derive_key_v3(new_password, new_salt)
+        new_key = derive_key_scrypt(new_password, new_salt, self.kdf_n, self.kdf_r, self.kdf_p)
         old_data = copy.deepcopy(self.data)
         old_version = self.version
 

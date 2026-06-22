@@ -15,7 +15,7 @@ import customtkinter as ctk
 
 from pulsevault import __version__
 from pulsevault.core.vault import EncryptedVault, VaultError, safe_filename, secure_unlink
-from pulsevault.gui.dialogs import ask_password
+from pulsevault.gui.dialogs import ask_password, ask_scrypt_profile
 from pulsevault.gui.theme import resolve_appearance_mode, tree_fonts, tree_palette
 
 
@@ -653,6 +653,10 @@ class VaultGUI(ctk.CTk):
             if carrier:
                 carrier_path = Path(carrier)
 
+        scrypt_profile = ask_scrypt_profile(self)
+        if not scrypt_profile:
+            return
+
         password = ask_password(self, "Create Vault Password", confirm=True, show_generate=True)
         if not password:
             return
@@ -663,7 +667,7 @@ class VaultGUI(ctk.CTk):
 
         try:
             vault = EncryptedVault(Path(path))
-            vault.create(password, carrier_path=carrier_path)
+            vault.create(password, carrier_path=carrier_path, scrypt_profile=scrypt_profile)
             self.vault = vault
             self.set_status(f"Unlocked: {Path(path).name}")
             self.update_button_states(True)
@@ -704,14 +708,30 @@ class VaultGUI(ctk.CTk):
         if not password:
             return
 
-        try:
-            vault = EncryptedVault(target_path)
-            vault.unlock(password)
+        unlock_state = {"vault": None, "error": None, "target_path": target_path}
+
+        def unlock_task():
+            try:
+                vault = EncryptedVault(unlock_state["target_path"])
+                vault.unlock(password)
+                unlock_state["vault"] = vault
+            except Exception as exc:
+                unlock_state["error"] = exc
+
+        def unlock_complete():
+            if unlock_state["error"]:
+                self.vault = None
+                self.refresh_list()
+                messagebox.showerror("Unlock failed", str(unlock_state["error"]))
+                return
+
+            vault = unlock_state["vault"]
+            current_path = unlock_state["target_path"]
 
             if legacy_suffix and not new_path.exists():
-                target_path.rename(new_path)
+                current_path.rename(new_path)
                 vault.vault_path = new_path
-                target_path = new_path
+                current_path = new_path
 
             if vault.version < 5:
                 if messagebox.askyesno(
@@ -723,13 +743,11 @@ class VaultGUI(ctk.CTk):
                     vault.migrate_to_current_format(password)
 
             self.vault = vault
-            self.set_status(f"Unlocked: {target_path.name}")
+            self.set_status(f"Unlocked: {current_path.name}")
             self.update_button_states(True)
             self.refresh_list()
-        except Exception as e:
-            self.vault = None
-            self.refresh_list()
-            messagebox.showerror("Unlock failed", str(e))
+
+        self._run_in_thread(unlock_task, unlock_complete, status="Deriving key...")
 
     def lock_vault(self):
         if self.vault:

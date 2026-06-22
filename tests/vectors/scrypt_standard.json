@@ -1,0 +1,11 @@
+{
+  "profile": "standard",
+  "password": "vector-test-password!",
+  "salt_hex": "000102030405060708090a0b0c0d0e0f",
+  "scrypt_n": 32768,
+  "scrypt_r": 8,
+  "scrypt_p": 1,
+  "key64_hex": "a02fce9a75ca98e91d56bf6326d8a7e87d0281f6e33df42474b1b633fdab834c50a430b02c8106f9b6d24d00e813ec3d1219ccfddaee6afd1388ca37c40bd3b1",
+  "chacha_key_hex": "a02fce9a75ca98e91d56bf6326d8a7e87d0281f6e33df42474b1b633fdab834c",
+  "aes_key_hex": "50a430b02c8106f9b6d24d00e813ec3d1219ccfddaee6afd1388ca37c40bd3b1"
+}

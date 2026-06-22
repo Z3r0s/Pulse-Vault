@@ -7,6 +7,23 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-06-22
+
+### Added
+
+- Per-vault Scrypt profile persistence in `kdf.json` (Standard and Hardened at creation time).
+- Create-vault dialog to choose Standard or Hardened key derivation.
+- Unlock progress feedback while Scrypt runs.
+- Legacy V1/V2 fixture tests, KDF persistence tests, crypto fuzz tests, and GUI smoke tests.
+- Scrypt profiles (`fast`, `standard`, `hardened`), golden test vectors, and extended vault tests.
+- Optional `standard` Scrypt test vector generation via `tests/generate_vectors.py --profile standard`.
+- [docs/DOWNLOADS.md](docs/DOWNLOADS.md) documenting GitHub installs now and dnspulse.org packages toward 1.0.
+
+### Changed
+
+- New vaults record their KDF parameters in `kdf.json`; unlock uses stored values when present.
+- Version bumped to 0.2.1.
+
 ## [0.2.0] - 2026-06-22
 
 ### Added

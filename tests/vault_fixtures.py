@@ -5,12 +5,87 @@ import zipfile
 from pathlib import Path
 
 from pulsevault.core.crypto import (
+    NONCE_SIZE,
     SALT_SIZE,
+    VAULT1_MAGIC,
+    derive_key,
     derive_key_v3,
+    encrypt_data,
     encrypt_data_v3,
     encrypt_stream_v4,
 )
 from pulsevault.core.vault import BytesReader, FORMAT_V3, FORMAT_V4, b64e
+
+
+def build_legacy_v1_vault(
+    vault_path: Path,
+    password: str,
+    files: dict[str, bytes],
+    salt: bytes | None = None,
+) -> None:
+    salt = salt or (b"\x01" * SALT_SIZE)
+    key = derive_key(password, salt)
+    now = int(time.time())
+    entries = {
+        name: {
+            "name": name,
+            "size": len(payload),
+            "sha256": "skipped_large_file",
+            "added_at": now,
+            "updated_at": now,
+            "type": "file",
+            "content": b64e(payload),
+        }
+        for name, payload in files.items()
+    }
+    metadata = {
+        "version": 1,
+        "created_at": now,
+        "updated_at": now,
+        "files": entries,
+    }
+    plaintext = json.dumps(metadata, indent=2).encode("utf-8")
+    nonce, ciphertext = encrypt_data(key, plaintext, VAULT1_MAGIC)
+    vault_path.write_bytes(VAULT1_MAGIC + salt + nonce + ciphertext)
+
+
+def build_legacy_v2_vault(
+    vault_path: Path,
+    password: str,
+    files: dict[str, bytes],
+    salt: bytes | None = None,
+) -> None:
+    salt = salt or (b"\x02" * SALT_SIZE)
+    key = derive_key(password, salt)
+    now = int(time.time())
+    entries: dict[str, dict] = {}
+
+    with zipfile.ZipFile(vault_path, "w", zipfile.ZIP_STORED) as z:
+        z.writestr("salt.bin", salt)
+
+        for name, payload in files.items():
+            internal_id = str(uuid.uuid4())
+            nonce, ciphertext = encrypt_data(key, payload)
+            z.writestr(f"data/{internal_id}.enc", nonce + ciphertext)
+            entries[name] = {
+                "name": name,
+                "size": len(payload),
+                "sha256": "skipped_large_file",
+                "added_at": now,
+                "updated_at": now,
+                "type": "file",
+                "internal_id": internal_id,
+            }
+
+        metadata = {
+            "version": 2,
+            "created_at": now,
+            "updated_at": now,
+            "files": entries,
+        }
+        plaintext = json.dumps(metadata, indent=2).encode("utf-8")
+        nonce, ciphertext = encrypt_data(key, plaintext)
+        z.writestr("metadata.enc", nonce + ciphertext)
 
 
 def build_legacy_v3_vault(

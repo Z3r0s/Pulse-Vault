@@ -2,7 +2,7 @@ import hashlib
 import lzma
 import os
 import struct
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM, ChaCha20Poly1305
@@ -17,6 +17,9 @@ SALT_SIZE = 16
 NONCE_SIZE = 12
 KEY_SIZE = 32
 KDF_ITERATIONS = 600_000
+
+KDF_ALGORITHM_SCRYPT = "scrypt"
+USER_SCRYPT_PROFILES = ("standard", "hardened")
 
 SCRYPT_PROFILES: Dict[str, Dict[str, int]] = {
     "fast": {"n": 16, "r": 8, "p": 1},
@@ -75,19 +78,72 @@ def derive_key(password: str, salt: bytes) -> bytes:
     return kdf.derive(password.encode("utf-8"))
 
 
-def derive_key_v3(password: str, salt: bytes) -> bytes:
-    """Scrypt KDF for V3+ vaults, producing keys for both AEAD layers."""
+def scrypt_memory_bytes(n: int, r: int, p: int) -> int:
+    """Approximate peak Scrypt memory use in bytes."""
+    return 128 * n * r * max(p, 1)
+
+
+def kdf_record_from_profile(profile: str) -> Dict[str, object]:
+    n, r, p = scrypt_params_for_profile(profile)
+    return {
+        "algorithm": KDF_ALGORITHM_SCRYPT,
+        "profile": profile,
+        "n": n,
+        "r": r,
+        "p": p,
+    }
+
+
+def parse_kdf_record(raw: Dict[str, object]) -> Tuple[str, int, int, int]:
+    if raw.get("algorithm") != KDF_ALGORITHM_SCRYPT:
+        raise CryptoError("Unsupported vault KDF algorithm.")
+
+    try:
+        n = int(raw["n"])
+        r = int(raw["r"])
+        p = int(raw["p"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise CryptoError("Invalid vault KDF parameters.") from exc
+
+    if n <= 0 or r <= 0 or p <= 0:
+        raise CryptoError("Invalid vault KDF parameters.")
+
+    profile = str(raw.get("profile") or "standard").strip().lower()
+    if profile not in SCRYPT_PROFILES:
+        raise CryptoError("Unknown vault Scrypt profile.")
+
+    return profile, n, r, p
+
+
+def derive_key_scrypt(password: str, salt: bytes, n: int, r: int, p: int) -> bytes:
     if not password:
         raise CryptoError("Password cannot be empty.")
 
     kdf = Scrypt(
         salt=salt,
         length=V3_KEY_SIZE,
-        n=SCRYPT_N,
-        r=SCRYPT_R,
-        p=SCRYPT_P,
+        n=n,
+        r=r,
+        p=p,
     )
     return kdf.derive(password.encode("utf-8"))
+
+
+def derive_key_v3(
+    password: str,
+    salt: bytes,
+    n: Optional[int] = None,
+    r: Optional[int] = None,
+    p: Optional[int] = None,
+) -> bytes:
+    """Scrypt KDF for V3+ vaults, producing keys for both AEAD layers."""
+    return derive_key_scrypt(
+        password,
+        salt,
+        SCRYPT_N if n is None else n,
+        SCRYPT_R if r is None else r,
+        SCRYPT_P if p is None else p,
+    )
 
 
 def split_v3_key(key: bytes) -> Tuple[bytes, bytes]:

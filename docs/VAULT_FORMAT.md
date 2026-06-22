@@ -9,6 +9,7 @@ V5 vaults are ZIP containers with encrypted metadata and encrypted file blobs.
 ```text
 salt.bin
 format.txt
+kdf.json
 metadata.enc
 data/<uuid>.enc
 data/<uuid>.enc
@@ -46,7 +47,9 @@ Runtime KDF cost is selected by `PULSEVAULT_SCRYPT_PROFILE`:
 `PULSEVAULT_TEST_FAST_KDF=1` selects the `fast` profile for backward compatibility.
 `PULSEVAULT_SCRYPT_N` can override `N` when the active profile is `fast`.
 
-Deterministic KDF and stream vectors for the `fast` profile live in `tests/vectors/`.
+`kdf.json` stores the Scrypt parameters used when the vault was created. Unlock always uses the recorded values. Vaults created before 0.2.1 may omit this file and fall back to the runtime default profile.
+
+Deterministic KDF and stream vectors for the `fast` profile live in `tests/vectors/`. A `standard` KDF vector is optional and can be regenerated with `python tests/generate_vectors.py --profile standard`.
 
 ## Metadata
 
