@@ -15,8 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import pulsevault.core.crypto as crypto
 import pulsevault.core.vault as vault_module
-from pulsevault.core.vault import EncryptedVault, VaultError, b64e
-from pulsevault.gui.app import is_reasonable_password, password_policy_error
+from pulsevault.core.vault import FORMAT_V5, EncryptedVault, VaultError, b64e
+from pulsevault.gui.app import human_size, is_reasonable_password, password_policy_error
 
 
 class VaultCoreTests(unittest.TestCase):
@@ -317,6 +317,81 @@ class VaultCoreTests(unittest.TestCase):
         self.assertFalse(is_reasonable_password("aaaaaaaaaaaaaa"))
         self.assertIsNotNone(password_policy_error("qwerty123456789"))
         self.assertTrue(is_reasonable_password("Correct-Horse-72-Sunset"))
+
+    def test_migrate_noop_when_already_current(self):
+        vault_path = self.root / "noop-migrate.pulsevault"
+        vault = EncryptedVault(vault_path)
+        vault.create("migrate-password-123!")
+        disk_before = vault_path.read_bytes()
+
+        vault.migrate_to_current_format("migrate-password-123!")
+
+        self.assertEqual(vault.version, 5)
+        self.assertEqual(vault_path.read_bytes(), disk_before)
+
+    def test_migrate_to_current_format_upgrades_vault(self):
+        source = self.root / "migrate-me.txt"
+        payload = b"migrate payload" * 32
+        source.write_bytes(payload)
+
+        vault_path = self.root / "manual-migrate.pulsevault"
+        vault = EncryptedVault(vault_path)
+        vault.create("migrate-password-123!")
+        vault.add_file(source)
+
+        reopened = EncryptedVault(vault_path)
+        reopened.unlock("migrate-password-123!")
+        reopened.version = 3
+        reopened.data["version"] = 3
+        reopened.migrate_to_current_format("migrate-password-123!")
+
+        self.assertEqual(reopened.version, 5)
+        with zipfile.ZipFile(vault_path, "r") as z:
+            self.assertEqual(z.read("format.txt"), FORMAT_V5)
+
+        extracted = reopened.extract_file("migrate-me.txt", self.root / "migrated-out")
+        self.assertEqual(extracted.read_bytes(), payload)
+
+    def test_migrate_wrong_password_fails(self):
+        vault_path = self.root / "migrate-wrong-pw.pulsevault"
+        vault = EncryptedVault(vault_path)
+        vault.create("migrate-password-123!")
+
+        reopened = EncryptedVault(vault_path)
+        reopened.unlock("migrate-password-123!")
+        reopened.version = 2
+        reopened.data["version"] = 2
+        with self.assertRaises(VaultError):
+            reopened.migrate_to_current_format("wrong-password-123!")
+
+    def test_delete_and_rename_file(self):
+        alpha = self.root / "alpha.txt"
+        alpha.write_bytes(b"alpha")
+        beta = self.root / "beta.txt"
+        beta.write_bytes(b"beta")
+
+        vault_path = self.root / "mutate.pulsevault"
+        vault = EncryptedVault(vault_path)
+        vault.create("mutate-password-123!")
+        vault.add_file(alpha)
+        vault.add_file(beta)
+
+        vault.rename_file("alpha.txt", "renamed.txt")
+        self.assertEqual(vault.list_files(), ["beta.txt", "renamed.txt"])
+
+        vault.delete_file("beta.txt")
+        self.assertEqual(vault.list_files(), ["renamed.txt"])
+
+        reopened = EncryptedVault(vault_path)
+        reopened.unlock("mutate-password-123!")
+        self.assertEqual(reopened.list_files(), ["renamed.txt"])
+        extracted = reopened.extract_file("renamed.txt", self.root / "renamed-out")
+        self.assertEqual(extracted.read_bytes(), b"alpha")
+
+    def test_human_size_formats_bytes(self):
+        self.assertEqual(human_size(0), "0.0 B")
+        self.assertEqual(human_size(1536), "1.5 KB")
+        self.assertIn("MB", human_size(5 * 1024 * 1024))
 
     def test_legacy_inline_content_is_saved_as_v5_stream(self):
         vault_path = self.root / "legacy-upgrade.pulsevault"
