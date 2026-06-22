@@ -14,9 +14,8 @@ pip install -e .
 PULSEVAULT_TEST_FAST_KDF=1 python -m unittest discover -s tests -v
 ```
 
-Tests use a fast Scrypt setting through `PULSEVAULT_TEST_FAST_KDF=1`. GitHub
-Actions sets the same variable automatically. You do not need your own server for
-that; GitHub provides the runner machine.
+Tests use a fast Scrypt setting through `PULSEVAULT_TEST_FAST_KDF=1` so the suite
+finishes quickly on developer machines. CI uses the same variable.
 
 ## Guidelines
 
