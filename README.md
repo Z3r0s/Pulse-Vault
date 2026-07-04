@@ -96,6 +96,18 @@ pip install -e .
 pulse-vault
 ```
 
+After `pip install -e .` you also get a guided CLI (no GUI required):
+
+```bash
+pulse-vault --help
+pulse-vault --cli --help
+pulse-vault --cli create my.vault
+pulse-vault --cli open my.vault     # then interactive menu: list / add / extract / verify...
+pulse-vault-cli create my.vault     # dedicated CLI entry point
+```
+
+This makes Pulse-Vault suitable for headless use and future `apt`/`snap`/`pip` packaging.
+
 Development shortcut:
 
 ```bash

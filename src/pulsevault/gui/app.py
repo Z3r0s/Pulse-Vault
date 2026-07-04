@@ -431,13 +431,33 @@ class VaultGUI(ctk.CTk):
         self._run_in_thread(task)
 
     def setup_window_icon(self):
-        icon_path = Path(__file__).resolve().parent.parent / "assets" / "pulse-vault.png"
+        """Load window icon. Prefers .ico on Windows for best desktop/taskbar results."""
+        assets_dir = Path(__file__).resolve().parent.parent / "assets"
+        # Prefer platform-native .ico on win32
+        icon_path = None
+        if sys.platform.startswith("win"):
+            ico = assets_dir / "pulse-vault.ico"
+            if ico.exists():
+                icon_path = ico
+        if not icon_path:
+            icon_path = assets_dir / "pulse-vault.png"
         if not icon_path.exists():
             return
         try:
-            self._icon_image = tk.PhotoImage(file=str(icon_path))
-            self.iconphoto(True, self._icon_image)
+            if icon_path.suffix.lower() == ".ico":
+                # iconbitmap works well for .ico on Windows
+                self.iconbitmap(str(icon_path))
+            else:
+                self._icon_image = tk.PhotoImage(file=str(icon_path))
+                self.iconphoto(True, self._icon_image)
+                # Also try iconbitmap on some platforms if png converted internally
+                if sys.platform.startswith("win"):
+                    try:
+                        self.iconbitmap(str(icon_path))
+                    except Exception:
+                        pass
         except Exception:
+            # Non-fatal; window will use default
             pass
 
     def apply_tree_theme(self):

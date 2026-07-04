@@ -46,6 +46,8 @@ Issues = "https://github.com/Z3r0s/Pulse-Vault/issues"
 [project.scripts]
 pulse-vault = "pulsevault.main:main"
 pulsevault = "pulsevault.main:main"
+# Guided/headless CLI entry (recommended for servers/CI/packaging or when no display)
+pulse-vault-cli = "pulsevault.cli:main_cli_entry"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
