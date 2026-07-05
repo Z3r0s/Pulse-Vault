@@ -5,7 +5,11 @@ All notable changes to Pulse-Vault are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+**Versioning policy (early development):** Starts at 0.0.1, increments up to 0.0.20 before 0.1.0. Update this file for every change (small or large).
+
 ## [Unreleased]
+
+## [0.0.20] - 2026-07-04
 
 ### Added
 
@@ -27,6 +31,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   - Constants `GITHUB_RELEASES_URL` / `OFFICIAL_SITE`.
   - Expanded `tests/test_gui_smoke.py` (new tests + webbrowser mocks + dialog class check) while preserving all existing headless DummyCTk + full widget patching and fast KDF compatibility.
 - `docs/DOWNLOADS.md` and README updated to reflect GUI surfacing of GitHub releases area.
+- Versioning policy: starts at 0.0.1 and goes up to 0.0.20 before 0.1.0 etc. Changelog updated for every addition (this change included).
 
 ### Fixed
 
@@ -41,3 +46,6 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - V5 LZMA compression preset lowered for faster adds with modest size trade-off.
 - Create-vault Scrypt runs off the UI thread; unlock status shows hardened profile when applicable.
 - GUI sidebar row configuration and empty panel updated to accommodate new "GitHub Releases" button and download-focused messaging (no behavior change for vault ops).
+
+[Unreleased]: https://github.com/Z3r0s/Pulse-Vault/compare/v0.0.20...HEAD
+[0.0.20]: https://github.com/Z3r0s/Pulse-Vault/releases/tag/v0.0.20

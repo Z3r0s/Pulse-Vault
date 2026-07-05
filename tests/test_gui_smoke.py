@@ -137,8 +137,8 @@ class GuiSmokeTests(unittest.TestCase):
         src = app_mod.__file__
         with open(src, "r", encoding="utf-8") as f:
             content = f.read()
-        self.assertIn("Download the latest release from GitHub", content)
         self.assertIn("GitHub Releases", content)
+        self.assertIn("No releases", content)  # updated guidance mentions the 'No releases' case
 
 
 if __name__ == "__main__":

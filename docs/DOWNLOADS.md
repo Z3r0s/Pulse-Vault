@@ -19,14 +19,16 @@ GitHub is the canonical source repository and issue tracker. There is no officia
 
 **GUI users**: The desktop app now includes a prominent **"GitHub Releases"** sidebar button (always available), a clickable version badge linking to releases, and an expanded **About > GitHub Downloads & Releases** section (plus new dedicated dialog). These directly surface the GitHub Releases page.
 
-GitHub Releases is now the dedicated download area, providing:
+GitHub Releases is the dedicated download area (prominently linked from the app's "GitHub Releases" sidebar button, version badge, and About dialog).
+
+It provides (once the first `v*` tag is pushed and the release workflow runs):
 - Standalone executables for Linux (Ubuntu) and Windows
 - Source distributions + wheels
 - Checksums (SHA256SUMS)
 - Security fuzz/property test reports
 - Full changelog-driven release notes
 
-Download the latest from https://github.com/Z3r0s/Pulse-Vault/releases
+You may currently see "No releases found" because no tags have been created yet (pre-1.0). Visit https://github.com/Z3r0s/Pulse-Vault/releases to create the first one or view history.
 
 ## Planned (toward 1.0)
 

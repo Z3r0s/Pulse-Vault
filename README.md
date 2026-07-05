@@ -4,6 +4,8 @@
 [![Latest Release](https://img.shields.io/github/v/release/Z3r0s/Pulse-Vault?sort=semver)](https://github.com/Z3r0s/Pulse-Vault/releases/latest)
 [![Changelog](https://img.shields.io/badge/CHANGELOG-Keep%20a%20Changelog-blue)](CHANGELOG.md)
 
+> **Note:** The Tests badge reflects the status of the most recent CI run on the `main` branch (currently all tests pass). The Latest Release badge will indicate a version once the first `vX.Y.Z` tag is pushed (releases are created by the workflow). You may see "No releases found" on the Releases page until then. See the "Changelog & Releases" section below.
+
 Official site: [dnspulse.org](https://dnspulse.org)
 
 Pulse-Vault is a local encrypted file vault from DNSPulse for Linux desktops. It stores files and folders in a portable `.pulsevault` container, works offline, and uses authenticated encryption with a memory-hard password derivation function.
@@ -21,7 +23,7 @@ Windows can still run Pulse-Vault from source, but the primary packaging target 
 
 ## Features
 
-- Local-only desktop GUI with direct "GitHub Releases" sidebar button, clickable version badge, and dedicated downloads section in About (polished experience for users obtaining binaries/source from GitHub Releases).
+- Local-only desktop GUI with direct "GitHub Releases" sidebar button, clickable version badge, and dedicated downloads section in About (links to the dedicated GitHub Releases area for builds and notes; shows guidance if no releases published yet).
 - Streaming encryption for large files.
 - Scrypt password-based key derivation with per-vault Standard or Hardened profiles.
 - ChaCha20-Poly1305 plus AES-GCM cascade encryption.
@@ -157,7 +159,7 @@ Legacy `.PulseVault` files remain supported. Opening one prompts before it is re
 4. Use a strong unique password (14+ chars, variety enforced).
 5. Add files/folders via buttons or drag-and-drop.
 6. Double-click or use **Extract** / **Secure Open** (temporary plaintext launch).
-7. **GitHub Releases** button and version badge (clickable) open the dedicated downloads area on GitHub for latest builds, notes, and checksums.
+7. **GitHub Releases** button and version badge (clickable) open the dedicated downloads area on GitHub. The page may show "No releases found" until the first tag is created.
 8. Lock when done. Vault is a single portable file.
 
 See the in-app **Security Notes** (sidebar) for architecture details.
@@ -190,13 +192,11 @@ Read the security docs:
 
 See [CHANGELOG.md](CHANGELOG.md) (Keep a Changelog + SemVer).
 
-GitHub Releases (automatically created on `v*` tags via the release workflow) include:
-- Extracted notes directly from the matching CHANGELOG section
-- Source distribution + wheel
-- Security & property-based fuzz report artifact (from advanced Hypothesis tests)
-- Checksums
+**GitHub Releases** is the dedicated download area (see the "GitHub Releases" button in the app sidebar and version badge). Releases are created automatically when a version tag (`vX.Y.Z`) is pushed — the workflow attaches builds, the fuzz report, and checksums.
 
-[View all releases →](https://github.com/Z3r0s/Pulse-Vault/releases)
+Currently (pre-1.0 development) you may see "No releases found" on the [Releases page](https://github.com/Z3r0s/Pulse-Vault/releases) until the first tag is created. Source + wheels are always available via the repo or by tagging.
+
+[View releases / create first tag →](https://github.com/Z3r0s/Pulse-Vault/releases)
 
 ## License
 

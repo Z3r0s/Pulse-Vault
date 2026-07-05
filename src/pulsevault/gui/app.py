@@ -332,7 +332,8 @@ class VaultGUI(ctk.CTk):
         ctk.CTkLabel(
             self.empty_panel,
             text="Create or open a vault from the sidebar.\nDrag files here once a vault is unlocked.\n\n"
-            "Download the latest release from GitHub for updates & packaged builds.",
+            "GitHub Releases (sidebar button) is the dedicated area for builds, notes & checksums.\n"
+            "(May show 'No releases' until first version tag.)",
             font=ctk.CTkFont(size=13),
             text_color="#94a3b8",
             justify="center",
@@ -1069,7 +1070,8 @@ class VaultGUI(ctk.CTk):
             messagebox.showinfo(
                 "GitHub Releases",
                 f"Open in your browser:\n{GITHUB_RELEASES_URL}\n\n"
-                "GitHub Releases provides the latest source, wheels, checksums, and release notes.",
+                "GitHub Releases is the dedicated area for source, wheels, checksums, and (future) binaries.\n"
+                "You may see 'No releases found' until the first version tag (vX.Y.Z) is pushed.",
             )
 
     def show_about(self):
@@ -1153,7 +1155,7 @@ class VaultGUI(ctk.CTk):
 
         ctk.CTkLabel(
             downloads_frame,
-            text="Download source, wheels, view release notes, and checksums. GitHub is the canonical distribution point.",
+            text="Download source, wheels, view release notes, and checksums. GitHub Releases is the dedicated area (may show 'No releases found' until first tag).",
             font=ctk.CTkFont(size=11),
             text_color="#94a3b8",
             wraplength=700,
@@ -1222,6 +1224,7 @@ class VaultGUI(ctk.CTk):
         info = (
             "All releases, source distributions, wheels, checksums (SHA256SUMS), "
             "and the advanced security fuzz report are published here.\n\n"
+            "You may see 'No releases found' until the first `v*` tag is pushed (the release workflow then runs automatically).\n\n"
             "For packaged desktop binaries (planned toward 1.0), check GitHub Releases first. "
             "The official site (dnspulse.org) will mirror installers when ready."
         )
