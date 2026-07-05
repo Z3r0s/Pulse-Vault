@@ -17,10 +17,10 @@ jobs:
         # macOS can be added later; core/CLI tests are cross-platform friendly thanks to mocks
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -41,11 +41,9 @@ jobs:
 
       - name: Upload security fuzz / property test report artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: pulse-vault-security-fuzz-report-${{ matrix.python-version }}
-          path: |
-            ci-artifacts/pulse-vault-security-fuzz-report.json
-            security_fuzz_report.json
+          name: pulse-vault-security-fuzz-report-${{ matrix.python-version }}-${{ matrix.os }}
+          path: ci-artifacts/pulse-vault-security-fuzz-report.json
           retention-days: 14
           if-no-files-found: warn

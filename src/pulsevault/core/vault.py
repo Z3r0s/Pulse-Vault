@@ -464,6 +464,9 @@ class EncryptedVault:
             is_v4 = format_txt == FORMAT_V4
             is_v3 = format_txt == FORMAT_V3
 
+            if is_v5 and "kdf.json" not in names:
+                raise VaultError("Invalid vault KDF record.")
+
             salt = read_zip_entry(z, "salt.bin", SALT_SIZE, exact_size=SALT_SIZE)
             enc_meta = read_zip_entry(z, "metadata.enc", MAX_METADATA_SIZE)
             kdf_raw = None

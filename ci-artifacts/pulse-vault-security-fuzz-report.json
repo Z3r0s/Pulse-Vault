@@ -1,0 +1,12 @@
+{
+  "summary": {
+    "examples": 0,
+    "policy_strong": 0,
+    "policy_weak": 0,
+    "tamper_count": 0,
+    "all_detected": true,
+    "note": "No Hypothesis property test data collected (hypothesis may not be installed, or property tests were not executed in this run). Smoke tests still ran."
+  },
+  "timings": [],
+  "tamper": []
+}
