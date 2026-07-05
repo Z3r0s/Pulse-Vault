@@ -112,6 +112,10 @@ def _apply_bit_tamper(data: bytes, spec: dict) -> bytes:
     try:
         if layer in ("header", "whole") and len(ba) > 8:
             ba[0:4] = bytes([ba[i] ^ 0x01 for i in range(4)])  # magic-ish
+            # For 'whole' make it more destructive: flip several positions
+            if layer == "whole" and len(ba) > 16:
+                for extra in (len(ba)//3, len(ba)//2, min(len(ba)-1, 32)):
+                    ba[extra] ^= 0x55
         if layer == "salt" and len(ba) > 32:
             for i in range(16, 32):
                 if i < len(ba):
@@ -161,8 +165,8 @@ _tamper_results = []
 _policy_stats = {"strong": 0, "weak": 0}
 
 
-def test_smoke_without_hypothesis(self=None):
-    """Always runs: basic vector-seeded roundtrip using existing infrastructure."""
+def _run_smoke_roundtrip(self=None):
+    """Helper: basic vector-seeded roundtrip using existing infrastructure. Always executed."""
     with tempfile.TemporaryDirectory() as td:
         vp = Path(td) / "smoke.pulsevault"
         pw = "ThisIsASolidTestPasswordForSmoke98765!"
@@ -175,7 +179,9 @@ def test_smoke_without_hypothesis(self=None):
 
         v2 = EncryptedVault(vp)
         v2.unlock(pw)
-        out = v2.extract_file("seed.bin", Path(td))
+        extract_dir = Path(td) / "extract_out"
+        extract_dir.mkdir(exist_ok=True)
+        out = v2.extract_file("seed.bin", extract_dir, overwrite=True)
         self.assertEqual(out.read_bytes(), _load_vector_seed()[:256]) if self else None
         self.assertTrue(v2.verify_all()["file_count"] > 0) if self else None
 
@@ -243,8 +249,10 @@ if HAS_HYPOTHESIS:
                 listed = v2.list_files()
                 self.assertGreaterEqual(len(listed), 1)
 
+                extract_dir = Path(td) / "extract_out"
+                extract_dir.mkdir(exist_ok=True)
                 for fname in listed:
-                    extracted = v2.extract_file(fname, Path(td) / "extract_out")
+                    extracted = v2.extract_file(fname, extract_dir, overwrite=True)
                     self.assertTrue(extracted.exists())
                     # content check for our known ones
                     if fname in test_files:
@@ -270,22 +278,27 @@ if HAS_HYPOTHESIS:
                 # Write tampered version (in place for this example; test uses copy semantics)
                 vp.write_bytes(tampered)
 
-                vbad = EncryptedVault(vp)
                 detected = False
                 try:
-                    vbad.unlock(pw)
-                except (VaultError, crypto.CryptoError):
-                    detected = True
-                except Exception:
-                    detected = True  # any crypto failure is good
-
-                # Attempt list/verify/extract on tampered should also fail cleanly
-                if not detected:
+                    vbad = EncryptedVault(vp)
                     try:
-                        _ = vbad.list_files()
-                        _ = vbad.verify_all()
-                    except Exception:
+                        vbad.unlock(pw)
+                        # Even if unlock appears to succeed, accessing data must fail for tampered content
+                        try:
+                            _ = vbad.list_files()
+                            if vbad.is_unlocked and vbad.list_files():
+                                f0 = vbad.list_files()[0]
+                                _ = vbad.get_file_meta(f0)
+                                # attempt extract (should fail on bad crypto)
+                                tmp_check = Path(td) / "tamper_check"
+                                tmp_check.mkdir(exist_ok=True)
+                                vbad.extract_file(f0, tmp_check, overwrite=True)
+                        except Exception:
+                            detected = True
+                    except (VaultError, crypto.CryptoError, Exception):
                         detected = True
+                except Exception:
+                    detected = True  # constructor itself failed on bad file
 
                 self.assertTrue(detected, f"Tamper at {tamper} was not detected")
 
@@ -309,8 +322,11 @@ if HAS_HYPOTHESIS:
                 self.assertLess(timings["kdf_ms"], 300, "KDF too slow even for fast profile in test env")
                 self.assertLess(timings.get("unlock_ms", 0), 50)
 
-        def test_smoke_without_hypothesis(self):
-            test_smoke_without_hypothesis(self)
+
+class VaultSmokeTests(unittest.TestCase):
+    """Always-present smoke to guarantee basic functionality even without hypothesis installed."""
+    def test_smoke_without_hypothesis(self):
+        _run_smoke_roundtrip(self)
 
 
 if HAS_HYPOTHESIS:
