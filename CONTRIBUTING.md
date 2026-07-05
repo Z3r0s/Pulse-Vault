@@ -3,7 +3,8 @@
 Thanks for helping improve Pulse-Vault.
 
 Official site: [dnspulse.org](https://dnspulse.org). Packaged downloads will be hosted there later.
-For now, install from source in this repository.
+
+For full installation instructions (including Linux `tkinter` requirements), see [INSTALL.md](INSTALL.md).
 
 ## Development Setup
 

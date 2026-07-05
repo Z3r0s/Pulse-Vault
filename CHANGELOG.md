@@ -9,6 +9,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Changed
+
+- README reorganization: moved detailed installation instructions to their own dedicated [INSTALL.md](INSTALL.md) file (instead of embedded in main README). Added short summary + links in README. Updated docs/DOWNLOADS.md, CONTRIBUTING.md, and related references for better organization. Docs are now cleaner with dedicated files for install, downloads, etc.
+
 ## [0.0.20] - 2026-07-04
 
 ### Added

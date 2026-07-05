@@ -4,18 +4,9 @@ Pulse-Vault is distributed in two phases:
 
 ## Current (pre-1.0)
 
-Install from source on GitHub:
+**Full installation instructions** (including Linux `tkinter` system packages, venv setup, Windows/macOS, Parrot script, etc.) are in [INSTALL.md](../INSTALL.md).
 
-```bash
-git clone https://github.com/Z3r0s/Pulse-Vault.git
-cd Pulse-Vault
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-pulse-vault
-```
-
-GitHub is the canonical source repository and issue tracker. There is no official packaged download channel yet.
+GitHub is the canonical source repository and issue tracker. There is no official packaged download channel yet (see GitHub Releases below).
 
 **GUI users**: The desktop app now includes a prominent **"GitHub Releases"** sidebar button (always available), a clickable version badge linking to releases, and an expanded **About > GitHub Downloads & Releases** section (plus new dedicated dialog). These directly surface the GitHub Releases page.
 
