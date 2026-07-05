@@ -1,0 +1,142 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-binaries:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: pulse-vault
+            asset_name: pulse-vault-linux
+          - os: windows-latest
+            artifact_name: pulse-vault.exe
+            asset_name: pulse-vault-windows.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyInstaller and build deps
+        run: |
+          python -m pip install --upgrade pip pyinstaller
+          pip install -e '.[dev]'
+
+      - name: Build standalone executable
+        run: |
+          pyinstaller --onefile --windowed --name ${{ matrix.artifact_name }} \
+            --add-data "src/pulsevault/assets${{ matrix.os == 'windows-latest' && ';' || ':' }}pulsevault/assets" \
+            --hidden-import customtkinter \
+            --hidden-import tkinterdnd2 \
+            src/pulsevault/main.py
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: dist/${{ matrix.artifact_name }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+
+  release:
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build + test deps
+        run: |
+          python -m pip install --upgrade pip build
+          pip install -e '.[dev]'
+          pip install hypothesis
+
+      - name: Run tests (fast profile)
+        env:
+          PULSEVAULT_SCRYPT_PROFILE: fast
+          PULSEVAULT_TEST_FAST_KDF: "1"
+        run: python -m unittest discover -s tests -v
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Extract changelog section for release notes
+        id: changelog
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION="${TAG_NAME#v}"
+          python3 - << 'PYEOF'
+          import re
+          from pathlib import Path
+          content = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          ver = "${VERSION}".strip()
+          patterns = [
+              rf'## \[(?:v)?{re.escape(ver)}\].*?\n(.*?)(?=\n## \[|\Z)',
+              r'## \[Unreleased\](.*?)(?=\n## \[|\Z)',
+          ]
+          body = ""
+          for pat in patterns:
+              m = re.search(pat, content, re.DOTALL | re.IGNORECASE)
+              if m:
+                  body = m.group(1).strip()
+                  body = re.sub(r'^\s*\n+', '', body)
+                  break
+          if not body:
+              body = "See full details in CHANGELOG.md."
+          print("RELEASE_BODY<<EOF")
+          print(body)
+          print("EOF")
+          PYEOF
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum *.tar.gz *.whl > SHA256SUMS.txt || true
+          cd ..
+
+      - name: Download built binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: release-binaries
+          merge-multiple: true
+
+      - name: Prepare release assets (including advanced security property report and platform binaries)
+        run: |
+          mkdir -p release-assets
+          cp -v dist/* release-assets/ 2>/dev/null || true
+          cp -v release-binaries/* release-assets/ 2>/dev/null || true
+          if [ -f ci-artifacts/pulse-vault-security-fuzz-report.json ]; then
+            cp ci-artifacts/pulse-vault-security-fuzz-report.json release-assets/pulse-vault-${{ github.ref_name }}-security-fuzz-report.json
+          fi
+          cp -v SHA256SUMS.txt release-assets/ 2>/dev/null || true
+          ls -l release-assets/ || true
+
+      - name: Create GitHub Release (changelog-driven)
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: ${{ steps.changelog.outputs.RELEASE_BODY }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') || contains(github.ref_name, 'rc') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+          files: |
+            release-assets/*
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

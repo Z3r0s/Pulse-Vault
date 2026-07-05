@@ -4,7 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pulse-vault"
-version = "0.2.1"
+# version is maintained in src/pulsevault/__init__.py for single source of truth
+# (bump there + CHANGELOG + metainfo before tagging)
+dynamic = ["version"]
 description = "Local-first encrypted file vault for Linux desktops."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -52,6 +54,9 @@ pulse-vault-cli = "pulsevault.cli:main_cli_entry"
 [tool.setuptools]
 package-dir = { "" = "src" }
 include-package-data = true
+
+[tool.setuptools.dynamic]
+version = {attr = "pulsevault.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]

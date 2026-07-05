@@ -8,10 +8,13 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest]
         python-version: ["3.11", "3.12"]
+        # macOS can be added later; core/CLI tests are cross-platform friendly thanks to mocks
 
     steps:
       - uses: actions/checkout@v4
@@ -22,9 +25,27 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install -e .
+        run: |
+          pip install -e '.[dev]'
+          pip install hypothesis  # ensure for advanced property tests
+
+      - name: Install system tkinter (Ubuntu, for optional real GUI smoke)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y python3-tk || true
 
       - name: Run tests
         env:
           PULSEVAULT_SCRYPT_PROFILE: fast
+          PULSEVAULT_TEST_FAST_KDF: "1"
         run: python -m unittest discover -s tests -v
+
+      - name: Upload security fuzz / property test report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulse-vault-security-fuzz-report-${{ matrix.python-version }}
+          path: |
+            ci-artifacts/pulse-vault-security-fuzz-report.json
+            security_fuzz_report.json
+          retention-days: 14
+          if-no-files-found: warn

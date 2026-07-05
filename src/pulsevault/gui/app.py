@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import webbrowser
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from tkinter.simpledialog import askstring
@@ -16,12 +17,14 @@ import customtkinter as ctk
 
 from pulsevault import __version__
 from pulsevault.core.vault import EncryptedVault, VaultError, safe_filename, secure_unlink
-from pulsevault.gui.dialogs import ask_password, ask_scrypt_profile
+from pulsevault.gui.dialogs import ask_password, ask_scrypt_profile, GitHubReleasesDialog, show_github_releases_dialog
 from pulsevault.gui.theme import resolve_appearance_mode, tree_fonts, tree_palette
 
 
 APP_NAME = "Pulse-Vault"
 APP_SUBTITLE = "DNSPulse hardened local vault"
+GITHUB_RELEASES_URL = "https://github.com/Z3r0s/Pulse-Vault/releases"
+OFFICIAL_SITE = "https://dnspulse.org"
 COMMON_PASSWORDS = {
     "password",
     "password123",
@@ -104,6 +107,14 @@ class VaultGUI(ctk.CTk):
         self.bind("<<RefreshList>>", lambda _: self.refresh_list())
         self.bind("<<ClearProgress>>", lambda _: self.hide_progress())
 
+        # Keyboard shortcuts (enhancement for power users and GitHub binary users)
+        self.bind("<Control-n>", lambda e: self.create_vault())
+        self.bind("<Control-o>", lambda e: self.open_vault())
+        self.bind("<Control-l>", lambda e: self.lock_vault())
+        self.bind("<Control-f>", lambda e: self.search_entry.focus_set())
+        self.bind("<F5>", lambda e: self.refresh_list())
+        self.bind("<Delete>", lambda e: self.delete_selected() if self.vault and self.vault.is_unlocked else None)
+
     def cleanup_temp_dir(self):
         try:
             if self.secure_temp_dir.exists():
@@ -121,7 +132,7 @@ class VaultGUI(ctk.CTk):
     def build_sidebar(self):
         self.sidebar_frame = ctk.CTkFrame(self, width=224, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, rowspan=2, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(9, weight=1)
+        self.sidebar_frame.grid_rowconfigure(10, weight=1)
 
         self.logo_label = ctk.CTkLabel(
             self.sidebar_frame,
@@ -137,8 +148,10 @@ class VaultGUI(ctk.CTk):
             justify="left",
             font=ctk.CTkFont(size=11),
             text_color="#94a3b8",
+            cursor="hand2",
         )
         self.version_badge.grid(row=1, column=0, padx=20, pady=(2, 18), sticky="w")
+        self.version_badge.bind("<Button-1>", lambda e: self.open_github_releases())
 
         ctk.CTkFrame(self.sidebar_frame, height=1, fg_color="#263241").grid(
             row=2, column=0, sticky="ew", padx=16, pady=(0, 14)
@@ -211,7 +224,21 @@ class VaultGUI(ctk.CTk):
             height=36,
             font=ctk.CTkFont(size=12),
         )
-        self.btn_about.grid(row=8, column=0, padx=20, pady=(6, 18), sticky="ew")
+        self.btn_about.grid(row=8, column=0, padx=20, pady=6, sticky="ew")
+
+        # NEW: Dedicated GitHub downloads button - always enabled, ties directly to GitHub Releases area
+        self.btn_downloads = ctk.CTkButton(
+            self.sidebar_frame,
+            text="GitHub Releases",
+            command=self.open_github_releases,
+            fg_color="transparent",
+            border_width=1,
+            text_color="#3b82f6",
+            hover_color=("gray90", "gray20"),
+            height=36,
+            font=ctk.CTkFont(size=12),
+        )
+        self.btn_downloads.grid(row=9, column=0, padx=20, pady=(0, 12), sticky="ew")
 
         self.appearance_mode_label = ctk.CTkLabel(
             self.sidebar_frame,
@@ -220,14 +247,14 @@ class VaultGUI(ctk.CTk):
             font=ctk.CTkFont(size=11, weight="bold"),
             text_color="#94a3b8",
         )
-        self.appearance_mode_label.grid(row=10, column=0, padx=20, pady=(8, 0), sticky="w")
-        self.appearance_mode_optionemenu = ctk.CTkOptionMenu(
+        self.appearance_mode_label.grid(row=11, column=0, padx=20, pady=(8, 0), sticky="w")
+        self.appearance_mode_optionmenu = ctk.CTkOptionMenu(
             self.sidebar_frame,
             values=["System", "Dark", "Light"],
             command=self.change_appearance_mode_event,
             height=32,
         )
-        self.appearance_mode_optionemenu.grid(row=11, column=0, padx=20, pady=(6, 20), sticky="ew")
+        self.appearance_mode_optionmenu.grid(row=12, column=0, padx=20, pady=(6, 20), sticky="ew")
 
     def build_main_view(self):
         self.main_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
@@ -304,7 +331,8 @@ class VaultGUI(ctk.CTk):
         ).grid(row=0, column=0, pady=(0, 6))
         ctk.CTkLabel(
             self.empty_panel,
-            text="Create or open a vault from the sidebar.\nDrag files here once a vault is unlocked.",
+            text="Create or open a vault from the sidebar.\nDrag files here once a vault is unlocked.\n\n"
+            "Download the latest release from GitHub for updates & packaged builds.",
             font=ctk.CTkFont(size=13),
             text_color="#94a3b8",
             justify="center",
@@ -558,6 +586,9 @@ class VaultGUI(ctk.CTk):
             self.btn_rename,
         ):
             button.configure(state=state)
+        # Downloads button is always enabled (not vault-dependent)
+        if hasattr(self, "btn_downloads"):
+            self.btn_downloads.configure(state="normal")
 
     def require_vault(self) -> bool:
         if not self.vault or not self.vault.is_unlocked:
@@ -1027,16 +1058,30 @@ class VaultGUI(ctk.CTk):
 
         self._run_in_thread(task)
 
+    def open_github_releases(self):
+        """Open the dedicated GitHub Releases page. Graceful fallback for headless or restricted envs.
+        This directly supports users who download binaries / source from GitHub Releases.
+        """
+        try:
+            webbrowser.open(GITHUB_RELEASES_URL)
+        except Exception:
+            # Fallback: show the URL so user can copy (works in tests/headless too)
+            messagebox.showinfo(
+                "GitHub Releases",
+                f"Open in your browser:\n{GITHUB_RELEASES_URL}\n\n"
+                "GitHub Releases provides the latest source, wheels, checksums, and release notes.",
+            )
+
     def show_about(self):
         about_win = ctk.CTkToplevel(self)
         about_win.title("Pulse-Vault Security Notes")
-        about_win.geometry("820x580")
+        about_win.geometry("860x620")
         about_win.resizable(False, False)
 
         about_win.update_idletasks()
         if self.winfo_viewable():
-            x = self.winfo_x() + (self.winfo_width() // 2) - (820 // 2)
-            y = self.winfo_y() + (self.winfo_height() // 2) - (580 // 2)
+            x = self.winfo_x() + (self.winfo_width() // 2) - (860 // 2)
+            y = self.winfo_y() + (self.winfo_height() // 2) - (620 // 2)
             about_win.geometry(f"+{x}+{y}")
 
         about_win.transient(self)
@@ -1080,7 +1125,7 @@ class VaultGUI(ctk.CTk):
             "app exits normally. The opened file is plaintext while viewed, and external applications may "
             "create caches or recent-file entries.\n\n"
             "No telemetry. No networking. No cloud service dependency.\n\n"
-            "Official site: https://dnspulse.org"
+            f"Official site: {OFFICIAL_SITE}"
         )
 
         textbox = ctk.CTkTextbox(
@@ -1094,6 +1139,48 @@ class VaultGUI(ctk.CTk):
         textbox.insert("1.0", about_text)
         textbox.configure(state="disabled")
 
+        # NEW: Dedicated GitHub downloads area inside About dialog
+        downloads_frame = ctk.CTkFrame(about_win, fg_color="transparent")
+        downloads_frame.grid(row=2, column=0, padx=36, pady=(0, 10), sticky="ew")
+        downloads_frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            downloads_frame,
+            text="GitHub Downloads & Releases",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#3b82f6",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 4))
+
+        ctk.CTkLabel(
+            downloads_frame,
+            text="Download source, wheels, view release notes, and checksums. GitHub is the canonical distribution point.",
+            font=ctk.CTkFont(size=11),
+            text_color="#94a3b8",
+            wraplength=700,
+        ).grid(row=1, column=0, sticky="w", pady=(0, 8))
+
+        btn_row = ctk.CTkFrame(downloads_frame, fg_color="transparent")
+        btn_row.grid(row=2, column=0, sticky="w")
+
+        ctk.CTkButton(
+            btn_row,
+            text="Open GitHub Releases",
+            command=lambda: (about_win.destroy(), self.open_github_releases()),
+            fg_color="#3b82f6",
+            hover_color="#2563eb",
+            height=32,
+            width=180,
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            btn_row,
+            text="Visit dnspulse.org",
+            command=lambda: webbrowser.open(OFFICIAL_SITE) or None,
+            fg_color="transparent",
+            border_width=1,
+            height=32,
+        ).pack(side="left")
+
         ctk.CTkButton(
             about_win,
             text="Close",
@@ -1103,5 +1190,67 @@ class VaultGUI(ctk.CTk):
             font=ctk.CTkFont(size=14, weight="bold"),
             fg_color="#10b981",
             hover_color="#059669",
-        ).grid(row=2, column=0, pady=(0, 28))
+        ).grid(row=3, column=0, pady=(8, 28))
         about_win.focus()
+
+    def show_downloads_dialog(self):
+        """Standalone dedicated downloads dialog (can be called from menu or future features).
+        Provides focused GitHub releases view for users coming from GitHub binary downloads.
+        """
+        dl_win = ctk.CTkToplevel(self)
+        dl_win.title(f"{APP_NAME} - GitHub Releases")
+        dl_win.geometry("520x280")
+        dl_win.resizable(False, False)
+
+        dl_win.update_idletasks()
+        if self.winfo_viewable():
+            x = self.winfo_x() + (self.winfo_width() // 2) - (dl_win.winfo_width() // 2)
+            y = self.winfo_y() + (self.winfo_height() // 2) - (dl_win.winfo_height() // 2)
+            dl_win.geometry(f"+{x}+{y}")
+
+        dl_win.transient(self)
+        dl_win.grab_set()
+        dl_win.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            dl_win,
+            text="GitHub Releases",
+            font=ctk.CTkFont(size=20, weight="bold"),
+            text_color="#3b82f6",
+        ).grid(row=0, column=0, padx=24, pady=(24, 8))
+
+        info = (
+            "All releases, source distributions, wheels, checksums (SHA256SUMS), "
+            "and the advanced security fuzz report are published here.\n\n"
+            "For packaged desktop binaries (planned toward 1.0), check GitHub Releases first. "
+            "The official site (dnspulse.org) will mirror installers when ready."
+        )
+        ctk.CTkLabel(
+            dl_win,
+            text=info,
+            wraplength=460,
+            justify="left",
+            font=ctk.CTkFont(size=12),
+        ).grid(row=1, column=0, padx=24, pady=(0, 16))
+
+        btns = ctk.CTkFrame(dl_win, fg_color="transparent")
+        btns.grid(row=2, column=0, padx=24, pady=(0, 20), sticky="ew")
+
+        ctk.CTkButton(
+            btns,
+            text="Open Releases Page",
+            command=lambda: (dl_win.destroy(), self.open_github_releases()),
+            fg_color="#3b82f6",
+            height=36,
+        ).pack(side="left", padx=(0, 10))
+
+        ctk.CTkButton(
+            btns,
+            text="Close",
+            command=dl_win.destroy,
+            fg_color="transparent",
+            border_width=1,
+            height=36,
+        ).pack(side="left")
+
+        dl_win.focus()

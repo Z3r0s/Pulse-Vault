@@ -243,3 +243,76 @@ def ask_scrypt_profile(parent):
     dialog = ScryptProfileDialog(parent)
     parent.wait_window(dialog)
     return dialog.result
+
+
+# NEW: Lightweight GitHub Releases info dialog class (used optionally; main integration in app.py for simplicity)
+class GitHubReleasesDialog(ctk.CTkToplevel):
+    """Small dedicated dialog exposing the GitHub downloads / releases area.
+    Intended for direct use or future menu integration. Keeps download goals visible.
+    """
+    def __init__(self, parent, releases_url: str, site_url: str = "https://dnspulse.org"):
+        super().__init__(parent)
+        self.releases_url = releases_url
+        self.site_url = site_url
+        self.title("GitHub Releases")
+        self.geometry("480x220")
+        self.resizable(False, False)
+        self.update_idletasks()
+        if parent and parent.winfo_viewable():
+            x = parent.winfo_x() + (parent.winfo_width() // 2) - (self.winfo_width() // 2)
+            y = parent.winfo_y() + (parent.winfo_height() // 2) - (self.winfo_height() // 2)
+            self.geometry(f"+{x}+{y}")
+        self.transient(parent)
+        self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
+        self.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            self,
+            text="Pulse-Vault GitHub Releases",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color="#3b82f6",
+        ).grid(row=0, column=0, padx=20, pady=(18, 6))
+
+        desc = ctk.CTkLabel(
+            self,
+            text="Source, wheels, checksums, and release notes are published on GitHub.\nPackaged desktop downloads will appear here (and mirrored on dnspulse.org).",
+            wraplength=420,
+            justify="left",
+            font=ctk.CTkFont(size=11),
+        )
+        desc.grid(row=1, column=0, padx=20, pady=(0, 12))
+
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.grid(row=2, column=0, padx=20, pady=(0, 18), sticky="ew")
+
+        ctk.CTkButton(
+            btn_frame,
+            text="Open Releases",
+            command=self._open_releases,
+            fg_color="#3b82f6",
+            height=32,
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            btn_frame,
+            text="Close",
+            command=self.destroy,
+            fg_color="transparent",
+            border_width=1,
+            height=32,
+        ).pack(side="left")
+
+    def _open_releases(self):
+        import webbrowser
+        try:
+            webbrowser.open(self.releases_url)
+        except Exception:
+            pass  # parent can show fallback
+        self.destroy()
+
+
+def show_github_releases_dialog(parent, releases_url: str):
+    """Helper to instantiate the new dedicated dialog class."""
+    dlg = GitHubReleasesDialog(parent, releases_url)
+    parent.wait_window(dlg)

@@ -1,5 +1,9 @@
 # Pulse-Vault
 
+[![Tests](https://github.com/Z3r0s/Pulse-Vault/actions/workflows/test.yml/badge.svg)](https://github.com/Z3r0s/Pulse-Vault/actions/workflows/test.yml)
+[![Latest Release](https://img.shields.io/github/v/release/Z3r0s/Pulse-Vault?sort=semver)](https://github.com/Z3r0s/Pulse-Vault/releases/latest)
+[![Changelog](https://img.shields.io/badge/CHANGELOG-Keep%20a%20Changelog-blue)](CHANGELOG.md)
+
 Official site: [dnspulse.org](https://dnspulse.org)
 
 Pulse-Vault is a local encrypted file vault from DNSPulse for Linux desktops. It stores files and folders in a portable `.pulsevault` container, works offline, and uses authenticated encryption with a memory-hard password derivation function.
@@ -17,7 +21,7 @@ Windows can still run Pulse-Vault from source, but the primary packaging target 
 
 ## Features
 
-- Local-only desktop GUI.
+- Local-only desktop GUI with direct "GitHub Releases" sidebar button, clickable version badge, and dedicated downloads section in About (polished experience for users obtaining binaries/source from GitHub Releases).
 - Streaming encryption for large files.
 - Scrypt password-based key derivation with per-vault Standard or Hardened profiles.
 - ChaCha20-Poly1305 plus AES-GCM cascade encryption.
@@ -143,16 +147,30 @@ The intended vault extension is:
 .pulsevault
 ```
 
-Legacy `.PulseVault` files remain supported. Opening one prompts before it is
-renamed to `.pulsevault`.
+Legacy `.PulseVault` files remain supported. Opening one prompts before it is renamed.
 
-## Security Notes
+## Usage (GUI)
 
-- Your password is the root secret. If it is weak or lost, Pulse-Vault cannot save you.
-- Pulse-Vault is designed for offline file privacy, not protection against malware on an already-unlocked computer.
-- Secure Open extracts plaintext files to a temporary app directory before launching them. External viewers may create their own caches or recent-file entries.
-- Carrier-file mode is casual disguise, not forensic invisibility.
-- Keep backups. Vault corruption or password loss can make contents unrecoverable.
+1. Launch `pulse-vault` (or `python -m pulsevault`).
+2. Click **+ New Vault** (optionally select a carrier image/video for casual disguise) or **Open Vault**.
+3. Choose Scrypt profile (Standard recommended; Hardened for higher brute-force cost).
+4. Use a strong unique password (14+ chars, variety enforced).
+5. Add files/folders via buttons or drag-and-drop.
+6. Double-click or use **Extract** / **Secure Open** (temporary plaintext launch).
+7. **GitHub Releases** button and version badge (clickable) open the dedicated downloads area on GitHub for latest builds, notes, and checksums.
+8. Lock when done. Vault is a single portable file.
+
+See the in-app **Security Notes** (sidebar) for architecture details.
+
+## CLI (guided / packaging friendly)
+
+See `pulse-vault --cli --help`. Useful for scripts, servers, or when no GUI is available. The same binary supports both modes.
+
+## Packaging & Desktop Integration
+
+See `packaging/linux/` and `docs/DOWNLOADS.md`.
+
+## Security & Docs
 
 Read the security docs:
 
@@ -168,9 +186,17 @@ Read the security docs:
 - Container: ZIP with encrypted metadata and encrypted `data/*.enc` entries
 - Current marker: `PULSEVAULT5_COMPRESSED_CASCADE`
 
-## Changelog
+## Changelog & Releases
 
-See [CHANGELOG.md](CHANGELOG.md).
+See [CHANGELOG.md](CHANGELOG.md) (Keep a Changelog + SemVer).
+
+GitHub Releases (automatically created on `v*` tags via the release workflow) include:
+- Extracted notes directly from the matching CHANGELOG section
+- Source distribution + wheel
+- Security & property-based fuzz report artifact (from advanced Hypothesis tests)
+- Checksums
+
+[View all releases →](https://github.com/Z3r0s/Pulse-Vault/releases)
 
 ## License
 
