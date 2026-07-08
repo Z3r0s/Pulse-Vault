@@ -2,10 +2,14 @@
 Version=1.0
 Type=Application
 Name=Pulse-Vault
+GenericName=Encrypted File Vault
 Comment=Local encrypted file vault
 Exec=pulse-vault %f
+TryExec=pulse-vault
 Icon=pulse-vault
 Terminal=false
 Categories=Utility;Security;FileTools;
+Keywords=encryption;vault;privacy;security;crypto;scrypt;offline;container;
 MimeType=application/x-pulsevault;
 StartupNotify=true
+StartupWMClass=Pulse-Vault

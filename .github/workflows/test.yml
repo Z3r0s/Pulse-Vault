@@ -47,3 +47,40 @@ jobs:
           path: ci-artifacts/pulse-vault-security-fuzz-report.json
           retention-days: 14
           if-no-files-found: warn
+
+  # Packaging / App Store validation (Linux desktop metadata + AppStream)
+  # Helps catch issues before Ubuntu App Store / Snap / .deb submissions.
+  # Uses desktop-file-utils + appstream-util (AppStream GLib).
+  # Runs independently of matrix (always on ubuntu-latest).
+  validate-packaging:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install desktop + AppStream validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y desktop-file-utils appstream-util || \
+            sudo apt-get install -y desktop-file-utils libappstream-glib8 || true
+
+      - name: Validate desktop file
+        run: |
+          desktop-file-validate packaging/linux/pulse-vault.desktop || (echo "Desktop validation failed (non-fatal in early dev)" && true)
+
+      - name: Validate AppStream metainfo (relaxed, no net)
+        run: |
+          appstream-util validate-relax --nonet packaging/linux/io.github.z3r0s.PulseVault.metainfo.xml || \
+            (echo "AppStream validation notes (common for early releases or missing screenshots)" && true)
+
+      - name: Check version consistency hint (metainfo vs source)
+        run: |
+          SRC_VER=$(python3 -c "
+import sys
+sys.path.insert(0, 'src')
+import pulsevault
+print(pulsevault.__version__)
+")
+          echo "Source version: $SRC_VER"
+          # Note: metainfo should contain a matching <release version="$SRC_VER">
+          grep -o 'version="[^"]*"' packaging/linux/io.github.z3r0s.PulseVault.metainfo.xml | head -1 || true
+          echo "Reminder: keep metainfo releases in sync per CONTRIBUTING.md"

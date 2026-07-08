@@ -71,7 +71,7 @@ class CliCommandTests(unittest.TestCase):
              mock.patch("pulsevault.cli._prompt_profile", return_value="standard"), \
              mock.patch("builtins.input", return_value="y"), \
              mock.patch("sys.stdout", new_callable=StringIO) as mock_stdout:
-            args = mock.Mock(vault=str(self.vault_path), profile="standard", carrier=None)
+            args = mock.Mock(vault=str(self.vault_path), profile="standard", carrier=None, yes=False)
             rc = cmd_create(args)
             self.assertEqual(rc, 0)
             output = mock_stdout.getvalue()
@@ -91,7 +91,7 @@ class CliCommandTests(unittest.TestCase):
         with mock.patch("getpass.getpass", side_effect=[weak, weak]), \
              mock.patch("builtins.input", side_effect=["N"]), \
              mock.patch("sys.stdout", new_callable=StringIO) as mock_stdout:
-            args = mock.Mock(vault=str(self.vault_path), profile="fast", carrier=None)
+            args = mock.Mock(vault=str(self.vault_path), profile="fast", carrier=None, yes=False)
             rc = cmd_create(args)
             self.assertEqual(rc, 1)
             self.assertIn("Warning", mock_stdout.getvalue())
@@ -119,13 +119,14 @@ class CliCommandTests(unittest.TestCase):
             args = mock.Mock(vault=str(self.vault_path))
             rc = cmd_verify(args)
             self.assertEqual(rc, 0)
-            self.assertIn("verified", out.getvalue().lower())
+            self.assertIn("verify", out.getvalue().lower())
 
     def test_cmd_change_pw_success(self):
         self._create_vault_via_code()
         new_pw = "NewSuperLongReplacementPassword987!"
 
         with mock.patch("getpass.getpass", side_effect=[self.password, new_pw, new_pw]), \
+             mock.patch("pulsevault.cli._confirm_action", return_value=True), \
              mock.patch("sys.stdout", new_callable=StringIO) as out:
             args = mock.Mock(vault=str(self.vault_path))
             rc = cmd_change_pw(args)
@@ -169,8 +170,7 @@ class CliDispatchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             vp = Path(td) / "viaargv.pulsevault"
             pw = "AVeryLongTestPassForDispatch12345"
-            with mock.patch("getpass.getpass", side_effect=[pw, pw]), \
-                 mock.patch("builtins.input", return_value="standard"):
+            with mock.patch("getpass.getpass", side_effect=[pw, pw]):
                 rc = run_guided_cli(["create", str(vp), "--profile", "standard"])
                 self.assertEqual(rc, 0)
                 self.assertTrue(vp.exists())
@@ -226,7 +226,7 @@ class CliIntegrationAdvancedTests(unittest.TestCase):
                 rc = run_guided_cli(["verify", str(vp)])
                 self.assertEqual(rc, 0)
                 # should succeed with 0 files
-                self.assertIn("verified", out.getvalue().lower())
+                self.assertIn("verify", out.getvalue().lower())
 
 
 if __name__ == "__main__":

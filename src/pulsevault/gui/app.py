@@ -16,63 +16,47 @@ import tkinter as tk
 import customtkinter as ctk
 
 from pulsevault import __version__
-from pulsevault.core.vault import EncryptedVault, VaultError, safe_filename, secure_unlink
+from pulsevault.core.vault import (
+    EncryptedVault,
+    VaultError,
+    safe_filename,
+    secure_unlink,
+    human_size,
+    password_policy_error,
+    is_reasonable_password,
+)
 from pulsevault.gui.dialogs import ask_password, ask_scrypt_profile, GitHubReleasesDialog, show_github_releases_dialog
-from pulsevault.gui.theme import resolve_appearance_mode, tree_fonts, tree_palette
+from pulsevault.gui.theme import (
+    resolve_appearance_mode,
+    tree_fonts,
+    tree_palette,
+    get_yaru_colors,
+    adaptive_color,
+    CORNER_RADIUS,
+    CORNER_RADIUS_SMALL,
+    BUTTON_HEIGHT_PRIMARY,
+    BUTTON_HEIGHT,
+    BUTTON_HEIGHT_COMPACT,
+    get_ubuntu_font,
+    get_adaptive_accent,
+    get_adaptive_accent_hover,
+    get_adaptive_gray,
+    get_adaptive_warning,
+    get_adaptive_success,
+    get_yaru_button_colors,
+    get_progress_color,
+    get_search_border_color,
+    YARU_ORANGE,
+    YARU_RED,
+    YARU_PAD,
+    YARU_PAD_SMALL,
+)
 
 
 APP_NAME = "Pulse-Vault"
 APP_SUBTITLE = "DNSPulse hardened local vault"
 GITHUB_RELEASES_URL = "https://github.com/Z3r0s/Pulse-Vault/releases"
 OFFICIAL_SITE = "https://dnspulse.org"
-COMMON_PASSWORDS = {
-    "password",
-    "password123",
-    "123456789012",
-    "qwerty123456",
-    "letmein123456",
-    "adminadminadmin",
-    "pulsevault",
-}
-
-
-def human_size(size: int) -> str:
-    units = ["B", "KB", "MB", "GB", "TB"]
-    value = float(size)
-    for unit in units:
-        if value < 1024:
-            return f"{value:.1f} {unit}"
-        value /= 1024
-    return f"{value:.1f} PB"
-
-
-def password_policy_error(password: str) -> Optional[str]:
-    if len(password) < 14:
-        return "Use at least 14 characters, or generate a secure key."
-
-    lowered = password.lower()
-    if lowered in COMMON_PASSWORDS or any(piece in lowered for piece in ("password", "qwerty", "letmein", "123456")):
-        return "Avoid common words, keyboard patterns, and obvious number runs."
-
-    if len(set(password)) < 5:
-        return "Use a less repetitive password."
-
-    categories = sum(
-        (
-            any(ch.islower() for ch in password),
-            any(ch.isupper() for ch in password),
-            any(ch.isdigit() for ch in password),
-            any(not ch.isalnum() for ch in password),
-        )
-    )
-    if categories < 3 and len(password) < 20:
-        return "Use more variety, or make it at least 20 characters."
-
-    return None
-
-
-def is_reasonable_password(password: str) -> bool:
-    return password_policy_error(password) is None
 
 
 class VaultGUI(ctk.CTk):
@@ -91,6 +75,7 @@ class VaultGUI(ctk.CTk):
         self._search_after_id = None
         self._icon_image = None
         self._status_restore = None
+        self._prev_status = None
         self.secure_temp_dir = Path(tempfile.mkdtemp(prefix=".pulse_secure_"))
         try:
             self.secure_temp_dir.chmod(0o700)
@@ -104,6 +89,7 @@ class VaultGUI(ctk.CTk):
         self.apply_tree_theme()
         self.setup_drag_drop()
         self.update_empty_state()
+        self.set_status("Ready — create or open a vault (default profile: standard).")
         self.bind("<<RefreshList>>", lambda _: self.refresh_list())
         self.bind("<<ClearProgress>>", lambda _: self.hide_progress())
 
@@ -137,8 +123,8 @@ class VaultGUI(ctk.CTk):
         self.logo_label = ctk.CTkLabel(
             self.sidebar_frame,
             text="Pulse-Vault",
-            font=ctk.CTkFont(size=24, weight="bold"),
-            text_color="#10b981",
+            font=ctk.CTkFont(**get_ubuntu_font(24, "bold")),
+            text_color=get_adaptive_accent(),  # Ubuntu 26.04 Yaru orange accent
         )
         self.logo_label.grid(row=0, column=0, padx=20, pady=(24, 0), sticky="w")
 
@@ -146,14 +132,14 @@ class VaultGUI(ctk.CTk):
             self.sidebar_frame,
             text=f"v{__version__}\n{APP_SUBTITLE}",
             justify="left",
-            font=ctk.CTkFont(size=11),
-            text_color="#94a3b8",
+            font=ctk.CTkFont(**get_ubuntu_font(11)),
+            text_color=get_adaptive_gray(),
             cursor="hand2",
         )
         self.version_badge.grid(row=1, column=0, padx=20, pady=(2, 18), sticky="w")
         self.version_badge.bind("<Button-1>", lambda e: self.open_github_releases())
 
-        ctk.CTkFrame(self.sidebar_frame, height=1, fg_color="#263241").grid(
+        ctk.CTkFrame(self.sidebar_frame, height=1, fg_color=adaptive_color("#d0d0d0", "#363636")).grid(
             row=2, column=0, sticky="ew", padx=16, pady=(0, 14)
         )
 
@@ -161,10 +147,11 @@ class VaultGUI(ctk.CTk):
             self.sidebar_frame,
             text="+ New Vault",
             command=self.create_vault,
-            fg_color="#10b981",
-            hover_color="#059669",
-            height=40,
-            font=ctk.CTkFont(size=13, weight="bold"),
+            fg_color=get_adaptive_accent(),
+            hover_color=get_adaptive_accent_hover(),
+            height=BUTTON_HEIGHT_PRIMARY,
+            font=ctk.CTkFont(**get_ubuntu_font(13, "bold")),
+            corner_radius=CORNER_RADIUS_SMALL,
         )
         self.btn_new.grid(row=3, column=0, padx=20, pady=6, sticky="ew")
 
@@ -172,10 +159,11 @@ class VaultGUI(ctk.CTk):
             self.sidebar_frame,
             text="Open Vault",
             command=self.open_vault,
-            fg_color="#2563eb",
-            hover_color="#1d4ed8",
-            height=40,
-            font=ctk.CTkFont(size=13),
+            fg_color=adaptive_color("#2563eb", "#1d4ed8"),  # keep distinct blue for open; orange primary for new
+            hover_color=adaptive_color("#1d4ed8", "#163a9e"),
+            height=BUTTON_HEIGHT_PRIMARY,
+            font=ctk.CTkFont(**get_ubuntu_font(13)),
+            corner_radius=CORNER_RADIUS_SMALL,
         )
         self.btn_open.grid(row=4, column=0, padx=20, pady=6, sticky="ew")
 
@@ -184,20 +172,22 @@ class VaultGUI(ctk.CTk):
             text="Lock Vault",
             command=self.lock_vault,
             state="disabled",
-            height=38,
-            font=ctk.CTkFont(size=13),
+            height=BUTTON_HEIGHT,
+            font=ctk.CTkFont(**get_ubuntu_font(13)),
+            corner_radius=CORNER_RADIUS_SMALL,
         )
         self.btn_lock.grid(row=5, column=0, padx=20, pady=6, sticky="ew")
 
         self.btn_change_pw = ctk.CTkButton(
             self.sidebar_frame,
-            text="Rotate Password",
+            text="Change Password",
             command=self.change_password,
             state="disabled",
             fg_color="transparent",
             border_width=1,
-            height=36,
-            font=ctk.CTkFont(size=12),
+            height=BUTTON_HEIGHT,
+            font=ctk.CTkFont(**get_ubuntu_font(12)),
+            corner_radius=CORNER_RADIUS_SMALL,
         )
         self.btn_change_pw.grid(row=6, column=0, padx=20, pady=6, sticky="ew")
 
@@ -208,8 +198,9 @@ class VaultGUI(ctk.CTk):
             state="disabled",
             fg_color="transparent",
             border_width=1,
-            height=36,
-            font=ctk.CTkFont(size=12),
+            height=BUTTON_HEIGHT,
+            font=ctk.CTkFont(**get_ubuntu_font(12)),
+            corner_radius=CORNER_RADIUS_SMALL,
         )
         self.btn_verify.grid(row=7, column=0, padx=20, pady=6, sticky="ew")
 
@@ -219,10 +210,11 @@ class VaultGUI(ctk.CTk):
             command=self.show_about,
             fg_color="transparent",
             border_width=1,
-            text_color="#10b981",
-            hover_color=("gray90", "gray20"),
-            height=36,
-            font=ctk.CTkFont(size=12),
+            text_color=get_adaptive_accent(),  # Yaru orange accent
+            hover_color=adaptive_color("#e8e8e8", "#333333"),
+            height=BUTTON_HEIGHT,
+            font=ctk.CTkFont(**get_ubuntu_font(12)),
+            corner_radius=CORNER_RADIUS_SMALL,
         )
         self.btn_about.grid(row=8, column=0, padx=20, pady=6, sticky="ew")
 
@@ -233,26 +225,38 @@ class VaultGUI(ctk.CTk):
             command=self.open_github_releases,
             fg_color="transparent",
             border_width=1,
-            text_color="#3b82f6",
-            hover_color=("gray90", "gray20"),
-            height=36,
-            font=ctk.CTkFont(size=12),
+            text_color=adaptive_color("#3b82f6", "#60a5fa"),  # keep blue distinction for external
+            hover_color=adaptive_color("#e8e8e8", "#333333"),
+            height=BUTTON_HEIGHT,
+            font=ctk.CTkFont(**get_ubuntu_font(12)),
+            corner_radius=CORNER_RADIUS_SMALL,
         )
         self.btn_downloads.grid(row=9, column=0, padx=20, pady=(0, 12), sticky="ew")
+
+        # Sidebar hover hints (non-destructive mostly)
+        self._bind_hover_status(self.btn_new, "Create a new encrypted vault file (default: standard profile)")
+        self._bind_hover_status(self.btn_open, "Open an existing .pulsevault file")
+        self._bind_hover_status(self.btn_lock, "Lock current vault (clears in-memory keys)")
+        self._bind_hover_status(self.btn_change_pw, "Rotate master password (re-encrypts all entries)")
+        self._bind_hover_status(self.btn_verify, "Run full integrity verification of vault contents")
 
         self.appearance_mode_label = ctk.CTkLabel(
             self.sidebar_frame,
             text="Appearance",
             anchor="w",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color="#94a3b8",
+            font=ctk.CTkFont(**get_ubuntu_font(11, "bold")),
+            text_color=get_adaptive_gray(),
         )
         self.appearance_mode_label.grid(row=11, column=0, padx=20, pady=(8, 0), sticky="w")
         self.appearance_mode_optionmenu = ctk.CTkOptionMenu(
             self.sidebar_frame,
             values=["System", "Dark", "Light"],
             command=self.change_appearance_mode_event,
-            height=32,
+            height=BUTTON_HEIGHT_COMPACT,
+            corner_radius=CORNER_RADIUS_SMALL,
+            fg_color=get_adaptive_accent(),  # Yaru orange accent on mode switcher
+            button_color=get_adaptive_accent_hover(),
+            button_hover_color=get_adaptive_accent(),
         )
         self.appearance_mode_optionmenu.grid(row=12, column=0, padx=20, pady=(6, 20), sticky="ew")
 
@@ -263,28 +267,29 @@ class VaultGUI(ctk.CTk):
         self.main_frame.grid_rowconfigure(3, weight=1)
 
         self.top_bar = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.top_bar.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        self.top_bar.grid(row=0, column=0, sticky="ew", pady=(0, YARU_PAD))
         self.top_bar.grid_columnconfigure(0, weight=1)
 
         self.status_label = ctk.CTkLabel(
             self.top_bar,
             text="No vault loaded.",
-            font=ctk.CTkFont(size=16, weight="bold"),
+            font=ctk.CTkFont(**get_ubuntu_font(16, "bold")),
         )
         self.status_label.grid(row=0, column=0, sticky="w")
 
         self.stats_label = ctk.CTkLabel(
             self.top_bar,
             text="Files: 0 | Vault size: 0 B",
-            text_color="#94a3b8",
+            text_color=get_adaptive_gray(),
+            font=ctk.CTkFont(**get_ubuntu_font(12)),
         )
         self.stats_label.grid(row=1, column=0, sticky="w")
 
         self.security_label = ctk.CTkLabel(
             self.top_bar,
             text="Offline | Scrypt KDF | ChaCha20-Poly1305 + AES-GCM",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color="#10b981",
+            font=ctk.CTkFont(**get_ubuntu_font(11, "bold")),
+            text_color=get_adaptive_success(),
         )
         self.security_label.grid(row=0, column=1, rowspan=2, padx=(18, 0), sticky="e")
 
@@ -292,50 +297,60 @@ class VaultGUI(ctk.CTk):
             self.main_frame,
             text="Secure Open uses a temporary plaintext copy. Extracted files and external viewers are outside vault protection.",
             anchor="w",
-            text_color="#f59e0b",
-            font=ctk.CTkFont(size=11),
+            text_color=get_adaptive_warning(),
+            font=ctk.CTkFont(**get_ubuntu_font(11)),
         )
-        self.warning_label.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        self.warning_label.grid(row=1, column=0, sticky="ew", pady=(0, YARU_PAD_SMALL))
 
         self.search_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.search_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+        self.search_frame.grid(row=2, column=0, sticky="ew", pady=(0, YARU_PAD_SMALL))
         self.search_frame.grid_columnconfigure(0, weight=1)
 
-        self.search_entry = ctk.CTkEntry(self.search_frame, placeholder_text="Search encrypted file index...")
+        self.search_entry = ctk.CTkEntry(
+            self.search_frame,
+            placeholder_text="Search encrypted file index... (Ctrl+F to focus)",
+            border_color=get_search_border_color(),
+            font=ctk.CTkFont(**get_ubuntu_font(12)),
+            height=BUTTON_HEIGHT_COMPACT,
+            corner_radius=CORNER_RADIUS_SMALL,
+        )
         self.search_entry.grid(row=0, column=0, sticky="ew", padx=(0, 10))
         self.search_entry.bind("<KeyRelease>", self.schedule_refresh_list)
 
         self.progress_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.progress_bar = ctk.CTkProgressBar(self.progress_frame)
+        self.progress_bar = ctk.CTkProgressBar(self.progress_frame, progress_color=get_progress_color())
         self.progress_bar.set(0)
         self.progress_label = ctk.CTkLabel(
             self.progress_frame,
             text="",
-            font=ctk.CTkFont(size=11),
-            text_color="#94a3b8",
+            font=ctk.CTkFont(**get_ubuntu_font(11)),
+            text_color=get_adaptive_gray(),
         )
 
-        self.tree_frame = ctk.CTkFrame(self.main_frame, corner_radius=6)
-        self.tree_frame.grid(row=3, column=0, sticky="nsew", pady=(0, 10))
+        self.tree_frame = ctk.CTkFrame(self.main_frame, corner_radius=CORNER_RADIUS_SMALL)
+        self.tree_frame.grid(row=3, column=0, sticky="nsew", pady=(0, YARU_PAD_SMALL))
         self.tree_frame.grid_columnconfigure(0, weight=1)
         self.tree_frame.grid_rowconfigure(0, weight=1)
 
-        self.empty_panel = ctk.CTkFrame(self.tree_frame, fg_color="transparent")
+        self.empty_panel = ctk.CTkFrame(self.tree_frame, fg_color=adaptive_color("#f8f8f8", "#2a2a2a"), corner_radius=CORNER_RADIUS_SMALL)
         self.empty_panel.grid(row=0, column=0, sticky="nsew")
         self.empty_panel.grid_columnconfigure(0, weight=1)
         self.empty_panel.grid_rowconfigure(0, weight=1)
         ctk.CTkLabel(
             self.empty_panel,
             text="No vault loaded",
-            font=ctk.CTkFont(size=18, weight="bold"),
+            font=ctk.CTkFont(**get_ubuntu_font(18, "bold")),
+            text_color=get_adaptive_accent(),
         ).grid(row=0, column=0, pady=(0, 6))
         ctk.CTkLabel(
             self.empty_panel,
-            text="Create or open a vault from the sidebar.\nDrag files here once a vault is unlocked.\n\n"
-            "GitHub Releases (sidebar button) is the dedicated area for builds, notes & checksums.\n"
-            "(May show 'No releases' until first version tag.)",
-            font=ctk.CTkFont(size=13),
-            text_color="#94a3b8",
+            text="Create or open a vault from the sidebar.\n"
+            "Default profile: 'standard' (recommended).\n"
+            "Drag & drop files here or use the + Add buttons (once unlocked).\n"
+            "Keyboard: Ctrl+N new, Ctrl+O open, Del delete, Ctrl+F search, F5 refresh.\n\n"
+            "All data stays local. No cloud, no telemetry.",
+            font=ctk.CTkFont(**get_ubuntu_font(12)),
+            text_color=get_adaptive_gray(),
             justify="center",
         ).grid(row=1, column=0)
 
@@ -372,7 +387,7 @@ class VaultGUI(ctk.CTk):
         self.tree.bind("<<TreeviewSelect>>", lambda _: self.update_selection_label())
 
         self.context_menu = tk.Menu(self, tearoff=0)
-        self.context_menu.add_command(label="Extract...", command=self.extract_selected)
+        self.context_menu.add_command(label="Extract Selected...", command=self.extract_selected)
         self.context_menu.add_command(label="Secure Open", command=self.secure_view)
         self.context_menu.add_separator()
         self.context_menu.add_command(label="Rename", command=self.rename_selected)
@@ -380,36 +395,44 @@ class VaultGUI(ctk.CTk):
         self.context_menu.add_command(label="Delete", command=self.delete_selected)
 
         self.action_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.action_frame.grid(row=4, column=0, sticky="ew", pady=(6, 0))
+        self.action_frame.grid(row=4, column=0, sticky="ew", pady=(YARU_PAD_SMALL, 0))
 
-        self.btn_add_file = ctk.CTkButton(self.action_frame, text="+ Add File", command=self.add_file, state="disabled", height=36)
+        self.btn_add_file = ctk.CTkButton(self.action_frame, text="+ Add File", command=self.add_file, state="disabled", height=BUTTON_HEIGHT, corner_radius=CORNER_RADIUS_SMALL)
         self.btn_add_file.pack(side="left", padx=(0, 8))
-        self.btn_add_folder = ctk.CTkButton(self.action_frame, text="+ Add Folder", command=self.add_folder, state="disabled", height=36)
+        self.btn_add_folder = ctk.CTkButton(self.action_frame, text="+ Add Folder", command=self.add_folder, state="disabled", height=BUTTON_HEIGHT, corner_radius=CORNER_RADIUS_SMALL)
         self.btn_add_folder.pack(side="left", padx=(0, 8))
-        self.btn_extract = ctk.CTkButton(self.action_frame, text="Extract", command=self.extract_selected, state="disabled", height=36)
+        self.btn_extract = ctk.CTkButton(self.action_frame, text="Extract Selected", command=self.extract_selected, state="disabled", height=BUTTON_HEIGHT, corner_radius=CORNER_RADIUS_SMALL)
         self.btn_extract.pack(side="left", padx=(0, 8))
         self.btn_view = ctk.CTkButton(
             self.action_frame,
             text="Secure Open",
             command=self.secure_view,
             state="disabled",
-            fg_color="#f59e0b",
-            hover_color="#d97706",
-            height=36,
+            fg_color=get_adaptive_warning(),
+            hover_color=adaptive_color("#c2410f", "#e0702e"),
+            height=BUTTON_HEIGHT,
+            corner_radius=CORNER_RADIUS_SMALL,
         )
         self.btn_view.pack(side="left", padx=(0, 8))
 
-        self.selection_label = ctk.CTkLabel(self.action_frame, text="No selection", text_color="#94a3b8")
+        self.selection_label = ctk.CTkLabel(
+            self.action_frame,
+            text="No selection",
+            text_color=get_adaptive_gray(),
+            font=ctk.CTkFont(**get_ubuntu_font(11)),
+        )
         self.selection_label.pack(side="left", padx=(10, 0))
 
+        danger_colors = get_yaru_button_colors("danger")
         self.btn_delete = ctk.CTkButton(
             self.action_frame,
             text="Delete",
             command=self.delete_selected,
             state="disabled",
-            fg_color="#dc2626",
-            hover_color="#b91c1c",
-            height=36,
+            fg_color=danger_colors["fg_color"],
+            hover_color=danger_colors["hover_color"],
+            height=BUTTON_HEIGHT,
+            corner_radius=CORNER_RADIUS_SMALL,
         )
         self.btn_delete.pack(side="right")
         self.btn_rename = ctk.CTkButton(
@@ -419,9 +442,18 @@ class VaultGUI(ctk.CTk):
             state="disabled",
             fg_color="transparent",
             border_width=1,
-            height=36,
+            height=BUTTON_HEIGHT,
+            corner_radius=CORNER_RADIUS_SMALL,
         )
         self.btn_rename.pack(side="right", padx=(0, 8))
+
+        # Hover status hints for safety/UX (Yaru desktop feel)
+        self._bind_hover_status(self.btn_add_file, "Add file(s) to vault (Ctrl+N for new vault)")
+        self._bind_hover_status(self.btn_add_folder, "Add folder as compressed ZIP entry")
+        self._bind_hover_status(self.btn_extract, "Extract selected to a folder (double-click also works)")
+        self._bind_hover_status(self.btn_view, "Secure Open: extract temp + launch (external viewers leave traces)")
+        self._bind_hover_status(self.btn_delete, "Permanently remove selected from vault (no undo)")
+        self._bind_hover_status(self.btn_rename, "Rename a single selected entry inside the vault")
 
     def setup_drag_drop(self):
         try:
@@ -452,10 +484,28 @@ class VaultGUI(ctk.CTk):
         if not paths:
             return
 
+        existing = [p.name for p in paths if p.name in self.vault.data.get("files", {})]
+        overwrite = False
+        if existing:
+            overwrite = messagebox.askyesno(
+                "Overwrite on drop?",
+                f"{len(existing)} dropped file(s) already exist in the vault.\n\n"
+                "Overwrite them?",
+            )
+            if not overwrite:
+                paths = [p for p in paths if p.name not in existing]
+
+        if not paths:
+            self.set_status("Drop cancelled (no new files).")
+            return
+
+        self.set_status(f"Dropping {len(paths)} file(s)...")
+
         def task():
             for path in paths:
-                if path.name not in self.vault.data.get("files", {}):
-                    self.vault.add_file(path, overwrite=True)
+                self.vault.add_file(path, overwrite=overwrite)
+
+            self.after(0, lambda: self.set_status(f"Dropped and added {len(paths)} file(s)."))
 
         self._run_in_thread(task)
 
@@ -494,22 +544,29 @@ class VaultGUI(ctk.CTk):
         palette = tree_palette(mode)
         body_font, heading_font = tree_fonts(self)
 
+        # Treeview improvements: Yaru colors, consistent row height, orange select accent, Ubuntu fonts
         self.tree_style.configure(
             "Pulse.Treeview",
             background=palette["bg"],
             foreground=palette["fg"],
-            rowheight=34,
+            rowheight=32,
             fieldbackground=palette["field"],
             borderwidth=0,
             font=body_font,
+            bordercolor=palette.get("border", palette["bg"]),
         )
-        self.tree_style.map("Pulse.Treeview", background=[("selected", palette["select"])])
+        self.tree_style.map(
+            "Pulse.Treeview",
+            background=[("selected", palette["select"])],
+            foreground=[("selected", palette.get("select_fg", "#ffffff"))],
+        )
         self.tree_style.configure(
             "Pulse.Treeview.Heading",
             background=palette["heading_bg"],
             foreground=palette["heading_fg"],
             relief="flat",
             font=heading_font,
+            borderwidth=0,
         )
         self.tree.tag_configure("odd", background=palette["odd"])
         self.tree.tag_configure("even", background=palette["even"])
@@ -517,7 +574,7 @@ class VaultGUI(ctk.CTk):
             bg=palette["menu_bg"],
             fg=palette["menu_fg"],
             activebackground=palette["select"],
-            activeforeground=palette["menu_fg"],
+            activeforeground=palette.get("select_fg", palette["menu_fg"]),
             font=body_font,
         )
 
@@ -541,6 +598,19 @@ class VaultGUI(ctk.CTk):
 
     def set_status(self, message: str):
         self.status_label.configure(text=message)
+
+    def _bind_hover_status(self, widget, message: str):
+        """Lightweight hover feedback for buttons (Ubuntu style hint via status)."""
+        def on_enter(_):
+            self._prev_status = self.status_label.cget("text")
+            self.status_label.configure(text=message)
+        def on_leave(_):
+            if hasattr(self, "_prev_status") and self._prev_status:
+                self.status_label.configure(text=self._prev_status)
+            else:
+                self.status_label.configure(text="Ready.")
+        widget.bind("<Enter>", on_enter)
+        widget.bind("<Leave>", on_leave)
 
     def update_selection_label(self):
         count = len(self.tree.selection())
@@ -610,7 +680,7 @@ class VaultGUI(ctk.CTk):
 
     def hide_progress(self):
         self.progress_frame.grid_forget()
-        self.search_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+        self.search_frame.grid(row=2, column=0, sticky="ew", pady=(0, YARU_PAD_SMALL))
         if self._status_restore:
             self.set_status(self._status_restore)
             self._status_restore = None
@@ -693,9 +763,10 @@ class VaultGUI(ctk.CTk):
 
         carrier_path = None
         if messagebox.askyesno(
-            "Carrier file",
-            "Append the vault to an image or video carrier file?\n\n"
-            "This is casual disguise, not forensic protection.",
+            "Carrier file (optional)",
+            "Append the vault data after an image or video file?\n\n"
+            "This provides only casual disguise and is not strong obfuscation or forensic resistance.\n"
+            "Continue?",
         ):
             carrier = filedialog.askopenfilename(
                 title="Select carrier image/video",
@@ -704,9 +775,7 @@ class VaultGUI(ctk.CTk):
             if carrier:
                 carrier_path = Path(carrier)
 
-        scrypt_profile = ask_scrypt_profile(self)
-        if not scrypt_profile:
-            return
+        scrypt_profile = ask_scrypt_profile(self) or "standard"
 
         password = ask_password(self, "Create Vault Password", confirm=True, show_generate=True)
         if not password:
@@ -714,7 +783,8 @@ class VaultGUI(ctk.CTk):
         password_error = password_policy_error(password)
         if password_error:
             messagebox.showwarning("Weak password", password_error)
-            return
+            if not messagebox.askyesno("Continue anyway?", "Use this password despite the warning?"):
+                return
 
         create_state = {
             "vault": None,
@@ -803,9 +873,9 @@ class VaultGUI(ctk.CTk):
             if vault.version < 5:
                 if messagebox.askyesno(
                     "Upgrade vault format",
-                    f"This vault uses format V{vault.version}.\n\n"
-                    "Upgrade to the current format now? All file entries will be "
-                    "re-encrypted. Large vaults can take a while.",
+                    f"This vault uses older format V{vault.version}.\n\n"
+                    "Upgrade to current now? All entries will be re-encrypted under the new format.\n"
+                    "Large vaults may take time. Recommended for best compatibility.",
                 ):
                     vault.migrate_to_current_format(password)
 
@@ -863,17 +933,24 @@ class VaultGUI(ctk.CTk):
         if not paths:
             return
 
-        skipped = []
-
         pending = [Path(p) for p in paths]
+        existing = [p.name for p in pending if p.name in self.vault.data.get("files", {})]
+        overwrite = False
+        if existing:
+            overwrite = messagebox.askyesno(
+                "Overwrite on add?",
+                f"{len(existing)} selected file(s) already exist in the vault.\n\n"
+                "Overwrite the existing entries with these files?",
+            )
+            if not overwrite:
+                pending = [p for p in pending if p.name not in existing]
+
+        if not pending:
+            return
 
         def task():
             total = len(pending)
             for index, path in enumerate(pending, start=1):
-                if path.name in self.vault.data.get("files", {}):
-                    skipped.append(path.name)
-                    continue
-
                 def progress_cb(done, file_total, i=index, n=total, name=path.name):
                     label = f"Adding {name} ({i}/{n})"
                     if file_total > 0:
@@ -881,18 +958,9 @@ class VaultGUI(ctk.CTk):
                     else:
                         self.after(0, lambda l=label: self.progress_label.configure(text=l))
 
-                self.vault.add_file(path, overwrite=True, progress_cb=progress_cb)
+                self.vault.add_file(path, overwrite=overwrite, progress_cb=progress_cb)
 
-            if skipped:
-                self.after(
-                    0,
-                    lambda: messagebox.showwarning(
-                        "Skipped Files",
-                        f"{len(skipped)} file(s) already exist in the vault:\n"
-                        + "\n".join(skipped[:5])
-                        + ("..." if len(skipped) > 5 else ""),
-                    ),
-                )
+            self.after(0, lambda: self.set_status(f"Added {len(pending)} file(s)."))
 
         self._run_in_thread(task, status="Adding files...")
 
@@ -904,7 +972,35 @@ class VaultGUI(ctk.CTk):
         if not path:
             return
 
-        self._run_in_thread(lambda: self.vault.add_folder_as_zip(Path(path), overwrite=True))
+        folder_path = Path(path)
+        # Size-based confirmation for large folders (destructive/add time safety)
+        try:
+            total_size = sum(f.stat().st_size for f in folder_path.rglob("*") if f.is_file())
+        except Exception:
+            total_size = 0
+        size_mb = total_size / (1024 * 1024)
+
+        if size_mb > 50:
+            if not messagebox.askyesno(
+                "Large folder add?",
+                f"Folder approx {size_mb:.1f} MB.\n\n"
+                "Zipping and adding may take significant time. Continue?",
+            ):
+                return
+
+        zip_name = folder_path.name.rstrip("/").rstrip("\\") + ".zip"
+        overwrite = True
+        if zip_name in self.vault.data.get("files", {}):
+            overwrite = messagebox.askyesno(
+                "Overwrite existing folder entry?",
+                f"'{zip_name}' already exists in the vault.\n\n"
+                "Overwrite it with the new folder contents?",
+            )
+            if not overwrite:
+                return
+
+        self.set_status(f"Adding folder '{folder_path.name}'...")
+        self._run_in_thread(lambda: self.vault.add_folder_as_zip(folder_path, overwrite=overwrite))
 
     def extract_selected(self):
         if not self.require_vault():
@@ -914,7 +1010,10 @@ class VaultGUI(ctk.CTk):
         if not selections:
             return
 
-        output_dir = filedialog.askdirectory(title="Choose extraction folder")
+        output_dir = filedialog.askdirectory(
+            title="Choose extraction folder",
+            initialdir=str(Path.cwd()),
+        )
         if not output_dir:
             return
 
@@ -924,8 +1023,10 @@ class VaultGUI(ctk.CTk):
         overwrite = False
         if existing:
             overwrite = messagebox.askyesno(
-                "Overwrite existing files?",
-                f"{len(existing)} selected file(s) already exist in that folder. Overwrite them?",
+                "Overwrite on extract?",
+                f"{len(existing)} file(s) already exist at the destination.\n\n"
+                "Overwrite them with vault contents?\n"
+                "Existing outside files will be replaced.",
             )
             if not overwrite:
                 return
@@ -943,7 +1044,8 @@ class VaultGUI(ctk.CTk):
                 self.vault.extract_file(fname, output_path, overwrite=overwrite, progress_cb=progress_cb)
 
         def done():
-            messagebox.showinfo("Extracted", f"Extracted {len(filenames)} file(s) to:\n{output_dir}")
+            self.set_status(f"Extracted {len(filenames)} file(s).")
+            messagebox.showinfo("Extract complete", f"Extracted {len(filenames)} file(s) to:\n{output_dir}")
 
         self._run_in_thread(task, done, status="Extracting files...")
 
@@ -956,10 +1058,20 @@ class VaultGUI(ctk.CTk):
             return
 
         filenames = [self.tree.item(s, "values")[0] for s in selections]
-        if not messagebox.askyesno("Delete", f"Delete {len(filenames)} file(s) from the vault?"):
+        names_preview = "\n".join(filenames[:5]) + ("\n..." if len(filenames) > 5 else "")
+        msg = (
+            f"Delete {len(filenames)} file(s) from the vault?\n\n"
+            f"{names_preview}\n\n"
+            "This is permanent. The encrypted entries will be removed with no recovery possible."
+        )
+        if not messagebox.askyesno("Confirm Delete", msg):
             return
 
-        self._run_in_thread(lambda: [self.vault.delete_file(fname) for fname in filenames])
+        def done():
+            self.set_status(f"Deleted {len(filenames)} file(s).")
+            self.refresh_list()
+
+        self._run_in_thread(lambda: [self.vault.delete_file(fname) for fname in filenames], done)
 
     def rename_selected(self):
         if not self.require_vault():
@@ -971,7 +1083,7 @@ class VaultGUI(ctk.CTk):
             return
 
         old_name = self.tree.item(selection[0], "values")[0]
-        new_name = askstring("Rename", "New filename:", initialvalue=old_name)
+        new_name = askstring("Rename", "New filename (must be unique):", initialvalue=old_name)
         if not new_name or new_name == old_name:
             return
 
@@ -979,6 +1091,15 @@ class VaultGUI(ctk.CTk):
 
     def change_password(self):
         if not self.require_vault():
+            return
+
+        if not messagebox.askyesno(
+            "Confirm Password Change",
+            "Change the vault password?\n\n"
+            "This will re-encrypt the entire vault with the new password.\n"
+            "The old password will stop working. This cannot be undone.\n\n"
+            "Continue?",
+        ):
             return
 
         old_pw = ask_password(self, "Current Password")
@@ -991,10 +1112,23 @@ class VaultGUI(ctk.CTk):
         password_error = password_policy_error(new_pw)
         if password_error:
             messagebox.showwarning("Weak password", password_error)
+            if not messagebox.askyesno("Continue anyway?", "Use this password despite the warning?"):
+                return
+
+        # Strong confirmation for password change (destructive re-encrypt of all entries)
+        if not messagebox.askyesno(
+            "Final Confirmation - Rotate Password",
+            "This is your last chance.\n\n"
+            "Changing the password will permanently re-encrypt every file entry.\n"
+            "You will need the NEW password to unlock this vault going forward.\n\n"
+            "Proceed with password change?",
+        ):
+            self.set_status("Password change cancelled.")
             return
 
         def done():
             messagebox.showinfo("Password changed", "Vault password changed and file entries re-encrypted.")
+            self.set_status("Password rotated.")
 
         self._run_in_thread(lambda: self.vault.change_password(old_pw, new_pw), done)
 
@@ -1031,8 +1165,8 @@ class VaultGUI(ctk.CTk):
 
         if not messagebox.askyesno(
             "Secure Open",
-            "Secure Open extracts plaintext files to a temporary app directory before launching them.\n\n"
-            "External viewers may create their own caches or recent-file entries. Continue?",
+            "Secure Open will extract plaintext copies to a temporary directory (cleaned on exit).\n\n"
+            "External apps may leave caches or file history. Are you sure you want to proceed?",
         ):
             return
 
@@ -1091,21 +1225,21 @@ class VaultGUI(ctk.CTk):
         about_win.grid_columnconfigure(0, weight=1)
         about_win.grid_rowconfigure(1, weight=1)
 
-        header = ctk.CTkFrame(about_win, fg_color="#0f172a", corner_radius=0)
+        header = ctk.CTkFrame(about_win, fg_color=adaptive_color("#f0f0f0", "#1f1f1f"), corner_radius=CORNER_RADIUS_SMALL)
         header.grid(row=0, column=0, sticky="ew")
         header.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
             header,
             text="Pulse-Vault",
-            font=ctk.CTkFont(size=28, weight="bold"),
-            text_color="#10b981",
+            font=ctk.CTkFont(**get_ubuntu_font(28, "bold")),
+            text_color=get_adaptive_accent(),  # Yaru orange accent
         ).grid(row=0, column=0, padx=30, pady=(24, 4))
         ctk.CTkLabel(
             header,
             text=f"Version {__version__} | DNSPulse hardened local vault",
-            font=ctk.CTkFont(size=12),
-            text_color="#94a3b8",
+            font=ctk.CTkFont(**get_ubuntu_font(12)),
+            text_color=get_adaptive_gray(),
         ).grid(row=1, column=0, padx=30, pady=(0, 20))
 
         about_text = (
@@ -1130,12 +1264,14 @@ class VaultGUI(ctk.CTk):
             f"Official site: {OFFICIAL_SITE}"
         )
 
+        mode = resolve_appearance_mode(ctk.get_appearance_mode())
+        about_colors = get_yaru_colors(mode)
         textbox = ctk.CTkTextbox(
             about_win,
             wrap="word",
-            font=ctk.CTkFont(family="Segoe UI", size=13),
+            font=ctk.CTkFont(**get_ubuntu_font(13)),
             fg_color="transparent",
-            text_color="#d1d5db",
+            text_color=about_colors["fg"],
         )
         textbox.grid(row=1, column=0, sticky="nsew", padx=36, pady=(20, 10))
         textbox.insert("1.0", about_text)
@@ -1149,15 +1285,15 @@ class VaultGUI(ctk.CTk):
         ctk.CTkLabel(
             downloads_frame,
             text="GitHub Downloads & Releases",
-            font=ctk.CTkFont(size=14, weight="bold"),
-            text_color="#3b82f6",
+            font=ctk.CTkFont(**get_ubuntu_font(14, "bold")),
+            text_color=adaptive_color("#3b82f6", "#60a5fa"),  # external link blue distinction
         ).grid(row=0, column=0, sticky="w", pady=(0, 4))
 
         ctk.CTkLabel(
             downloads_frame,
             text="Download source, wheels, view release notes, and checksums. GitHub Releases is the dedicated area (may show 'No releases found' until first tag).",
-            font=ctk.CTkFont(size=11),
-            text_color="#94a3b8",
+            font=ctk.CTkFont(**get_ubuntu_font(11)),
+            text_color=get_adaptive_gray(),
             wraplength=700,
         ).grid(row=1, column=0, sticky="w", pady=(0, 8))
 
@@ -1168,10 +1304,11 @@ class VaultGUI(ctk.CTk):
             btn_row,
             text="Open GitHub Releases",
             command=lambda: (about_win.destroy(), self.open_github_releases()),
-            fg_color="#3b82f6",
-            hover_color="#2563eb",
-            height=32,
+            fg_color=adaptive_color("#3b82f6", "#60a5fa"),
+            hover_color=adaptive_color("#2563eb", "#1d4ed8"),
+            height=BUTTON_HEIGHT_COMPACT,
             width=180,
+            corner_radius=CORNER_RADIUS_SMALL,
         ).pack(side="left", padx=(0, 8))
 
         ctk.CTkButton(
@@ -1180,7 +1317,8 @@ class VaultGUI(ctk.CTk):
             command=lambda: webbrowser.open(OFFICIAL_SITE) or None,
             fg_color="transparent",
             border_width=1,
-            height=32,
+            height=BUTTON_HEIGHT_COMPACT,
+            corner_radius=CORNER_RADIUS_SMALL,
         ).pack(side="left")
 
         ctk.CTkButton(
@@ -1188,10 +1326,11 @@ class VaultGUI(ctk.CTk):
             text="Close",
             command=about_win.destroy,
             width=140,
-            height=40,
-            font=ctk.CTkFont(size=14, weight="bold"),
-            fg_color="#10b981",
-            hover_color="#059669",
+            height=BUTTON_HEIGHT_PRIMARY,
+            font=ctk.CTkFont(**get_ubuntu_font(14, "bold")),
+            fg_color=get_adaptive_accent(),  # Yaru orange
+            hover_color=get_adaptive_accent_hover(),
+            corner_radius=CORNER_RADIUS,
         ).grid(row=3, column=0, pady=(8, 28))
         about_win.focus()
 
@@ -1217,8 +1356,8 @@ class VaultGUI(ctk.CTk):
         ctk.CTkLabel(
             dl_win,
             text="GitHub Releases",
-            font=ctk.CTkFont(size=20, weight="bold"),
-            text_color="#3b82f6",
+            font=ctk.CTkFont(**get_ubuntu_font(20, "bold")),
+            text_color=adaptive_color("#3b82f6", "#60a5fa"),
         ).grid(row=0, column=0, padx=24, pady=(24, 8))
 
         info = (
@@ -1233,7 +1372,8 @@ class VaultGUI(ctk.CTk):
             text=info,
             wraplength=460,
             justify="left",
-            font=ctk.CTkFont(size=12),
+            font=ctk.CTkFont(**get_ubuntu_font(12)),
+            text_color=get_adaptive_gray(),
         ).grid(row=1, column=0, padx=24, pady=(0, 16))
 
         btns = ctk.CTkFrame(dl_win, fg_color="transparent")
@@ -1243,8 +1383,9 @@ class VaultGUI(ctk.CTk):
             btns,
             text="Open Releases Page",
             command=lambda: (dl_win.destroy(), self.open_github_releases()),
-            fg_color="#3b82f6",
-            height=36,
+            fg_color=adaptive_color("#3b82f6", "#60a5fa"),
+            height=BUTTON_HEIGHT,
+            corner_radius=CORNER_RADIUS_SMALL,
         ).pack(side="left", padx=(0, 10))
 
         ctk.CTkButton(
@@ -1253,7 +1394,8 @@ class VaultGUI(ctk.CTk):
             command=dl_win.destroy,
             fg_color="transparent",
             border_width=1,
-            height=36,
+            height=BUTTON_HEIGHT,
+            corner_radius=CORNER_RADIUS_SMALL,
         ).pack(side="left")
 
         dl_win.focus()

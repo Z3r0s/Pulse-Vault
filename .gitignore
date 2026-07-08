@@ -1,6 +1,14 @@
 # Maintainer-only planning
 ROADMAP.md
 
+# Privacy note for contributors:
+# This .gitignore is intentionally strict to avoid accidentally committing:
+# - Real vault files (*.pulsevault)
+# - Encryption keys, recovery keys, or secrets
+# - Personal test data or local paths
+# - Editor/AI tool state that may contain personal notes
+# Review this file if you are adding new tooling.
+
 # Local editor and tooling state
 .grok/
 .claude/
@@ -119,3 +127,12 @@ credentials.json
 pulse_test_*/
 .pulse_test_*/
 pulse_tmp_*/
+
+# Local debug and temporary scripts/files (can contain personal paths or test data)
+debug*.txt
+debug*.log
+debug_create*
+*.debug
+local_debug*
+tmp_*.py
+test_local*

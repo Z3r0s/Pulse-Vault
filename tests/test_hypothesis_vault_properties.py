@@ -32,7 +32,7 @@ os.environ.setdefault("PULSEVAULT_TEST_FAST_KDF", "1")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from pulsevault.core.vault import EncryptedVault, VaultError, safe_filename
-from pulsevault.gui.app import is_reasonable_password, password_policy_error
+from pulsevault.core.vault import is_reasonable_password, password_policy_error
 from pulsevault.core import crypto
 
 try:
@@ -443,6 +443,10 @@ if HAS_HYPOTHESIS:
                 elif layer == "salt":
                     tampered = _corrupt_zip_member(raw, "salt.bin", tamper.get("offset", 0), tamper.get("mask", 0x03))
                 elif layer == "data_chunk":
+                    tampered = _corrupt_data_member(raw, tamper)
+                elif layer == "mac":
+                    # mac targets auth tag inside encrypted data chunks (AEAD tag); use data corrupt
+                    # to guarantee we hit ciphertext+MAC bytes so decrypt always raises on tamper.
                     tampered = _corrupt_data_member(raw, tamper)
                 else:
                     tampered = _apply_bit_tamper(raw, tamper)

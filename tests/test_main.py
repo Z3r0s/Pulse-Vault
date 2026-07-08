@@ -43,17 +43,24 @@ class MainDispatchTests(unittest.TestCase):
             self.assertIn("Pulse-Vault", out.getvalue())
 
     def test_main_cli_path_dispatches_without_gui_import(self):
-        # Critical advanced test: ensure --cli path does not pull heavy GUI
+        # Critical advanced test: ensure --cli path does not pull heavy GUI (proves packaging/CLI isolation)
         before = set(sys.modules.keys())
-        with mock.patch("pulsevault.cli.run_guided_cli", return_value=42) as mock_cli:
+        fake_cli_mod = mock.MagicMock()
+        fake_cli_mod.run_guided_cli.return_value = 42
+        with mock.patch.dict(sys.modules, {"pulsevault.cli": fake_cli_mod}):
             rc = mainmod.main(["--cli", "list", "some.vault"])
             self.assertEqual(rc, 42)
-            mock_cli.assert_called()
+            fake_cli_mod.run_guided_cli.assert_called()
         after = set(sys.modules.keys())
-        # Should not have loaded the GUI app module in the CLI path
+        # Must not have loaded the GUI app module (or ctk/tk) in the CLI path.
+        # Note: test runner may have gui modules from other tests; we check delta + direct import behavior.
         gui_modules = [m for m in after - before if "gui" in m or "customtkinter" in m or "tkinter" in m]
-        # We allow some but the main point is the branch taken early
-        self.assertTrue(True)  # behavioral, hard to assert strictly without side effects
+        self.assertEqual(gui_modules, [], f"CLI path leaked new GUI modules: {gui_modules}")
+        # Direct verification of clean CLI import (the important packaging guarantee)
+        import subprocess, sys as real_sys
+        code = 'import sys; sys.path.insert(0,"src"); import pulsevault.cli; print("GUI_LEAK" if any("gui" in m or "customtkinter" in m or "tkinter" in m for m in sys.modules) else "CLEAN")'
+        out = subprocess.check_output([real_sys.executable, "-c", code], text=True)
+        self.assertIn("CLEAN", out)
 
     def test_main_cli_subcommand_routes_to_run_guided(self):
         with mock.patch("pulsevault.cli.run_guided_cli", return_value=7) as m:
@@ -100,6 +107,81 @@ class MainAdvancedTests(unittest.TestCase):
     def test_main_returns_zero_on_cli_success(self):
         with mock.patch("pulsevault.cli.run_guided_cli", return_value=0):
             self.assertEqual(mainmod.main(["--cli"]), 0)
+
+
+class CliGuiImportIsolationTests(unittest.TestCase):
+    """Stronger subprocess + fresh-process isolation tests for packaging/CLI-only guarantees.
+    Ensures `import pulsevault.cli` and `--cli` dispatch paths *never* pull customtkinter,
+    tkinter, or any pulsevault.gui.* modules (even transitively).
+    Uses fresh child python processes (not just mocks) for verification.
+    """
+
+    def _src_dir(self):
+        return str(Path(__file__).resolve().parents[1] / "src")
+
+    def test_import_pulsevault_cli_is_clean_in_fresh_process(self):
+        """Critical: direct import pulsevault.cli must not load any GUI modules."""
+        import subprocess
+        src = self._src_dir()
+        code = (
+            "import sys, os\n"
+            f"sys.path.insert(0, {src!r})\n"
+            "os.environ.setdefault('PULSEVAULT_TEST_FAST_KDF', '1')\n"
+            "import pulsevault.cli\n"
+            "mods = list(sys.modules.keys())\n"
+            "leaks = [m for m in mods if ('gui' in m) or ('customtkinter' in m) or ('tkinter' in m)]\n"
+            "gui_pkg_leaks = [m for m in mods if m.startswith('pulsevault.gui')]\n"
+            "print('CLEAN' if not leaks else 'GUI_LEAK:' + repr(leaks))\n"
+            "print('GUI_PKG_LEAKS:' + repr(gui_pkg_leaks))\n"
+        )
+        out = subprocess.check_output([sys.executable, "-c", code], text=True, env=os.environ.copy())
+        self.assertIn("CLEAN", out)
+        self.assertNotIn("GUI_PKG_LEAKS:['", out)  # no pulsevault.gui* at all
+        self.assertNotIn("pulsevault.gui", out)
+
+    def test_main_cli_dispatch_is_clean_in_fresh_process(self):
+        """Dispatch via main() with --cli must not load GUI in a fresh process."""
+        import subprocess
+        src = self._src_dir()
+        code = (
+            "import sys, os, io\n"
+            f"sys.path.insert(0, {src!r})\n"
+            "os.environ.setdefault('PULSEVAULT_TEST_FAST_KDF', '1')\n"
+            "import pulsevault.main as m\n"
+            "old_out, old_err = sys.stdout, sys.stderr\n"
+            "sys.stdout = io.StringIO()\n"
+            "sys.stderr = io.StringIO()\n"
+            "try:\n"
+            "    rc = m.main(['--cli'])\n"
+            "finally:\n"
+            "    sys.stdout, sys.stderr = old_out, old_err\n"
+            "mods = list(sys.modules.keys())\n"
+            "leaks = [m for m in mods if ('gui' in m) or ('customtkinter' in m) or ('tkinter' in m)]\n"
+            "gui_pkg = [m for m in mods if m.startswith('pulsevault.gui')]\n"
+            "print('DISPATCH_RC=' + str(rc))\n"
+            "print('CLEAN' if not leaks else 'GUI_LEAK:' + repr(leaks))\n"
+            "print('GUI_PKG:' + repr(gui_pkg))\n"
+        )
+        out = subprocess.check_output([sys.executable, "-c", code], text=True, env=os.environ.copy())
+        self.assertIn("CLEAN", out)
+        self.assertIn("DISPATCH_RC=0", out)
+        self.assertNotIn("pulsevault.gui", out)
+
+    def test_pulsevault_cli_import_does_not_load_gui_package(self):
+        """Even in current process (after possible other imports), importing cli must not add gui subpackage."""
+        import subprocess
+        src = self._src_dir()
+        code = (
+            "import sys, os\n"
+            f"sys.path.insert(0, {src!r})\n"
+            "os.environ.setdefault('PULSEVAULT_TEST_FAST_KDF', '1')\n"
+            "import pulsevault.cli\n"
+            "has_gui_pkg = any(m.startswith('pulsevault.gui') for m in sys.modules)\n"
+            "has_ctk = 'customtkinter' in sys.modules or 'tkinter' in sys.modules\n"
+            "print('NO_GUI_PKG_AND_NO_TK' if (not has_gui_pkg and not has_ctk) else 'LEAKED_GUI_OR_TK')\n"
+        )
+        out = subprocess.check_output([sys.executable, "-c", code], text=True, env=os.environ.copy())
+        self.assertIn("NO_GUI_PKG_AND_NO_TK", out)
 
 
 if __name__ == "__main__":

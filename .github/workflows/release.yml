@@ -12,14 +12,20 @@ jobs:
   build-binaries:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         include:
           - os: ubuntu-latest
             artifact_name: pulse-vault
             asset_name: pulse-vault-linux
+            ext: ''
           - os: windows-latest
-            artifact_name: pulse-vault.exe
-            asset_name: pulse-vault-windows.exe
+            artifact_name: pulse-vault
+            asset_name: pulse-vault-windows
+            ext: '.exe'
+          - os: macos-latest
+            artifact_name: pulse-vault
+            asset_name: pulse-vault-macos
+            ext: ''
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -36,17 +42,51 @@ jobs:
 
       - name: Build standalone executable
         run: |
-          pyinstaller --onefile --windowed --name ${{ matrix.artifact_name }} \
-            --add-data "src/pulsevault/assets${{ matrix.os == 'windows-latest' && ';' || ':' }}pulsevault/assets" \
+          PYI_ARGS="--onefile --windowed --name ${{ matrix.artifact_name }} \
+            --add-data \"src/pulsevault/assets${{ matrix.os == 'windows-latest' && ';' || ':' }}pulsevault/assets\" \
             --hidden-import customtkinter \
             --hidden-import tkinterdnd2 \
-            src/pulsevault/main.py
+            --clean --noupx"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            PYI_ARGS="$PYI_ARGS --version-file packaging/windows/version.txt"
+          fi
+          pyinstaller $PYI_ARGS src/pulsevault/main.py
+
+          # macOS note: For a nicer .app bundle instead of raw onefile exe,
+          # consider post-processing with 'pyinstaller ... --onedir' + create-dmg or appify.
+          # Signing/notarization requires Apple Developer account + certs (see below).
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: dist/${{ matrix.artifact_name }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          path: dist/${{ matrix.artifact_name }}${{ matrix.ext }}
+
+      # Windows signing metadata is embedded via --version-file (CompanyName=DNSPulse etc.)
+      # For full Authenticode signature (to show "Publisher: DNSPulse" and reduce SmartScreen warnings):
+      # - Obtain a code signing certificate (preferably EV) from a trusted CA.
+      # - In CI (advanced, use with care): store pfx as secret, use signtool.
+      # Example (uncomment and configure secrets if you have a cert):
+      # - name: Sign Windows binary (if cert available)
+      #   if: matrix.os == 'windows-latest' && secrets.WINDOWS_CODE_SIGN_CERT
+      #   shell: pwsh
+      #   run: |
+      #     $cert = [System.Convert]::FromBase64String('${{ secrets.WINDOWS_CODE_SIGN_CERT }}')
+      #     [System.IO.File]::WriteAllBytes('cert.pfx', $cert)
+      #     & 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64\signtool.exe' sign /f cert.pfx /p ${{ secrets.WINDOWS_CODE_SIGN_PASS }} /t http://timestamp.sectigo.com /fd sha256 /v dist/pulse-vault.exe
+
+      # macOS desktop improvements:
+      # - We currently ship a onefile executable (portable, works from anywhere).
+      # - For a more "Mac-like" experience, you can turn it into a .app bundle.
+      #   See packaging/macos/Info.plist.template for a starting point.
+      #   Example after pyinstaller:
+      #     mkdir -p dist/Pulse-Vault.app/Contents/MacOS
+      #     cp dist/pulse-vault dist/Pulse-Vault.app/Contents/MacOS/Pulse-Vault
+      #     cp -R src/pulsevault/assets dist/Pulse-Vault.app/Contents/Resources/
+      #     cp packaging/macos/Info.plist.template dist/Pulse-Vault.app/Contents/Info.plist
+      # - For distribution to other Macs you would codesign + notarize (Apple Developer account required).
+      # We keep the simple onefile for now so it matches the Linux/Windows experience.
+      # Future work can add a proper .dmg / .app in the release assets.
 
   release:
     needs: build-binaries
@@ -75,6 +115,9 @@ jobs:
 
       - name: Build sdist and wheel
         run: python -m build
+
+      - name: Run build verifier on source
+        run: python packaging/verify-build.py --check-version --cli-smoke --gui-import-isolated
 
       - name: Extract changelog section for release notes
         id: changelog

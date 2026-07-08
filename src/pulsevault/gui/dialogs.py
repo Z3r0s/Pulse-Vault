@@ -3,6 +3,24 @@ import tkinter as tk
 from tkinter import messagebox
 import customtkinter as ctk
 
+from pulsevault.gui.theme import (
+    CORNER_RADIUS,
+    CORNER_RADIUS_SMALL,
+    BUTTON_HEIGHT,
+    BUTTON_HEIGHT_PRIMARY,
+    BUTTON_HEIGHT_COMPACT,
+    get_ubuntu_font,
+    get_adaptive_accent,
+    get_adaptive_accent_hover,
+    get_adaptive_gray,
+    adaptive_color,
+    YARU_ORANGE,
+    get_yaru_colors,
+    resolve_appearance_mode,
+    YARU_PAD,
+    YARU_PAD_SMALL,
+)
+
 
 def password_strength(password: str) -> tuple[str, str]:
     score = 0
@@ -52,29 +70,40 @@ class PasswordDialog(ctk.CTkToplevel):
         # Layout
         self.grid_columnconfigure(0, weight=1)
 
-        title_label = ctk.CTkLabel(self, text=title, font=ctk.CTkFont(size=18, weight="bold"))
-        title_label.grid(row=0, column=0, padx=20, pady=(20, 10), sticky="w")
+        # Dialog polish: Yaru orange accents, Ubuntu fonts, corner 6-8, button std heights, adaptive
+        title_label = ctk.CTkLabel(self, text=title, font=ctk.CTkFont(**get_ubuntu_font(18, "bold")), text_color=get_adaptive_accent())
+        title_label.grid(row=0, column=0, padx=YARU_PAD_LARGE, pady=(YARU_PAD_LARGE, YARU_PAD_SMALL), sticky="w")
 
-        self.password_entry = ctk.CTkEntry(self, show="*", placeholder_text="Password", width=390)
-        self.password_entry.grid(row=1, column=0, padx=20, pady=(0, 8))
+        self.password_entry = ctk.CTkEntry(
+            self, show="*", placeholder_text="Password", width=390,
+            border_color=get_adaptive_accent(),
+            corner_radius=CORNER_RADIUS_SMALL,
+            font=ctk.CTkFont(**get_ubuntu_font(12)),
+        )
+        self.password_entry.grid(row=1, column=0, padx=YARU_PAD_LARGE, pady=(0, YARU_PAD_SMALL))
         self.password_entry.bind("<KeyRelease>", lambda _: self.update_strength())
 
         if confirm:
-            self.confirm_entry = ctk.CTkEntry(self, show="*", placeholder_text="Confirm Password", width=390)
-            self.confirm_entry.grid(row=2, column=0, padx=20, pady=(0, 8))
+            self.confirm_entry = ctk.CTkEntry(
+                self, show="*", placeholder_text="Confirm Password", width=390,
+                border_color=get_adaptive_accent(),
+                corner_radius=CORNER_RADIUS_SMALL,
+                font=ctk.CTkFont(**get_ubuntu_font(12)),
+            )
+            self.confirm_entry.grid(row=2, column=0, padx=YARU_PAD_LARGE, pady=(0, YARU_PAD_SMALL))
 
         self.strength_label = ctk.CTkLabel(
             self,
             text="Strength: Weak",
             anchor="w",
-            font=ctk.CTkFont(size=11, weight="bold"),
+            font=ctk.CTkFont(**get_ubuntu_font(11, "bold")),
             text_color="#ef4444",
         )
-        self.strength_label.grid(row=3 if confirm else 2, column=0, padx=20, pady=(0, 8), sticky="ew")
+        self.strength_label.grid(row=3 if confirm else 2, column=0, padx=YARU_PAD_LARGE, pady=(0, YARU_PAD_SMALL), sticky="ew")
 
         # Buttons
         button_frame = ctk.CTkFrame(self, fg_color="transparent")
-        button_frame.grid(row=4 if confirm else 3, column=0, padx=20, pady=(8, 20), sticky="ew")
+        button_frame.grid(row=4 if confirm else 3, column=0, padx=YARU_PAD_LARGE, pady=(YARU_PAD_SMALL, YARU_PAD_LARGE), sticky="ew")
 
         if show_generate:
             def generate_key():
@@ -89,12 +118,12 @@ class PasswordDialog(ctk.CTkToplevel):
                 self.update_strength()
                 messagebox.showinfo(
                     "Key Generated",
-                    "A secure key was generated and filled into the password fields.\n\n"
-                    "Pulse-Vault will not save this key for you. Store it somewhere safe before closing this dialog.",
+                    "A secure random key was generated and filled into the fields.\n\n"
+                    "This application does not store keys. Copy and store it securely before closing this dialog.",
                     parent=self
                 )
 
-            gen_btn = ctk.CTkButton(button_frame, text="Auto-Generate Key", width=120, fg_color="#8b5cf6", hover_color="#7c3aed", command=generate_key)
+            gen_btn = ctk.CTkButton(button_frame, text="Auto-Generate Key", width=120, fg_color=adaptive_color("#8b5cf6", "#7c3aed"), hover_color=adaptive_color("#7c3aed", "#5b2a9e"), command=generate_key, corner_radius=CORNER_RADIUS_SMALL, height=BUTTON_HEIGHT_COMPACT)
             gen_btn.pack(side="left")
 
         show_btn = ctk.CTkButton(
@@ -104,14 +133,16 @@ class PasswordDialog(ctk.CTkToplevel):
             fg_color="transparent",
             border_width=1,
             command=self.toggle_show_password,
+            corner_radius=CORNER_RADIUS_SMALL,
+            height=BUTTON_HEIGHT_COMPACT,
         )
         show_btn.pack(side="left", padx=(10, 0))
         self.show_btn = show_btn
 
-        cancel_btn = ctk.CTkButton(button_frame, text="Cancel", width=80, fg_color="transparent", border_width=1, text_color=("gray10", "#DCE4EE"), command=self.cancel)
+        cancel_btn = ctk.CTkButton(button_frame, text="Cancel", width=80, fg_color="transparent", border_width=1, text_color=adaptive_color("#333333", "#DCE4EE"), command=self.cancel, corner_radius=CORNER_RADIUS_SMALL, height=BUTTON_HEIGHT_COMPACT)
         cancel_btn.pack(side="right", padx=(10, 0))
 
-        ok_btn = ctk.CTkButton(button_frame, text="OK", width=80, command=self.ok)
+        ok_btn = ctk.CTkButton(button_frame, text="OK", width=80, command=self.ok, fg_color=get_adaptive_accent(), hover_color=get_adaptive_accent_hover(), corner_radius=CORNER_RADIUS_SMALL, height=BUTTON_HEIGHT_COMPACT)
         ok_btn.pack(side="right")
 
         self.password_entry.focus()
@@ -144,7 +175,7 @@ class PasswordDialog(ctk.CTkToplevel):
         if self.confirm:
             confirm_value = self.confirm_entry.get()
             if password != confirm_value:
-                messagebox.showerror("Password mismatch", "Passwords do not match.", parent=self)
+                messagebox.showerror("Password mismatch", "Passwords do not match. Please re-enter both fields.", parent=self)
                 return
 
         self.result = password
@@ -181,25 +212,30 @@ class ScryptProfileDialog(ctk.CTkToplevel):
 
         title_label = ctk.CTkLabel(
             self,
-            text="Choose Scrypt strength",
-            font=ctk.CTkFont(size=18, weight="bold"),
+            text="Choose Key Derivation Profile",
+            font=ctk.CTkFont(**get_ubuntu_font(18, "bold")),
+            text_color=get_adaptive_accent(),
         )
-        title_label.grid(row=0, column=0, padx=20, pady=(20, 8), sticky="w")
+        title_label.grid(row=0, column=0, padx=YARU_PAD_LARGE, pady=(YARU_PAD_LARGE, YARU_PAD_SMALL), sticky="w")
 
         help_label = ctk.CTkLabel(
             self,
-            text="Stronger settings slow down password guessing but also make unlock slower.",
-            wraplength=400,
+            text="Default is 'standard' (recommended balance of security and unlock speed).\n"
+            "Stronger settings slow down password guessing but also make unlock slower.",
+            wraplength=420,
             justify="left",
+            font=ctk.CTkFont(**get_ubuntu_font(12)),
+            text_color=get_adaptive_gray(),
         )
-        help_label.grid(row=1, column=0, padx=20, pady=(0, 12), sticky="w")
+        help_label.grid(row=1, column=0, padx=YARU_PAD_LARGE, pady=(0, YARU_PAD), sticky="w")
 
         self.profile_var = tk.StringVar(value="standard")
         standard = ctk.CTkRadioButton(
             self,
-            text="Standard (recommended)",
+            text="Standard (recommended) - default",
             variable=self.profile_var,
             value="standard",
+            font=ctk.CTkFont(**get_ubuntu_font(12)),
         )
         standard.grid(row=2, column=0, padx=20, pady=4, sticky="w")
 
@@ -208,6 +244,7 @@ class ScryptProfileDialog(ctk.CTkToplevel):
             text="Hardened (slower unlock, higher guessing cost)",
             variable=self.profile_var,
             value="hardened",
+            font=ctk.CTkFont(**get_ubuntu_font(12)),
         )
         hardened.grid(row=3, column=0, padx=20, pady=4, sticky="w")
 
@@ -220,12 +257,18 @@ class ScryptProfileDialog(ctk.CTkToplevel):
             width=80,
             fg_color="transparent",
             border_width=1,
-            text_color=("gray10", "#DCE4EE"),
+            text_color=adaptive_color("#333333", "#DCE4EE"),
             command=self.cancel,
+            corner_radius=CORNER_RADIUS_SMALL,
+            height=BUTTON_HEIGHT_COMPACT,
         )
         cancel_btn.pack(side="right", padx=(10, 0))
 
-        ok_btn = ctk.CTkButton(button_frame, text="Continue", width=90, command=self.ok)
+        ok_btn = ctk.CTkButton(
+            button_frame, text="Continue", width=90, command=self.ok,
+            fg_color=get_adaptive_accent(), hover_color=get_adaptive_accent_hover(),
+            corner_radius=CORNER_RADIUS_SMALL, height=BUTTON_HEIGHT_COMPACT
+        )
         ok_btn.pack(side="right")
 
         self.bind("<Escape>", lambda _: self.cancel())
@@ -270,8 +313,8 @@ class GitHubReleasesDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             self,
             text="Pulse-Vault GitHub Releases",
-            font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="#3b82f6",
+            font=ctk.CTkFont(**get_ubuntu_font(16, "bold")),
+            text_color=adaptive_color("#3b82f6", "#60a5fa"),
         ).grid(row=0, column=0, padx=20, pady=(18, 6))
 
         desc = ctk.CTkLabel(
@@ -279,7 +322,8 @@ class GitHubReleasesDialog(ctk.CTkToplevel):
             text="Source, wheels, checksums, and release notes are published on GitHub.\nPackaged desktop downloads will appear here (and mirrored on dnspulse.org).",
             wraplength=420,
             justify="left",
-            font=ctk.CTkFont(size=11),
+            font=ctk.CTkFont(**get_ubuntu_font(11)),
+            text_color=get_adaptive_gray(),
         )
         desc.grid(row=1, column=0, padx=20, pady=(0, 12))
 
@@ -290,8 +334,9 @@ class GitHubReleasesDialog(ctk.CTkToplevel):
             btn_frame,
             text="Open Releases",
             command=self._open_releases,
-            fg_color="#3b82f6",
-            height=32,
+            fg_color=adaptive_color("#3b82f6", "#60a5fa"),
+            height=BUTTON_HEIGHT_COMPACT,
+            corner_radius=CORNER_RADIUS_SMALL,
         ).pack(side="left", padx=(0, 8))
 
         ctk.CTkButton(
@@ -300,7 +345,8 @@ class GitHubReleasesDialog(ctk.CTkToplevel):
             command=self.destroy,
             fg_color="transparent",
             border_width=1,
-            height=32,
+            height=BUTTON_HEIGHT_COMPACT,
+            corner_radius=CORNER_RADIUS_SMALL,
         ).pack(side="left")
 
     def _open_releases(self):

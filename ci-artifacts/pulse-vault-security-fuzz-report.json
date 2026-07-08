@@ -1,12 +1,133 @@
 {
   "summary": {
-    "examples": 0,
-    "policy_strong": 0,
-    "policy_weak": 0,
-    "tamper_count": 0,
-    "all_detected": true,
-    "note": "No Hypothesis property test data collected (hypothesis may not be installed, or property tests were not executed in this run). Smoke tests still ran."
+    "examples": 8,
+    "policy_strong": 3,
+    "policy_weak": 5,
+    "tamper_count": 8,
+    "all_detected": true
   },
-  "timings": [],
-  "tamper": []
+  "timings": [
+    {
+      "pw_len": 20,
+      "policy_ok": false,
+      "files": 5,
+      "kdf_ms": 21.18,
+      "add_ms_avg": 33.52,
+      "file_count": 5,
+      "unlock_ms": 2.92,
+      "tamper_layer": "zip_central",
+      "tamper_detected": true
+    },
+    {
+      "pw_len": 6,
+      "policy_ok": false,
+      "files": 3,
+      "kdf_ms": 23.14,
+      "add_ms_avg": 33.71,
+      "file_count": 3,
+      "unlock_ms": 2.4,
+      "tamper_layer": "trunc",
+      "tamper_detected": true
+    },
+    {
+      "pw_len": 14,
+      "policy_ok": false,
+      "files": 2,
+      "kdf_ms": 19.72,
+      "add_ms_avg": 30.48,
+      "file_count": 2,
+      "unlock_ms": 2.68,
+      "tamper_layer": "kdf_json",
+      "tamper_detected": true
+    },
+    {
+      "pw_len": 13,
+      "policy_ok": false,
+      "files": 5,
+      "kdf_ms": 17.8,
+      "add_ms_avg": 33.85,
+      "file_count": 5,
+      "unlock_ms": 2.43,
+      "tamper_layer": "metadata",
+      "tamper_detected": true
+    },
+    {
+      "pw_len": 53,
+      "policy_ok": true,
+      "files": 3,
+      "kdf_ms": 18.42,
+      "add_ms_avg": 31.5,
+      "file_count": 3,
+      "unlock_ms": 2.44,
+      "tamper_layer": "kdf_json",
+      "tamper_detected": true
+    },
+    {
+      "pw_len": 49,
+      "policy_ok": true,
+      "files": 1,
+      "kdf_ms": 18.25,
+      "add_ms_avg": 31.65,
+      "file_count": 1,
+      "unlock_ms": 2.35,
+      "tamper_layer": "kdf_json",
+      "tamper_detected": true
+    },
+    {
+      "pw_len": 8,
+      "policy_ok": false,
+      "files": 2,
+      "kdf_ms": 22.84,
+      "add_ms_avg": 33.7,
+      "file_count": 2,
+      "unlock_ms": 3.32,
+      "tamper_layer": "trunc",
+      "tamper_detected": true
+    },
+    {
+      "pw_len": 19,
+      "policy_ok": true,
+      "files": 5,
+      "kdf_ms": 21.95,
+      "add_ms_avg": 33.46,
+      "file_count": 5,
+      "unlock_ms": 3.28,
+      "tamper_layer": "zip_central",
+      "tamper_detected": true
+    }
+  ],
+  "tamper": [
+    {
+      "layer": "zip_central",
+      "detected": true
+    },
+    {
+      "layer": "trunc",
+      "detected": true
+    },
+    {
+      "layer": "kdf_json",
+      "detected": true
+    },
+    {
+      "layer": "metadata",
+      "detected": true
+    },
+    {
+      "layer": "kdf_json",
+      "detected": true
+    },
+    {
+      "layer": "kdf_json",
+      "detected": true
+    },
+    {
+      "layer": "trunc",
+      "detected": true
+    },
+    {
+      "layer": "zip_central",
+      "detected": true
+    }
+  ]
 }

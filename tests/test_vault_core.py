@@ -15,8 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import pulsevault.core.crypto as crypto
 import pulsevault.core.vault as vault_module
-from pulsevault.core.vault import FORMAT_V5, EncryptedVault, VaultError, b64e
-from pulsevault.gui.app import human_size, is_reasonable_password, password_policy_error
+from pulsevault.core.vault import FORMAT_V5, EncryptedVault, VaultError, b64e, human_size, is_reasonable_password, password_policy_error
 
 
 class VaultCoreTests(unittest.TestCase):

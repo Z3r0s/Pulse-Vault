@@ -12,7 +12,7 @@ Pulse-Vault is a local encrypted file vault from DNSPulse for Linux desktops. It
 
 Install from this GitHub repository for now. See [INSTALL.md](INSTALL.md) for details and [docs/DOWNLOADS.md](docs/DOWNLOADS.md) for packaged releases (planned on dnspulse.org toward 1.0).
 
-Windows can still run Pulse-Vault from source, but the primary packaging target is the Linux desktop.
+Cross-platform (Linux primary for desktop integration, but fully works on Windows and macOS from source or GitHub Releases binaries). See INSTALL.md for antivirus false-positive notes on Windows executables (common with PyInstaller; we mitigate with clean/noupx builds).
 
 ## Goals
 
@@ -69,7 +69,11 @@ See `pulse-vault --cli --help`. Useful for scripts, servers, or when no GUI is a
 
 ## Packaging & Desktop Integration
 
-See `packaging/linux/` and [docs/DOWNLOADS.md](docs/DOWNLOADS.md) (includes GitHub Releases info).
+See `packaging/linux/` (desktop, MIME, AppStream metainfo), [INSTALL.md](INSTALL.md) (detailed desktop integration, pip/App Store/Snap notes), and [docs/DOWNLOADS.md](docs/DOWNLOADS.md) (includes GitHub Releases info).
+
+- Version sync + AppStream validation covered in CONTRIBUTING.md.
+- CLI entries (`pulse-vault-cli`) designed for snap/apt/pip packaging.
+- Metainfo is production-ready for Ubuntu App Store (expand releases, description; screenshots to be supplied by user).
 
 ## Documentation
 

@@ -1,24 +1,169 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
   <id>io.github.z3r0s.PulseVault</id>
-  <name>Pulse-Vault</name>
-  <summary>Local encrypted file vault for Linux desktops</summary>
   <metadata_license>MIT</metadata_license>
   <project_license>MIT</project_license>
-  <developer_name>DNSPulse / Z3r0s</developer_name>
+  <name>Pulse-Vault</name>
+  <summary>Local encrypted file vault for Linux desktops</summary>
+  <developer id="io.github.z3r0s">
+    <name>DNSPulse / Z3r0s</name>
+  </developer>
   <launchable type="desktop-id">pulse-vault.desktop</launchable>
-  <content_rating type="oars-1.1"/>
+
+  <provides>
+    <binary>pulse-vault</binary>
+    <binary>pulsevault</binary>
+    <binary>pulse-vault-cli</binary>
+  </provides>
+
+  <content_rating type="oars-1.1">
+    <content_attribute id="violence-realistic">none</content_attribute>
+    <content_attribute id="violence-bloodshed">none</content_attribute>
+    <content_attribute id="violence-sexual">none</content_attribute>
+    <content_attribute id="drugs-alcohol">none</content_attribute>
+    <content_attribute id="drugs-narcotics">none</content_attribute>
+    <content_attribute id="drugs-tobacco">none</content_attribute>
+    <content_attribute id="sex-nudity">none</content_attribute>
+    <content_attribute id="sex-themes">none</content_attribute>
+    <content_attribute id="language-profanity">none</content_attribute>
+    <content_attribute id="language-humor">none</content_attribute>
+    <content_attribute id="language-discrimination">none</content_attribute>
+    <content_attribute id="social-chat">none</content_attribute>
+    <content_attribute id="social-info">none</content_attribute>
+    <content_attribute id="social-audio">none</content_attribute>
+    <content_attribute id="social-location">none</content_attribute>
+    <content_attribute id="social-contacts">none</content_attribute>
+    <content_attribute id="money-purchasing">none</content_attribute>
+    <content_attribute id="money-gambling">none</content_attribute>
+  </content_rating>
+
   <description>
     <p>
-      Pulse-Vault stores files and folders in a portable encrypted vault.
-      It is local-first, has no cloud dependency, and uses authenticated
-      encryption with a memory-hard password derivation function.
+      Pulse-Vault is a local-first encrypted file vault for Linux desktops.
+      Keep sensitive files private in a single portable .pulsevault container with
+      no cloud, no telemetry, and no accounts.
+    </p>
+    <p>
+      It uses authenticated encryption (ChaCha20-Poly1305 + AES-GCM cascade),
+      memory-hard Scrypt key derivation (standard or hardened profiles), and
+      LZMA compression. Large files are streamed so memory usage stays reasonable.
+    </p>
+    <p>
+      The app features a modern Yaru-aligned GUI for Ubuntu and other Linux desktops,
+      plus a powerful guided CLI for headless, scripting, server, or packaging use
+      (pip, apt, snap). Includes direct integration with GitHub Releases for downloads,
+      clickable version info, and About dialog guidance.
+    </p>
+    <p>Key features:</p>
+    <ul>
+      <li>Strong offline password-based encryption with streaming for large files</li>
+      <li>Password rotation with full re-encryption of vault contents</li>
+      <li>Integrity verification without exposing plaintext</li>
+      <li>Optional carrier file disguise (append vault to image or video)</li>
+      <li>Drag &amp; drop import, Secure Open (temp extract + launch app), folder import</li>
+      <li>Guided CLI (create/open/list/verify/change-password) for headless/scripting</li>
+      <li>Native Linux desktop integration (desktop file, MIME type registration, AppStream metainfo)</li>
+      <li>Built-in links to GitHub Releases and official site from sidebar, version badge, and About</li>
+    </ul>
+    <p>
+      Perfect for journalists, developers, security researchers, privacy-conscious
+      users, or anyone who wants strong local file privacy on Ubuntu 24.04/26.04
+      and other Linux desktops.
     </p>
   </description>
+
+  <keywords>
+    <keyword>encryption</keyword>
+    <keyword>vault</keyword>
+    <keyword>privacy</keyword>
+    <keyword>security</keyword>
+    <keyword>offline</keyword>
+    <keyword>scrypt</keyword>
+    <keyword>cryptography</keyword>
+    <keyword>local</keyword>
+    <keyword>file</keyword>
+    <keyword>container</keyword>
+    <keyword>secure</keyword>
+    <keyword>encrypted</keyword>
+  </keywords>
+
+  <categories>
+    <category>Utility</category>
+    <category>Security</category>
+    <category>FileTools</category>
+  </categories>
+
   <url type="homepage">https://dnspulse.org</url>
   <url type="bugtracker">https://github.com/Z3r0s/Pulse-Vault/issues</url>
   <url type="help">https://github.com/Z3r0s/Pulse-Vault/releases</url>
+  <url type="vcs">https://github.com/Z3r0s/Pulse-Vault</url>
+  <url type="faq">https://github.com/Z3r0s/Pulse-Vault/blob/main/docs/THREAT_MODEL.md</url>
+
+  <!-- Production-ready releases section for AppStream / Ubuntu App Store / Flathub.
+       Add detailed <description> per release. Keep in sync with CHANGELOG.md and
+       src/pulsevault/__init__.py version (see CONTRIBUTING.md and pyproject.toml).
+       Always update the latest release entry + add new <release> when bumping version.
+  -->
   <releases>
-    <release version="0.0.20" date="2026-07-04"/>
+    <release version="0.0.21" date="2026-07-08">
+      <description>
+        <p>Pulse-Vault 0.0.21 brings a much more polished desktop experience and solid preparation for distribution.</p>
+        <p>The GUI now sports Ubuntu 26.04 Yaru-inspired theming with the signature orange accent color, refined dark/light palettes, consistent rounded corners, Ubuntu font preference, and better spacing and button styling so it feels right at home on modern Linux desktops.</p>
+        <p>We finally fixed the long-standing CLI vs GUI import coupling. The guided CLI (pulse-vault --cli and the dedicated pulse-vault-cli entry) no longer pulls in any tkinter or customtkinter code, making it genuinely suitable for headless, server, pip, apt, and Snap environments.</p>
+        <p>Documentation and packaging received major love: expanded AppStream metainfo with proper releases, keywords, screenshots placeholders, and store-ready details; updated INSTALL.md, README, and other docs with clear pip + App Store guidance; added desktop file validation and AppStream checks to CI.</p>
+        <p>Testing is in great shape — the full suite passes cleanly (92 tests), CLI/GUI isolation is enforced with fresh subprocess checks, and the Hypothesis-based security property tests are robust with better tamper coverage. We performed thorough internal reviews for security, UI, and packaging.</p>
+        <p>Changelog and release process got a refresh toward more human-readable notes while staying compatible with automation.</p>
+      </description>
+    </release>
+    <release version="0.0.20" date="2026-07-04">
+      <description>
+        <p>Improved packaging, CLI decoupling, Yaru-aligned UI polish for Ubuntu 26.04.</p>
+        <p>Added comprehensive CLI tests, advanced Hypothesis property/fuzz tests with security report artifact, GitHub release automation, and expanded CI.</p>
+        <p>GUI enhancements: always-visible GitHub Releases sidebar button, clickable version badge, dedicated GitHub Downloads &amp; Releases dialog and About section, updated empty state messaging. All point users to packaged downloads.</p>
+        <p>Internal: larger I/O buffers, single-pass hashing+encrypt, header-only unlock probe, improved Scrypt threading and KDF persistence.</p>
+        <p>Fixed headless GUI construction in CI and minor UI typos.</p>
+      </description>
+    </release>
+    <release version="0.0.19" date="2026-06-20">
+      <description>
+        <p>Enhanced test coverage, CLI improvements, and packaging prep for future stores.</p>
+      </description>
+    </release>
+    <release version="0.0.18" date="2026-06-10">
+      <description>
+        <p>Core vault streaming, carrier file support, password policy, and early desktop files (MIME + .desktop).</p>
+      </description>
+    </release>
+    <release version="0.0.1" date="2026-05-01">
+      <description>
+        <p>Initial public development release with core encryption, GUI, and CLI.</p>
+      </description>
+    </release>
   </releases>
+
+  <!-- Screenshots for Ubuntu App Store / GNOME Software visibility.
+       Replace placeholder URLs with real hosted images (recommended: raw.githubusercontent.com or dnspulse.org).
+       Provide at least one default + one or two more (light/dark, different states).
+       User action required: add actual screenshot assets + update paths.
+       Example hosting: screenshots/ dir in repo + raw links.
+  -->
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/screenshots/main-dark.png</image>
+      <caption>Unlocked vault with file list on Ubuntu (dark mode)</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/screenshots/create-vault.png</image>
+      <caption>Create new vault dialog with Scrypt profile and carrier option</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/screenshots/about-downloads.png</image>
+      <caption>About dialog highlighting GitHub Releases integration for downloads</caption>
+    </screenshot>
+  </screenshots>
+
+  <!-- For future Snap / Flatpak packaging: this metainfo is reusable.
+       Snapcraft can use it via 'adopt-info' or copy into snap/gui/.
+       Recommended: also ship 128x128+ and scalable icons for store.
+  -->
 </component>

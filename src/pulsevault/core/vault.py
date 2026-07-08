@@ -1043,3 +1043,55 @@ class EncryptedVault:
             "vault_disk_size": disk_size,
             "path": str(self.vault_path),
         }
+
+
+# --- Shared UI/CLI utilities (moved here for CLI/GUI import decoupling) ---
+# These have no GUI deps and are used by CLI, core tests, and GUI.
+COMMON_PASSWORDS = {
+    "password",
+    "password123",
+    "123456789012",
+    "qwerty123456",
+    "letmein123456",
+    "adminadminadmin",
+    "pulsevault",
+}
+
+
+def human_size(size: int) -> str:
+    units = ["B", "KB", "MB", "GB", "TB"]
+    value = float(size)
+    for unit in units:
+        if value < 1024:
+            return f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} PB"
+
+
+def password_policy_error(password: str) -> Optional[str]:
+    if len(password) < 14:
+        return "Use at least 14 characters, or generate a secure key."
+
+    lowered = password.lower()
+    if lowered in COMMON_PASSWORDS or any(piece in lowered for piece in ("password", "qwerty", "letmein", "123456")):
+        return "Avoid common words, keyboard patterns, and obvious number runs."
+
+    if len(set(password)) < 5:
+        return "Use a less repetitive password."
+
+    categories = sum(
+        (
+            any(ch.islower() for ch in password),
+            any(ch.isupper() for ch in password),
+            any(ch.isdigit() for ch in password),
+            any(not ch.isalnum() for ch in password),
+        )
+    )
+    if categories < 3 and len(password) < 20:
+        return "Use more variety, or make it at least 20 characters."
+
+    return None
+
+
+def is_reasonable_password(password: str) -> bool:
+    return password_policy_error(password) is None

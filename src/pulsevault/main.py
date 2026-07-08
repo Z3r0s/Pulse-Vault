@@ -27,7 +27,16 @@ def main(argv=None):
         return 0
 
     # CLI / guided mode (no tkinter / GUI imports)
-    if early.cli or "--cli" in argv or (len(argv) > 0 and argv[0] in ("cli", "--help", "-h", "create", "open", "list", "verify", "change-password")):
+    # Determine CLI path only for explicit --cli, bare 'cli' token, or non-flag subcommands.
+    # This prevents --help / --version / -h from incorrectly routing to CLI (so combined help can show)
+    # while still supporting `pulse-vault create ...` style for packaging/aliasing without --cli prefix.
+    # Ensures the GUI import block is never reached for CLI invocations.
+    cli_trigger = bool(early.cli) or ("--cli" in argv) or ("cli" in argv)
+    if not cli_trigger and len(argv) > 0:
+        first = argv[0]
+        if not first.startswith("-") and first in ("create", "open", "list", "verify", "change-password"):
+            cli_trigger = True
+    if cli_trigger:
         # Lazy import to avoid pulling customtkinter / tk when doing pure CLI
         from pulsevault.cli import run_guided_cli
         # strip --cli / cli tokens for the subparser
@@ -39,11 +48,14 @@ def main(argv=None):
         print(f"{__app_name__} v{__version__}")
         print("Usage:")
         print("  pulse-vault [VAULT]          Launch GUI (optionally auto-open vault)")
-        print("  pulse-vault --cli [subcmd]   Guided terminal / CLI mode (good for pip/apt/snap)")
+        print("  pulse-vault --cli [subcmd]   Guided terminal / CLI mode (good for pip/apt/snap/headless)")
         print("  pulse-vault --version")
         print("  pulse-vault --help")
-        print("\nIn CLI mode: create, open, list, verify, change-password")
-        print("Example: pulse-vault --cli create myvault.pulsevault")
+        print("\nCLI subcommands: create, open, list, verify, change-password")
+        print("  Destructive actions require confirmation (delete, change-password) by default.")
+        print("  Use -y/--yes for non-interactive on safety prompts (use with care).")
+        print("  Defaults favor 'standard' KDF and current directory where sensible.")
+        print("  Example: pulse-vault --cli create my.vault --yes")
         return 0
 
     # Default / GUI path (original behavior)
@@ -54,8 +66,15 @@ def main(argv=None):
     import customtkinter as ctk
     from pulsevault.gui.app import VaultGUI
 
-    ctk.set_appearance_mode("System")
-    ctk.set_default_color_theme("blue")
+    ctk.set_appearance_mode("Dark")  # Premium security app default; System still supported via menu (Ubuntu 26.04 Yaru friendly)
+    # Do not force "blue" theme — we apply Yaru-inspired accents and palettes via gui/theme.py
+    # Additional Yaru polish (radii, fonts, oranges) applied in gui/app + gui/theme + gui/dialogs at runtime
+    try:
+        # Ensure Ubuntu font preference where possible before GUI build (no-op on non-Ubuntu)
+        import tkinter.font as tkfont
+        tkfont.nametofont("TkDefaultFont").configure(family="Ubuntu")
+    except Exception:
+        pass
 
     app = VaultGUI()
     if argv:
