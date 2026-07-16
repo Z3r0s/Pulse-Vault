@@ -503,9 +503,24 @@ if HAS_HYPOTHESIS:
                 })
                 _tamper_results.append({"layer": tamper["layer"], "detected": True})
 
-                # Loose perf sanity (fast profile)
-                self.assertLess(timings["kdf_ms"], 300, "KDF too slow even for fast profile in test env")
-                self.assertLess(timings.get("unlock_ms", 0), 50)
+                # Perf sanity: prefer structural checks over tight wall-clock budgets.
+                # Shared CI runners (especially Windows) are noisy; a 300ms/50ms cap
+                # caused Hypothesis FlakyFailure when create took ~338ms once then
+                # reproduced under 300ms. Record timings for the report; only fail
+                # if create/unlock is catastrophically slow (wrong profile / hung host).
+                self.assertEqual(vault.scrypt_profile, "fast")
+                self.assertEqual(vault.kdf_n, crypto.SCRYPT_PROFILES["fast"]["n"])
+                self.assertEqual(v2.scrypt_profile, "fast")
+                self.assertLess(
+                    timings["kdf_ms"],
+                    10_000,
+                    "create+KDF catastrophically slow for fast profile in test env",
+                )
+                self.assertLess(
+                    timings.get("unlock_ms", 0),
+                    10_000,
+                    "unlock catastrophically slow for fast profile in test env",
+                )
 
 
 class VaultSmokeTests(unittest.TestCase):

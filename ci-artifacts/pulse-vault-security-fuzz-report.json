@@ -1,104 +1,108 @@
 {
   "summary": {
     "examples": 8,
-    "policy_strong": 3,
-    "policy_weak": 5,
+    "policy_strong": 2,
+    "policy_weak": 6,
     "tamper_count": 8,
     "all_detected": true
   },
   "timings": [
     {
-      "pw_len": 20,
-      "policy_ok": false,
-      "files": 5,
-      "kdf_ms": 17.27,
-      "add_ms_avg": 38.38,
-      "file_count": 5,
-      "unlock_ms": 6.13,
-      "tamper_layer": "zip_central",
-      "tamper_detected": true
-    },
-    {
-      "pw_len": 6,
-      "policy_ok": false,
-      "files": 3,
-      "kdf_ms": 18.8,
-      "add_ms_avg": 29.01,
-      "file_count": 3,
-      "unlock_ms": 2.35,
-      "tamper_layer": "trunc",
-      "tamper_detected": true
-    },
-    {
       "pw_len": 14,
       "policy_ok": false,
-      "files": 2,
-      "kdf_ms": 24.06,
-      "add_ms_avg": 40.85,
-      "file_count": 2,
-      "unlock_ms": 3.12,
-      "tamper_layer": "kdf_json",
+      "files": 3,
+      "kdf_ms": 23.45,
+      "add_ms_avg": 68.52,
+      "file_count": 3,
+      "unlock_ms": 3.2,
+      "tamper_layer": "data_chunk",
       "tamper_detected": true
     },
     {
       "pw_len": 13,
       "policy_ok": false,
-      "files": 5,
-      "kdf_ms": 18.74,
-      "add_ms_avg": 33.66,
-      "file_count": 5,
-      "unlock_ms": 2.08,
-      "tamper_layer": "metadata",
-      "tamper_detected": true
-    },
-    {
-      "pw_len": 53,
-      "policy_ok": true,
-      "files": 3,
-      "kdf_ms": 17.42,
-      "add_ms_avg": 27.1,
-      "file_count": 3,
-      "unlock_ms": 1.71,
-      "tamper_layer": "kdf_json",
-      "tamper_detected": true
-    },
-    {
-      "pw_len": 49,
-      "policy_ok": true,
       "files": 1,
-      "kdf_ms": 30.54,
-      "add_ms_avg": 31.3,
+      "kdf_ms": 24.53,
+      "add_ms_avg": 45.3,
       "file_count": 1,
-      "unlock_ms": 3.14,
-      "tamper_layer": "kdf_json",
+      "unlock_ms": 4.97,
+      "tamper_layer": "salt",
       "tamper_detected": true
     },
     {
-      "pw_len": 8,
-      "policy_ok": false,
+      "pw_len": 15,
+      "policy_ok": true,
       "files": 2,
-      "kdf_ms": 14.46,
-      "add_ms_avg": 28.7,
+      "kdf_ms": 37.44,
+      "add_ms_avg": 48.07,
       "file_count": 2,
-      "unlock_ms": 2.23,
+      "unlock_ms": 3.2,
       "tamper_layer": "trunc",
       "tamper_detected": true
     },
     {
-      "pw_len": 19,
+      "pw_len": 18,
       "policy_ok": true,
+      "files": 1,
+      "kdf_ms": 22.82,
+      "add_ms_avg": 47.41,
+      "file_count": 1,
+      "unlock_ms": 7.89,
+      "tamper_layer": "header",
+      "tamper_detected": true
+    },
+    {
+      "pw_len": 14,
+      "policy_ok": false,
+      "files": 4,
+      "kdf_ms": 35.61,
+      "add_ms_avg": 52.49,
+      "file_count": 4,
+      "unlock_ms": 3.75,
+      "tamper_layer": "header",
+      "tamper_detected": true
+    },
+    {
+      "pw_len": 7,
+      "policy_ok": false,
       "files": 5,
-      "kdf_ms": 17.6,
-      "add_ms_avg": 39.78,
+      "kdf_ms": 17.89,
+      "add_ms_avg": 41.01,
       "file_count": 5,
-      "unlock_ms": 2.72,
-      "tamper_layer": "zip_central",
+      "unlock_ms": 2.5,
+      "tamper_layer": "salt",
+      "tamper_detected": true
+    },
+    {
+      "pw_len": 1,
+      "policy_ok": false,
+      "files": 5,
+      "kdf_ms": 19.16,
+      "add_ms_avg": 38.18,
+      "file_count": 5,
+      "unlock_ms": 6.85,
+      "tamper_layer": "kdf_json",
+      "tamper_detected": true
+    },
+    {
+      "pw_len": 14,
+      "policy_ok": false,
+      "files": 3,
+      "kdf_ms": 20.91,
+      "add_ms_avg": 43.99,
+      "file_count": 3,
+      "unlock_ms": 3.61,
+      "tamper_layer": "data_chunk",
       "tamper_detected": true
     }
   ],
   "tamper": [
     {
-      "layer": "zip_central",
+      "layer": "data_chunk",
+      "detected": true
+    },
+    {
+      "layer": "salt",
       "detected": true
     },
     {
@@ -106,27 +110,23 @@
       "detected": true
     },
     {
+      "layer": "header",
+      "detected": true
+    },
+    {
+      "layer": "header",
+      "detected": true
+    },
+    {
+      "layer": "salt",
+      "detected": true
+    },
+    {
       "layer": "kdf_json",
       "detected": true
     },
     {
-      "layer": "metadata",
-      "detected": true
-    },
-    {
-      "layer": "kdf_json",
-      "detected": true
-    },
-    {
-      "layer": "kdf_json",
-      "detected": true
-    },
-    {
-      "layer": "trunc",
-      "detected": true
-    },
-    {
-      "layer": "zip_central",
+      "layer": "data_chunk",
       "detected": true
     }
   ]
