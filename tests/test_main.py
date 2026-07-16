@@ -84,13 +84,15 @@ class MainDispatchTests(unittest.TestCase):
 
     def test_main_gui_no_argv_still_constructs(self):
         fake_app = mock.MagicMock()
-        with mock.patch("pulsevault.main.ctk", create=True) as mock_ctk, \
-             mock.patch("pulsevault.gui.app.VaultGUI", return_value=fake_app):
-            mock_ctk.set_appearance_mode = mock.Mock()
-            mock_ctk.set_default_color_theme = mock.Mock()
-            rc = mainmod.main([])
-            self.assertEqual(rc, 0)
-            fake_app.mainloop.assert_called_once()
+        # Inject fake customtkinter so gui package import does not require the real extra.
+        with mock.patch.dict("sys.modules", {"customtkinter": mock.MagicMock()}):
+            with mock.patch("pulsevault.main.ctk", create=True) as mock_ctk, \
+                 mock.patch("pulsevault.gui.app.VaultGUI", return_value=fake_app):
+                mock_ctk.set_appearance_mode = mock.Mock()
+                mock_ctk.set_default_color_theme = mock.Mock()
+                rc = mainmod.main([])
+                self.assertEqual(rc, 0)
+                fake_app.mainloop.assert_called_once()
 
 
 class MainAdvancedTests(unittest.TestCase):

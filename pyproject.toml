@@ -44,10 +44,16 @@ gui = [
   "customtkinter>=5.2.0",
   "tkinterdnd2>=0.3.0",
 ]
-dev = ["hypothesis>=6.0.0"]
+dev = [
+  "hypothesis>=6.0.0",
+  # GUI extras so unittest discover (gui smoke/theme) matches CI without a separate [gui] install
+  "customtkinter>=5.2.0",
+  "tkinterdnd2>=0.3.0",
+]
 # Note: tkinter is a system dependency (python3-tk on Linux, built-in on Windows/macOS).
-# For full GUI: pip install "pulse-vault[gui]"
+# For full GUI runtime: pip install "pulse-vault[gui]"
 # For CLI-only (headless/packaging): just pip install pulse-vault (no GUI deps)
+# For development/tests: pip install -e ".[dev]"
 
 [project.urls]
 Homepage = "https://dnspulse.org"

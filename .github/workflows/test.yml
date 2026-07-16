@@ -26,8 +26,8 @@ jobs:
 
       - name: Install dependencies
         run: |
+          # [dev] includes hypothesis + GUI extras so gui smoke/theme tests can import customtkinter
           pip install -e '.[dev]'
-          pip install hypothesis  # ensure for advanced property tests
 
       - name: Install system tkinter (Ubuntu, for optional real GUI smoke)
         if: matrix.os == 'ubuntu-latest'
@@ -73,9 +73,15 @@ jobs:
             (echo "AppStream validation notes (common for early releases or missing screenshots)" && true)
 
       - name: Check version consistency hint (metainfo vs source)
+        # Hint-only: never fail the job on mismatch or import issues.
+        # Single-line python avoids YAML block-scalar pitfalls (unindented multi-line -c).
         run: |
-          SRC_VER=$(PYTHONPATH=src python3 -c "import pulsevault; print(pulsevault.__version__)")
+          SRC_VER=$(PYTHONPATH=src python3 -c "import pulsevault; print(pulsevault.__version__)" 2>/dev/null) || SRC_VER="unknown"
           echo "Source version: $SRC_VER"
-          # Note: metainfo should contain a matching <release version="$SRC_VER">
-          grep -o 'version="[^"]*"' packaging/linux/io.github.z3r0s.PulseVault.metainfo.xml | head -1 || true
+          META_LINE=$(grep -o 'release version="[^"]*"' packaging/linux/io.github.z3r0s.PulseVault.metainfo.xml | head -1) || true
+          echo "Metainfo latest release attr: ${META_LINE:-none found}"
+          EXPECTED="release version=\"${SRC_VER}\""
+          if [ "$SRC_VER" != "unknown" ] && [ -n "$META_LINE" ] && [ "$META_LINE" != "$EXPECTED" ]; then
+            echo "Hint: source __version__ ($SRC_VER) differs from metainfo ($META_LINE); keep in sync per CONTRIBUTING.md"
+          fi
           echo "Reminder: keep metainfo releases in sync per CONTRIBUTING.md"
