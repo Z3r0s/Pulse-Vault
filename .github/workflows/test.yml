@@ -74,12 +74,7 @@ jobs:
 
       - name: Check version consistency hint (metainfo vs source)
         run: |
-          SRC_VER=$(python3 -c "
-import sys
-sys.path.insert(0, 'src')
-import pulsevault
-print(pulsevault.__version__)
-")
+          SRC_VER=$(PYTHONPATH=src python3 -c "import pulsevault; print(pulsevault.__version__)")
           echo "Source version: $SRC_VER"
           # Note: metainfo should contain a matching <release version="$SRC_VER">
           grep -o 'version="[^"]*"' packaging/linux/io.github.z3r0s.PulseVault.metainfo.xml | head -1 || true
