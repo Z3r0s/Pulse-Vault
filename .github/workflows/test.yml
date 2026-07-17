@@ -41,7 +41,7 @@ jobs:
 
       - name: Upload security fuzz / property test report artifact
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: pulse-vault-security-fuzz-report-${{ matrix.python-version }}-${{ matrix.os }}
           path: ci-artifacts/pulse-vault-security-fuzz-report.json
