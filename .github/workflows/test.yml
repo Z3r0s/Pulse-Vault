@@ -17,7 +17,7 @@ jobs:
         # macOS can be added later; core/CLI tests are cross-platform friendly thanks to mocks
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -55,7 +55,7 @@ jobs:
   validate-packaging:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Install desktop + AppStream validators
         run: |
