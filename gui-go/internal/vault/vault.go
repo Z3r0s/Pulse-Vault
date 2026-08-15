@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -486,7 +485,7 @@ func (v *Vault) AddFile(path string, overwrite bool) error {
 		// Ciphertext is roughly plaintext-sized plus a small header/tag overhead.
 		encBuf.Grow(int(info.Size() + info.Size()/8))
 	}
-	h := sha256.New()
+	h := crypto.NewFileDigest()
 	counting := &hashingReader{r: src, h: h}
 	if err := crypto.EncryptStreamV5(v.key, counting, &encBuf, true); err != nil {
 		return err
@@ -560,7 +559,7 @@ func (v *Vault) ExtractFile(filename, outputDir string, overwrite bool) (string,
 	if err != nil {
 		return "", err
 	}
-	h := sha256.New()
+	h := crypto.NewFileDigest()
 	if err := v.decryptFileTo(meta, io.MultiWriter(file, h)); err != nil {
 		_ = file.Close()
 		_ = os.Remove(tmp)
@@ -610,21 +609,22 @@ func (v *Vault) VerifyFile(filename string) (VerifyResult, error) {
 	if !ok {
 		return VerifyResult{}, fmt.Errorf("%w: file not found in vault", ErrVault)
 	}
-	plain, err := v.decryptFileBytes(meta)
-	if err != nil {
+	digest := crypto.NewFileDigest()
+	counting := &countingWriter{w: digest}
+	if err := v.decryptFileTo(meta, counting); err != nil {
 		return VerifyResult{}, err
 	}
-	actual := crypto.SHA256Hex(plain)
+	actual := hex.EncodeToString(digest.Sum(nil))
 	hashChecked := meta.SHA256 != "" && meta.SHA256 != "pending" && meta.SHA256 != "skipped_large_file"
 	if hashChecked && actual != meta.SHA256 {
 		return VerifyResult{}, fmt.Errorf("%w: hash mismatch for %q", ErrVault, filename)
 	}
-	if int64(len(plain)) != meta.Size {
+	if counting.n != meta.Size {
 		return VerifyResult{}, fmt.Errorf("%w: size mismatch for %q", ErrVault, filename)
 	}
 	return VerifyResult{
 		Name:        filename,
-		Size:        int64(len(plain)),
+		Size:        counting.n,
 		SHA256:      actual,
 		HashChecked: hashChecked,
 	}, nil
@@ -1226,6 +1226,17 @@ func newID() string {
 	b[6] = (b[6] & 0x0f) | 0x40
 	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+type countingWriter struct {
+	w io.Writer
+	n int64
+}
+
+func (c *countingWriter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.n += int64(n)
+	return n, err
 }
 
 type hashingReader struct {

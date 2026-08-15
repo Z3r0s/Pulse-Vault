@@ -56,6 +56,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Security
 - Same ciphers as before. Empty files still get an authenticated record.
+- SHA-256 in the crypto package is only a file-integrity digest (verify/extract). Passwords stay on scrypt / legacy PBKDF2. CodeQL `go/weak-sensitive-data-hashing` was a false positive on that helper.
 
 ## [0.1.0] - 2026-07-22
 

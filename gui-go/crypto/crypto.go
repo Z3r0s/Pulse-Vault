@@ -3,6 +3,7 @@
 package pulsecrypto
 
 import (
+	"hash"
 	"io"
 
 	inner "github.com/Z3r0s/Pulse-Vault/gui-go/internal/crypto"
@@ -80,10 +81,28 @@ func DecryptStreamV4(key64 []byte, src io.Reader, dst io.Writer) error {
 	return inner.DecryptStreamV4(key64, src, dst)
 }
 
-func SHA256Hex(data []byte) string {
-	return inner.SHA256Hex(data)
+// NewFileDigest returns a SHA-256 hasher for stored file bytes (integrity).
+// Not a password hash — passwords use DeriveKeyScrypt.
+func NewFileDigest() hash.Hash {
+	return inner.NewFileDigest()
 }
 
+// FileDigestHex is SHA-256 of stored file bytes (integrity). Not a password hash.
+func FileDigestHex(fileBytes []byte) string {
+	return inner.FileDigestHex(fileBytes)
+}
+
+// FileDigestReader streams file bytes and returns lowercase hex SHA-256.
+func FileDigestReader(r io.Reader) (string, error) {
+	return inner.FileDigestReader(r)
+}
+
+// SHA256Hex is FileDigestHex. Kept so existing callers keep compiling.
+func SHA256Hex(data []byte) string {
+	return inner.FileDigestHex(data)
+}
+
+// SHA256Reader is FileDigestReader. Kept so existing callers keep compiling.
 func SHA256Reader(r io.Reader) (string, error) {
-	return inner.SHA256Reader(r)
+	return inner.FileDigestReader(r)
 }

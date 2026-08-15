@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -661,19 +660,4 @@ func writeFull(w io.Writer, p []byte) error {
 		p = p[n:]
 	}
 	return nil
-}
-
-// SHA256Hex returns lowercase hex SHA-256 of data.
-func SHA256Hex(data []byte) string {
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])
-}
-
-// SHA256Reader streams a reader hash.
-func SHA256Reader(r io.Reader) (string, error) {
-	h := sha256.New()
-	if _, err := io.Copy(h, r); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
 }

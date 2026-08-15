@@ -93,7 +93,7 @@ func TestVerifyAllAndHashRecorded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if meta.SHA256 != crypto.SHA256Hex(payload) {
+	if meta.SHA256 != crypto.FileDigestHex(payload) {
 		t.Fatalf("sha mismatch recorded: %s", meta.SHA256)
 	}
 	res, err := v.VerifyFile("hash-me.bin")

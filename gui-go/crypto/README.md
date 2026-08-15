@@ -5,8 +5,9 @@ Pulse-Vault's authenticated encryption formats.
 
 It provides:
 
-- Scrypt key derivation for V3–V5 vaults.
+- Scrypt key derivation for V3–V5 vaults (passwords — not SHA-256).
 - PBKDF2-SHA256 and AES-GCM compatibility for V1/V2 vaults.
+- SHA-256 file-content fingerprints (`FileDigestHex`) for extract/verify only.
 - ChaCha20-Poly1305 + AES-GCM cascade encryption for metadata.
 - V5 stream encrypt/decrypt (zstd now, old XZ still reads)
 - V4 stream decrypt (old vaults)
