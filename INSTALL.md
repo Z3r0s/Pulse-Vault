@@ -1,6 +1,6 @@
 # Installation
 
-Pulse-Vault is Go. GUI + CLI are in [`gui-go/`](gui-go/). You don't need Python.
+Pulse-Vault is Go. GUI + CLI are in [`gui-go/`](gui-go/). You don't need Python. Why: [docs/WHY_GO.md](docs/WHY_GO.md).
 
 Packaged downloads (when published) appear on [GitHub Releases](https://github.com/Z3r0s/Pulse-Vault/releases). See [docs/DOWNLOADS.md](docs/DOWNLOADS.md). Official site: [dnspulse.org](https://dnspulse.org).
 

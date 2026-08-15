@@ -41,6 +41,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - ZIP rewrite copies old blobs instead of loading them all. Extract hashes while it writes.
 - Builds: `-trimpath -buildvcs=false -s -w`. Vault only stores the filename, not `C:\Users\...`. ZIP timestamps are zeroed. File bytes are still exact.
 - GUI shell: tighter brand mark, wrapping header, scroll instead of clip on a small window, lock/accent/hero motion, drag-and-drop add/open. Windows GUI builds use `-H windowsgui` so double-click does not open a console.
+- Why Go (not Python, not Rust) is its own page ([docs/WHY_GO.md](docs/WHY_GO.md)) and sits at the top of the README.
 
 ### Fixed
 - Hide in picture actually works (create used to refuse an existing image)
