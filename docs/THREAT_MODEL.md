@@ -1,46 +1,48 @@
-# Threat Model
+# Pulse-Vault Threat Model
 
-Pulse-Vault is designed for local, offline file privacy. It protects files after they are added to a locked vault and helps detect tampering before decrypted data is trusted.
+What this thing is supposed to stop, and what it isn't. Applies to the Go app
+and `gui-go/crypto`. Python in `legacy/python/` doesn't count.
 
-## Protects Against
+## Security goals
 
-- Someone copying or stealing a locked vault file.
-- Casual inspection of vault metadata, file names, or file contents.
-- Tampering with encrypted metadata or encrypted file entries.
-- Offline password guessing made more expensive through Scrypt.
-- Vault-specific Scrypt cost recorded in `kdf.json` so unlock cost stays stable across machines.
-- Large-file memory pressure by encrypting and decrypting file entries in streams.
+- Prevent an attacker without the password from recovering vault contents.
+- Detect modification, truncation, reordering, and substitution of encrypted
+  metadata or stream chunks.
+- Make password guessing materially expensive through the selected Scrypt
+  profile (or PBKDF2 only for legacy V1/V2 compatibility).
+- Avoid nonce reuse within a key and stream by using random base nonces and
+  authenticated chunk indices.
+- Preserve compatibility with existing V1–V5 files without weakening the
+  authentication checks for newly written V5 files.
 
-## Does Not Protect Against
+## Assumptions
 
-- Malware, keyloggers, remote access tools, or screen capture on an already compromised computer.
-- Weak, reused, leaked, or forgotten vault passwords.
-- Plaintext files after a user extracts or opens them outside the vault.
-- External apps creating caches, thumbnails, recent-file entries, backups, or temporary files.
-- Forensic proof that a carrier file contains appended data.
+- The password is not guessable and is not reused elsewhere.
+- The operating system, Go runtime, and release artifacts have not already
+  been compromised.
+- Randomness provided by the operating system is available and functioning.
+- A caller that needs atomic extraction uses a temporary destination and only
+  publishes it after decryption succeeds.
 
-## Security Goals
+## Out of scope
 
-- No network service, telemetry, cloud account, or remote dependency.
-- No recovery backdoor.
-- Authenticated encryption for metadata and file contents.
-- Temporary plaintext outputs are removed on failed extraction.
-- Password rotation re-encrypts file entries without writing plaintext staging files.
+- Malware or an attacker with code execution in the user account.
+- Password recovery, weak-password protection, or protection against offline
+  guessing of a deliberately weak password.
+- Metadata leakage from file sizes, entry names required by the format, or the
+  fact that a vault exists.
+- Secure deletion from storage, swap, backups, or filesystem snapshots.
+- A claim that Pulse-Vault's composition is stronger than the underlying
+  audited primitives. New cryptographic primitives are not introduced here.
 
-## Scrypt Profiles
+## Review requirements for protocol changes
 
-| Profile | N | r | p | Approx. peak memory | Intended use |
-| --- | ---: | ---: | ---: | --- | --- |
-| `fast` | 16 | 8 | 1 | ~16 KiB | Maintainer tests and CI only |
-| `standard` | 32768 | 8 | 1 | ~32 MiB | Default for new vaults |
-| `hardened` | 1048576 | 8 | 1 | ~1 GiB | Higher guessing cost, slower unlock |
+Any change to key derivation, nonce construction, associated data, chunk
+framing, compression ordering, or legacy dispatch must include:
 
-Hardened settings materially increase unlock time and RAM use. They do not replace a strong password.
-
-## User Responsibilities
-
-- Use a strong, unique password or generated key.
-- Keep vault backups in safe places.
-- Lock the vault when finished.
-- Be careful with Secure Open and extracted plaintext files.
-- Keep the operating system and dependencies updated.
+1. Updated `docs/CRYPTO_PROTOCOL.md` documentation.
+2. Cross-language golden vectors for both success and failure cases.
+3. Round-trip, tamper, truncation, wrong-key, and resource-limit tests.
+4. An explicit format identifier or migration rule when the wire format
+   changes.
+5. Independent cryptographic review before describing the change as secure.

@@ -7,46 +7,47 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  # Product path: Go vault/crypto/UI/CLI suite (V5 product).
+  go-parity:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.11", "3.12"]
-        # macOS can be added later; core/CLI tests are cross-platform friendly thanks to mocks
-
+    defaults:
+      run:
+        working-directory: gui-go
     steps:
       - uses: actions/checkout@v5
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - uses: actions/setup-go@v5
         with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        run: |
-          # [dev] includes hypothesis + GUI extras so gui smoke/theme tests can import customtkinter
-          pip install -e '.[dev]'
-
-      - name: Install system tkinter (Ubuntu, for optional real GUI smoke)
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y python3-tk || true
-
-      - name: Run tests
+          go-version: "1.22.x"
+          cache-dependency-path: go.sum
+      - name: Go test (crypto + vault + UI + CLI)
         env:
-          PULSEVAULT_SCRYPT_PROFILE: fast
-          PULSEVAULT_TEST_FAST_KDF: "1"
-        run: python -m unittest discover -s tests -v
+          CGO_ENABLED: "0"
+        run: go test ./internal/crypto ./internal/vault ./internal/ui ./cmd/pulse-vault -count=1
 
-      - name: Upload security fuzz / property test report artifact
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: pulse-vault-security-fuzz-report-${{ matrix.python-version }}-${{ matrix.os }}
-          path: ci-artifacts/pulse-vault-security-fuzz-report.json
-          retention-days: 14
-          if-no-files-found: warn
+      - name: Go public API tests and vet
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          go test ./crypto -count=1
+          go vet ./crypto ./internal/crypto ./internal/vault ./internal/ui ./cmd/pulse-vault
+
+      - name: Go race detector (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race ./crypto ./internal/crypto ./internal/vault ./cmd/pulse-vault -count=1
+
+      - name: Go fuzz smoke (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          go test ./crypto -run=^$ -fuzz=FuzzDecryptStreamV5NeverPanics -fuzztime=30s
+          go test ./crypto -run=^$ -fuzz=FuzzDecryptStreamV4NeverPanics -fuzztime=15s
 
   # Packaging / App Store validation (Linux desktop metadata + AppStream)
   # Helps catch issues before Ubuntu App Store / Snap / .deb submissions.
@@ -73,15 +74,11 @@ jobs:
             (echo "AppStream validation notes (common for early releases or missing screenshots)" && true)
 
       - name: Check version consistency hint (metainfo vs source)
-        # Hint-only: never fail the job on mismatch or import issues.
-        # Single-line python avoids YAML block-scalar pitfalls (unindented multi-line -c).
+        # Hint-only: never fail the job on mismatch.
+        # Product version is ldflags-stamped from gui-go/internal/version at release.
         run: |
-          SRC_VER=$(PYTHONPATH=src python3 -c "import pulsevault; print(pulsevault.__version__)" 2>/dev/null) || SRC_VER="unknown"
-          echo "Source version: $SRC_VER"
+          echo "Go version default (gui-go/internal/version/version.go):"
+          grep -n 'Version' gui-go/internal/version/version.go || true
           META_LINE=$(grep -o 'release version="[^"]*"' packaging/linux/io.github.z3r0s.PulseVault.metainfo.xml | head -1) || true
           echo "Metainfo latest release attr: ${META_LINE:-none found}"
-          EXPECTED="release version=\"${SRC_VER}\""
-          if [ "$SRC_VER" != "unknown" ] && [ -n "$META_LINE" ] && [ "$META_LINE" != "$EXPECTED" ]; then
-            echo "Hint: source __version__ ($SRC_VER) differs from metainfo ($META_LINE); keep in sync per CONTRIBUTING.md"
-          fi
-          echo "Reminder: keep metainfo releases in sync per CONTRIBUTING.md"
+          echo "Reminder: keep metainfo releases in sync with CHANGELOG.md (see CONTRIBUTING.md)"

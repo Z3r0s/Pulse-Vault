@@ -24,6 +24,10 @@ Security-sensitive issues include:
 - vault tampering not detected when it should be
 - unsafe packaging or update behavior
 
+Supported code is `gui-go/` and `gui-go/crypto`. Python in `legacy/python/` is dead.
+
+Format is in `docs/CRYPTO_PROTOCOL.md`. Regular ciphers, not a new one. If you file a crypto bug, include the format version, a tiny repro, and whether it's the app or the crypto package.
+
 ## Non-Goals
 
-Pulse-Vault does not claim to protect against malware on an already-compromised machine, weak passwords, or artifacts created by third-party applications after a user opens or extracts a file.
+Won't save you if the machine is already owned, the password is "password", or some other app leaves junk after you extract.

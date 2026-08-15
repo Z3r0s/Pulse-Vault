@@ -1,0 +1,12 @@
+name: "Pulse-Vault CodeQL config"
+
+# Focus analysis on product Go code (gui-go). Legacy Python and fixtures
+# are out of scope.
+paths:
+  - gui-go
+paths-ignore:
+  - legacy
+  - tests
+  - packaging
+  - ci-artifacts
+  - docs

@@ -1,0 +1,256 @@
+# Build and publish pure-Go Pulse-Vault CLI for multiple OS/arch combinations.
+# Product path: gui-go/ (V5 vault via internal/vault). Python is not tested here.
+#
+# Triggers: version tags (v*) or manual workflow_dispatch.
+
+name: Release Go
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version string embedded via -ldflags (default: tag or dev)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    working-directory: gui-go
+
+jobs:
+  test:
+    name: Test (crypto/vault/CLI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+          cache-dependency-path: go.sum
+
+      - name: go test (pure packages + CLI)
+        run: go test ./crypto ./internal/crypto ./internal/vault ./internal/ui ./cmd/pulse-vault -count=1
+
+      - name: Go static checks
+        run: |
+          gofmt -l .
+          test -z "$(gofmt -l .)"
+          go vet ./crypto ./internal/crypto ./internal/vault ./internal/ui ./cmd/pulse-vault
+
+  build-cli:
+    name: CLI ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: test
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            goos: windows
+            goarch: amd64
+            artifact: pulse-vault-windows-amd64.exe
+          - runner: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact: pulse-vault-linux-amd64
+          - runner: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            artifact: pulse-vault-linux-arm64
+          - runner: macos-latest
+            goos: darwin
+            goarch: amd64
+            artifact: pulse-vault-darwin-amd64
+          - runner: macos-latest
+            goos: darwin
+            goarch: arm64
+            artifact: pulse-vault-darwin-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+          cache-dependency-path: go.sum
+
+      - name: Resolve version
+        id: ver
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [ -n "$REQUESTED_VERSION" ]; then
+            V="$REQUESTED_VERSION"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V="dev"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Building CLI version=$V for ${{ matrix.goos }}/${{ matrix.goarch }}"
+
+      - name: Build pure-Go CLI (CGO_ENABLED=0)
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          RELEASE_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          mkdir -p dist
+          go build -trimpath \
+            -ldflags "-s -w -X github.com/Z3r0s/Pulse-Vault/gui-go/internal/version.Version=${RELEASE_VERSION}" \
+            -o "dist/${{ matrix.artifact }}" \
+            ./cmd/pulse-vault
+          ls -la "dist/${{ matrix.artifact }}"
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: gui-go/dist/${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 30
+
+  # Optional host GUI on each matrix OS (real CGO only; no cross-GUI binaries).
+  build-gui-host:
+    name: GUI host (${{ matrix.os }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+          cache-dependency-path: go.sum
+
+      - name: Install Linux GUI deps (Fyne / OpenGL)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
+
+      - name: Resolve version
+        id: ver
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [ -n "$REQUESTED_VERSION" ]; then
+            V="$REQUESTED_VERSION"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V="dev"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "GUI version=$V"
+
+      - name: Build host GUI (Windows PE brand via build.ps1)
+        if: matrix.os == 'windows-latest'
+        id: gui-win
+        shell: pwsh
+        working-directory: gui-go
+        env:
+          RELEASE_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $Name = "pulse-vault-gui-windows-amd64.exe"
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $Out = Join-Path (Get-Location) "dist\$Name"
+          & .\build.ps1 -Out $Out -Version $env:RELEASE_VERSION
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $Out)) {
+            throw "GUI build failed or produced no artifact: $Out"
+          }
+          "name=$Name" >> $env:GITHUB_OUTPUT
+          Get-Item $Out | Format-List Name, Length
+
+      - name: Build host GUI (Linux/macOS with version stamp)
+        if: matrix.os != 'windows-latest'
+        id: gui
+        shell: bash
+        working-directory: gui-go
+        env:
+          CGO_ENABLED: "1"
+          RELEASE_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          HOST_OS=$(go env GOHOSTOS)
+          HOST_ARCH=$(go env GOHOSTARCH)
+          NAME="pulse-vault-gui-${HOST_OS}-${HOST_ARCH}"
+          mkdir -p dist
+          go build -trimpath \
+            -ldflags "-s -w -X github.com/Z3r0s/Pulse-Vault/gui-go/internal/version.Version=${RELEASE_VERSION}" \
+            -o "dist/${NAME}" .
+          test -f "dist/${NAME}"
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          ls -la "dist/${NAME}"
+
+      - name: Upload GUI artifact (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.gui-win.outputs.name }}
+          path: gui-go/dist/${{ steps.gui-win.outputs.name }}
+          retention-days: 30
+
+      - name: Upload GUI artifact (Unix)
+        if: matrix.os != 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.gui.outputs.name }}
+          path: gui-go/dist/${{ steps.gui.outputs.name }}
+          retention-days: 30
+
+  checksums-and-release:
+    name: Checksums + optional GitHub Release
+    needs: [build-cli, build-gui-host]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-go
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        working-directory: release-go
+        run: |
+          ls -la
+          # Only hash regular files (artifacts), not nested dirs if any
+          find . -maxdepth 1 -type f ! -name 'SHA256SUMS' -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload checksums artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SHA256SUMS
+          path: release-go/SHA256SUMS
+          retention-days: 30
+
+      - name: Attach assets to GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-go/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

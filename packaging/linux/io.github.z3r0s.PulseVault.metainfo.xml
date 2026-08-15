@@ -101,10 +101,18 @@
 
   <!-- Production-ready releases section for AppStream / Ubuntu App Store / Flathub.
        Add detailed <description> per release. Keep in sync with CHANGELOG.md and
-       src/pulsevault/__init__.py version (see CONTRIBUTING.md and pyproject.toml).
+       gui-go/internal/version (ldflags-stamped at release; see CONTRIBUTING.md).
        Always update the latest release entry + add new <release> when bumping version.
   -->
   <releases>
+    <release version="0.1.0" date="2026-07-22">
+      <description>
+        <p>Pulse-Vault 0.1.0 is the native Go rewrite: desktop GUI + pure-Go CLI as the primary product path.</p>
+        <p>Rewritten for speed and reliability after Python CPU/performance limits. V5 vault format is unchanged and interoperable.</p>
+        <p>Major GUI overhaul: obsidian + pulse-cyan visual system, top bar, nav rail, hero locked state, reactive vault operations, Windows PE branding.</p>
+        <p>Python remains legacy reference only. See CHANGELOG.md and gui-go/README.md.</p>
+      </description>
+    </release>
     <release version="0.0.21" date="2026-07-08">
       <description>
         <p>Pulse-Vault 0.0.21 brings a much more polished desktop experience and solid preparation for distribution.</p>

@@ -1,15 +1,8 @@
-# Maintainer-only planning
+# don't commit this stuff. vaults, keys, editor junk, local paths.
+
 ROADMAP.md
 
-# Privacy note for contributors:
-# This .gitignore is intentionally strict to avoid accidentally committing:
-# - Real vault files (*.pulsevault)
-# - Encryption keys, recovery keys, or secrets
-# - Personal test data or local paths
-# - Editor/AI tool state that may contain personal notes
-# Review this file if you are adding new tooling.
-
-# Local editor and tooling state
+# editors / agents (can have notes, paths, tokens)
 .grok/
 .claude/
 .chatgpt/
@@ -21,9 +14,17 @@ ROADMAP.md
 .cursorrules
 .idea/
 .vscode/
+.vs/
+.history/
+.agent/
+.gemini/
+.anthropic/
 *.swp
 *.swo
 *~
+*.user
+*.suo
+.~*
 
 # Python bytecode and caches
 __pycache__/
@@ -45,9 +46,24 @@ ENV/
 env.bak/
 venv.bak/
 
-# Build, package, and installer output
+# build output
+coverage.out
+*.coverprofile
+cpu.out
+mem.out
+*.prof
+*.pprof
+go.work
+go.work.sum
+
 build/
 dist/
+.gocache-*/
+gui-go/.gocache-*/
+*.syso
+gui-go/resource_windows_*.syso
+gui-go/pulse-vault-gui.exe
+gui-go/pulse-vault.exe
 downloads/
 eggs/
 .eggs/
@@ -122,13 +138,26 @@ recovery_keys/
 secrets.json
 credentials.json
 .secrets/
+*.token
+*.secret
+*.local
+.envrc
+.netrc
+id_rsa
+id_ed25519
+id_rsa.pub
+id_ed25519.pub
+*.kdbx
+.aws/
+.gnupg/
 
 # Local test scratch directories
 pulse_test_*/
 .pulse_test_*/
+pulse_ext_*/
 pulse_tmp_*/
 
-# Local debug and temporary scripts/files (can contain personal paths or test data)
+# scratch / local junk
 debug*.txt
 debug*.log
 debug_create*
@@ -136,3 +165,10 @@ debug_create*
 local_debug*
 tmp_*.py
 test_local*
+*.exe
+!dist/**
+gui-go/*.exe
+.direnv/
+*.har
+core
+hs_err_pid*

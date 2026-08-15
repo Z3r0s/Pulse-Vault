@@ -15,7 +15,9 @@ data/<uuid>.enc
 data/<uuid>.enc
 ```
 
-Optional carrier mode prepends an image or video before the ZIP data. The vault ZIP is appended after the carrier bytes.
+Hide-in-picture: vault ZIP is stuck on the end of a PNG/JPEG/MP4. The picture still opens. It's a disguise, not magic.
+
+Go locates the ZIP via the end-of-central-directory record so a `PK\x03\x04` sequence inside the image does not shift the prefix. The prefix is preserved on rewrite (add, delete, password change).
 
 ## Format Marker
 
@@ -49,7 +51,7 @@ Runtime KDF cost is selected by `PULSEVAULT_SCRYPT_PROFILE`:
 
 `kdf.json` stores the Scrypt parameters used when the vault was created. Unlock always uses the recorded values. Vaults created before 0.0.20 may omit this file and fall back to the runtime default profile. (Note: versioning scheme reset to 0.0.x for granular early development.)
 
-Deterministic KDF and stream vectors for the `fast` profile live in `tests/vectors/`. A `standard` KDF vector is optional and can be regenerated with `python tests/generate_vectors.py --profile standard`.
+Deterministic KDF and stream vectors for the `fast` and `standard` profiles live in `tests/vectors/` as frozen golden fixtures. The Go test suite reads these files; they are not regenerated as part of the default maintainer workflow.
 
 ## Metadata
 
@@ -70,7 +72,7 @@ V5 stream layout:
 magic | compression_flag | chacha_nonce | aes_nonce | repeated encrypted chunks
 ```
 
-Each chunk is authenticated with associated data that binds it to the stream header and chunk index. File contents are compressed with LZMA/XZ before encryption unless compression is disabled by the writer.
+Chunks are bound to the header + index. New writes: zstd (flag 2). Old files: XZ (flag 1). Random-looking files: no compress (flag 0). Decrypt handles all three. Lossless — a jpg is not going to shrink 50x.
 
 ## Integrity
 

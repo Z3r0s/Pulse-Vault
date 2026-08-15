@@ -1,6 +1,5 @@
 {
   "profile": "standard",
-  "password": "vector-test-password!",
   "salt_hex": "000102030405060708090a0b0c0d0e0f",
   "scrypt_n": 32768,
   "scrypt_r": 8,

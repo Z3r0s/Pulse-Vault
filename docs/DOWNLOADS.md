@@ -1,32 +1,49 @@
 # Downloads
 
-Pulse-Vault is distributed in two phases:
+Go GUI + CLI: [`gui-go/`](../gui-go/). Grab a release or build it yourself (`go build` / [`gui-go/build.ps1`](../gui-go/build.ps1)).
 
-## Current (pre-1.0)
+## Current (primary)
 
-**Full installation instructions** (including Linux `tkinter` system packages, venv setup, Windows/macOS, Parrot script, pip install -e, CLI entries, desktop integration, App Store / Snap preparation notes) are in [INSTALL.md](../INSTALL.md).
+### GitHub Releases (recommended)
 
-GitHub is the canonical source repository and issue tracker. There is no official packaged download channel yet (see GitHub Releases below).
+[GitHub Releases](https://github.com/Z3r0s/Pulse-Vault/releases) is the download area for pre-built binaries once a `v*` tag is published.
 
-**pip users:** `pip install -e .` from source gives full CLI/GUI entry points (`pulse-vault`, `pulse-vault-cli`). See INSTALL.md for details. Future releases will publish wheels/sdists.
+Typical assets (via [`.github/workflows/release-go.yml`](../.github/workflows/release-go.yml) and `gui-go/scripts/build-multi.*`):
 
-**App Store / Ubuntu readiness:** Expanded AppStream metainfo in `packaging/linux/io.github.z3r0s.PulseVault.metainfo.xml` (detailed releases, provides binaries, screenshots placeholders, OARS, keywords). Validated in CI. Remaining: real screenshots (user-provided). See "Ubuntu App Store / AppStream Readiness" in INSTALL.md.
+| Asset | Notes |
+| --- | --- |
+| `pulse-vault-windows-amd64.exe` / `arm64` | Pure-Go **CLI** |
+| `pulse-vault-linux-amd64` / `arm64` | Pure-Go **CLI** |
+| `pulse-vault-darwin-amd64` / `arm64` | Pure-Go **CLI** |
+| `pulse-vault-gui-*` | Desktop **GUI** (built per OS runner; CGO/OpenGL) |
+| `SHA256SUMS` | Checksums for release files |
 
-**GUI users**: The desktop app now includes a prominent **"GitHub Releases"** sidebar button (always available), a clickable version badge linking to releases, and an expanded **About > GitHub Downloads & Releases** section (plus new dedicated dialog). These directly surface the GitHub Releases page.
+If the Releases page still shows “No releases found”, no tag has been pushed yet (pre-1.0). Build locally instead (below).
 
-GitHub Releases is the dedicated download area (prominently linked from the app's "GitHub Releases" sidebar button, version badge, and About dialog).
+### Build from source (Go)
 
-It provides (once the first `v*` tag is pushed and the release workflow runs):
-- Standalone executables for Linux (Ubuntu), Windows, and macOS (via GitHub Releases on tagged versions). See INSTALL.md for important notes on Windows antivirus false positives (very common with PyInstaller; we use clean builds + no UPX + checksums to help).
-- Source distributions + wheels
-- Checksums (SHA256SUMS)
-- Security fuzz/property test reports
-- Full changelog-driven release notes
+Full steps: [INSTALL.md](../INSTALL.md) and [gui-go/README.md](../gui-go/README.md).
 
-You may currently see "No releases found" because no tags have been created yet (pre-1.0). Visit https://github.com/Z3r0s/Pulse-Vault/releases to create the first one or view history.
+```powershell
+# Multi-OS CLI + host GUI (Windows example)
+powershell -File gui-go/scripts/build-multi.ps1 -OutDir dist
+```
+
+```bash
+# CLI only (any GOOS/GOARCH, no CGO)
+cd gui-go
+CGO_ENABLED=0 go build -o pulse-vault ./cmd/pulse-vault
+./pulse-vault version
+
+# Desktop GUI (needs CGO toolchain)
+CGO_ENABLED=1 go build -o pulse-vault-gui .
+./pulse-vault-gui --version
+```
+
+Official site: [dnspulse.org](https://dnspulse.org). Source and issues: this GitHub repository.
+
+Old Python: [legacy/python/README.md](../legacy/python/README.md). Don't install it.
 
 ## Planned (toward 1.0)
 
-Packaged builds, checksums, and release notes will be hosted on [dnspulse.org](https://dnspulse.org). GitHub will remain the public source tree; dnspulse.org will become the primary end-user download page once installers are ready.
-
-The GUI enhancements ensure that even source-based users (and future binary users) are one click away from the official release assets.
+Packaged installers, checksums, and polished end-user pages on [dnspulse.org](https://dnspulse.org). GitHub remains the public source tree and release asset host until then.
