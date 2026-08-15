@@ -18,6 +18,12 @@ func TestPasswordPolicyCode(t *testing.T) {
 	if PasswordPolicyCode("GoVaultTestPhrase123!") != "" {
 		t.Fatalf("strong password rejected: %q", PasswordPolicyCode("GoVaultTestPhrase123!"))
 	}
+	if PasswordPolicyCode("abcdefghijklmnopqrst") != "" {
+		t.Fatalf("20-char low variety should pass: %q", PasswordPolicyCode("abcdefghijklmnopqrst"))
+	}
+	if PasswordPolicyCode("letmeinLETMEIN12") != "common" {
+		t.Fatalf("common word: %q", PasswordPolicyCode("letmeinLETMEIN12"))
+	}
 	if msg := PasswordPolicyError("short"); msg == "" {
 		t.Fatal("expected catalog message")
 	}

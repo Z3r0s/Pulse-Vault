@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pulse-vault"
+version = "0.1.0"
+description = "DNSPulse Pulse-Vault CLI installer — fetches the official Go binary from GitHub Releases."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "DNSPulse / Z3r0s" }]
+keywords = ["encryption", "vault", "privacy", "offline", "dnspulse", "pulse-vault"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "Topic :: Security :: Cryptography",
+  "Topic :: Utilities",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://dnspulse.org"
+Documentation = "https://github.com/Z3r0s/Pulse-Vault/blob/main/docs/DISTRIBUTE.md"
+Repository = "https://github.com/Z3r0s/Pulse-Vault"
+Issues = "https://github.com/Z3r0s/Pulse-Vault/issues"
+Releases = "https://github.com/Z3r0s/Pulse-Vault/releases"
+"Why Go" = "https://github.com/Z3r0s/Pulse-Vault/blob/main/docs/WHY_GO.md"
+
+[project.scripts]
+pulse-vault = "pulse_vault.launcher:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]

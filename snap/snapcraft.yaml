@@ -1,0 +1,45 @@
+name: pulse-vault
+base: core22
+version: "0.1.0"
+summary: Local encrypted file vault from DNSPulse
+description: |
+  Pulse-Vault by DNSPulse (https://dnspulse.org) keeps files in one
+  offline .pulsevault container. Scrypt, ChaCha20-Poly1305 then AES-GCM,
+  optional hide-in-picture.
+
+  This snap ships the official Go CLI. The desktop GUI is on GitHub
+  Releases: https://github.com/Z3r0s/Pulse-Vault/releases
+
+  It does not ship the retired Python vault.
+license: MIT
+grade: devel
+confinement: strict
+contact: https://dnspulse.org
+issues: https://github.com/Z3r0s/Pulse-Vault/issues
+website: https://dnspulse.org
+source-code: https://github.com/Z3r0s/Pulse-Vault
+
+apps:
+  pulse-vault:
+    command: bin/pulse-vault
+    plugs:
+      - home
+      - removable-media
+
+parts:
+  pulse-vault:
+    plugin: nil
+    source: .
+    build-snaps:
+      - go/1.22/stable
+    override-build: |
+      set -eu
+      export CGO_ENABLED=0
+      export GO111MODULE=on
+      VER="${SNAPCRAFT_PROJECT_VERSION:-${CRAFT_PROJECT_VERSION:-0.1.0}}"
+      go build -trimpath -buildvcs=false \
+        -ldflags "-s -w -X github.com/Z3r0s/Pulse-Vault/gui-go/internal/version.Version=$VER" \
+        -o "$CRAFT_PART_INSTALL/bin/pulse-vault" \
+        ./gui-go/cmd/pulse-vault
+    prime:
+      - bin/pulse-vault

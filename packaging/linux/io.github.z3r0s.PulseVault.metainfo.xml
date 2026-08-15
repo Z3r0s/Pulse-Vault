@@ -4,7 +4,7 @@
   <metadata_license>MIT</metadata_license>
   <project_license>MIT</project_license>
   <name>Pulse-Vault</name>
-  <summary>Local encrypted file vault for Linux desktops</summary>
+  <summary>Local encrypted file vault from DNSPulse</summary>
   <developer id="io.github.z3r0s">
     <name>DNSPulse / Z3r0s</name>
   </developer>
@@ -39,20 +39,14 @@
 
   <description>
     <p>
-      Pulse-Vault is a local-first encrypted file vault for Linux desktops.
-      Keep sensitive files private in a single portable .pulsevault container with
-      no cloud, no telemetry, and no accounts.
+      Pulse-Vault is a local-first encrypted file vault from DNSPulse
+      (https://dnspulse.org). Keep files private in a single portable
+      .pulsevault container. No cloud, no telemetry, no accounts.
     </p>
     <p>
-      It uses authenticated encryption (ChaCha20-Poly1305 + AES-GCM cascade),
-      memory-hard Scrypt key derivation (standard or hardened profiles), and
-      LZMA compression. Large files are streamed so memory usage stays reasonable.
-    </p>
-    <p>
-      The app features a modern Yaru-aligned GUI for Ubuntu and other Linux desktops,
-      plus a powerful guided CLI for headless, scripting, server, or packaging use
-      (pip, apt, snap). Includes direct integration with GitHub Releases for downloads,
-      clickable version info, and About dialog guidance.
+      Authenticated encryption (ChaCha20-Poly1305 then AES-GCM), memory-hard
+      Scrypt, zstd (old XZ still decrypts). Large files stream. Optional
+      hide-in-picture. Native Go CLI and desktop GUI.
     </p>
     <p>Key features:</p>
     <ul>
@@ -85,6 +79,7 @@
     <keyword>container</keyword>
     <keyword>secure</keyword>
     <keyword>encrypted</keyword>
+    <keyword>dnspulse</keyword>
   </keywords>
 
   <categories>

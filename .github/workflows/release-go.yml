@@ -39,6 +39,10 @@ jobs:
       - name: go test (pure packages + CLI)
         run: go test ./crypto ./internal/crypto ./internal/vault ./internal/ui ./cmd/pulse-vault -count=1
 
+      - name: Packaging contract tests
+        working-directory: ${{ github.workspace }}
+        run: go test ./packaging -count=1
+
       - name: Go static checks
         run: |
           gofmt -l .
@@ -57,6 +61,10 @@ jobs:
             goos: windows
             goarch: amd64
             artifact: pulse-vault-windows-amd64.exe
+          - runner: windows-latest
+            goos: windows
+            goarch: arm64
+            artifact: pulse-vault-windows-arm64.exe
           - runner: ubuntu-latest
             goos: linux
             goarch: amd64
@@ -245,11 +253,33 @@ jobs:
           path: release-go/SHA256SUMS
           retention-days: 30
 
+      - name: Stage install scripts
+        working-directory: ${{ github.workspace }}
+        run: |
+          cp scripts/install.sh scripts/install.ps1 release-go/
+          printf '%s\n' \
+            'Pulse-Vault by DNSPulse — https://dnspulse.org' \
+            '' \
+            'Download a file below or:' \
+            '' \
+            '```powershell' \
+            'irm https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.ps1 | iex' \
+            '```' \
+            '' \
+            '```bash' \
+            'curl -fsSL https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.sh | sh' \
+            'pip install pulse-vault   # Go CLI launcher, after this tag exists' \
+            '```' \
+            '' \
+            'Check SHA256SUMS. Why Go: https://github.com/Z3r0s/Pulse-Vault/blob/main/docs/WHY_GO.md' \
+            > release-notes.md
+
       - name: Attach assets to GitHub Release (tags only)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: release-go/*
+          body_path: release-notes.md
           generate_release_notes: true
           fail_on_unmatched_files: true
         env:

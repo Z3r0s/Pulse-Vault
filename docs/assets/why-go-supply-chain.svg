@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 340" role="img" aria-label="Release supply chain steps compared">
+  <rect width="920" height="340" rx="16" fill="#07090e"/>
+  <text x="36" y="42" fill="#f0f6fa" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="20" font-weight="700">How a user gets a binary</text>
+  <text x="36" y="66" fill="#7a8e9e" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">Every extra hop is dependency confusion, wheel integrity, or AV false-positive surface.</text>
+
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">
+    <text x="36" y="110" fill="#ff6b7a" font-size="14" font-weight="700">Retired Python path</text>
+    <rect x="36" y="122" width="100" height="36" rx="6" fill="#2a1218"/><text x="86" y="145" text-anchor="middle" fill="#ffc4d0">source</text>
+    <text x="144" y="145" fill="#7a8e9e">→</text>
+    <rect x="160" y="122" width="100" height="36" rx="6" fill="#2a1218"/><text x="210" y="145" text-anchor="middle" fill="#ffc4d0">pip / PyPI</text>
+    <text x="268" y="145" fill="#7a8e9e">→</text>
+    <rect x="284" y="122" width="110" height="36" rx="6" fill="#2a1218"/><text x="339" y="145" text-anchor="middle" fill="#ffc4d0">wheels + C</text>
+    <text x="402" y="145" fill="#7a8e9e">→</text>
+    <rect x="418" y="122" width="120" height="36" rx="6" fill="#2a1218"/><text x="478" y="145" text-anchor="middle" fill="#ffc4d0">venv / site</text>
+    <text x="546" y="145" fill="#7a8e9e">→</text>
+    <rect x="562" y="122" width="140" height="36" rx="6" fill="#2a1218"/><text x="632" y="145" text-anchor="middle" fill="#ffc4d0">PyInstaller exe</text>
+    <text x="710" y="145" fill="#7a8e9e">→</text>
+    <rect x="726" y="122" width="150" height="36" rx="6" fill="#2a1218"/><text x="801" y="145" text-anchor="middle" fill="#ffc4d0">user runs it</text>
+
+    <text x="36" y="200" fill="#00e5c0" font-size="14" font-weight="700">Go path we ship</text>
+    <rect x="36" y="212" width="150" height="36" rx="6" fill="#06241e"/><text x="111" y="235" text-anchor="middle" fill="#9ff5e4">tagged source</text>
+    <text x="194" y="235" fill="#7a8e9e">→</text>
+    <rect x="214" y="212" width="200" height="36" rx="6" fill="#06241e"/><text x="314" y="235" text-anchor="middle" fill="#9ff5e4">CGO=0 go build -trimpath</text>
+    <text x="422" y="235" fill="#7a8e9e">→</text>
+    <rect x="442" y="212" width="190" height="36" rx="6" fill="#06241e"/><text x="537" y="235" text-anchor="middle" fill="#9ff5e4">GitHub Release + SHA256</text>
+    <text x="640" y="235" fill="#7a8e9e">→</text>
+    <rect x="660" y="212" width="216" height="36" rx="6" fill="#06241e"/><text x="768" y="235" text-anchor="middle" fill="#9ff5e4">user runs one file</text>
+  </g>
+  <text x="36" y="292" fill="#7a8e9e" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">pip / snap in this repo now wrap that same Go file. They do not bring the retired interpreter vault back.</text>
+  <text x="36" y="318" fill="#7a8e9e" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">Pulse-Vault · DNSPulse · dnspulse.org</text>
+</svg>

@@ -1,8 +1,19 @@
 # Installation
 
-Pulse-Vault is Go. GUI + CLI are in [`gui-go/`](gui-go/). You don't need Python. Why: [docs/WHY_GO.md](docs/WHY_GO.md).
+Pulse-Vault is Go, from [DNSPulse](https://dnspulse.org). GUI + CLI are in [`gui-go/`](gui-go/). Why: [docs/WHY_GO.md](docs/WHY_GO.md). How to publish: [docs/DISTRIBUTE.md](docs/DISTRIBUTE.md).
 
-Packaged downloads (when published) appear on [GitHub Releases](https://github.com/Z3r0s/Pulse-Vault/releases). See [docs/DOWNLOADS.md](docs/DOWNLOADS.md). Official site: [dnspulse.org](https://dnspulse.org).
+## Fast install (needs a published `v*` tag)
+
+```powershell
+irm https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.ps1 | iex
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.sh | sh
+pip install pulse-vault    # Go CLI launcher, not the retired Python vault
+```
+
+Packaged files: [GitHub Releases](https://github.com/Z3r0s/Pulse-Vault/releases). Index: [docs/DOWNLOADS.md](docs/DOWNLOADS.md).
 
 ## Requirements
 
@@ -105,9 +116,7 @@ When GitHub Releases attach builds:
 1. Prefer checksums (`SHA256SUMS.txt`) from the same release.
 2. Or build from tagged source with the steps above.
 
-No Python needed.
-
-Old Python code: [legacy/python/README.md](legacy/python/README.md). Don't install it.
+`pip install pulse-vault` is a launcher for the Go CLI ([packaging/pypi](packaging/pypi/)). Do not install [legacy/python/](legacy/python/).
 
 ## Multi-OS release builds
 

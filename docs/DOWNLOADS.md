@@ -1,14 +1,28 @@
 # Downloads
 
-Go GUI + CLI: [`gui-go/`](../gui-go/). Grab a release or build it yourself (`go build` / [`gui-go/build.ps1`](../gui-go/build.ps1)).
+A **[DNSPulse](https://dnspulse.org)** product. Go GUI + CLI: [`gui-go/`](../gui-go/). Publish walkthrough: [DISTRIBUTE.md](DISTRIBUTE.md).
 
-## Current (primary)
+## Get a binary
 
-### GitHub Releases (recommended)
+| How | What you get |
+| --- | --- |
+| [GitHub Releases](https://github.com/Z3r0s/Pulse-Vault/releases) | CLI + GUI + `SHA256SUMS` after a `v*` tag |
+| `scripts/install.ps1` / `scripts/install.sh` | CLI into a user bin dir, hash-checked |
+| `pip install pulse-vault` | Launcher that fetches that same CLI |
+| `snap install pulse-vault` | Store build of the Go CLI (after upload) |
+| Build from source | [`INSTALL.md`](../INSTALL.md) |
 
-[GitHub Releases](https://github.com/Z3r0s/Pulse-Vault/releases) is the download area for pre-built binaries once a `v*` tag is published.
+```powershell
+irm https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.ps1 | iex
+```
 
-Typical assets (via [`.github/workflows/release-go.yml`](../.github/workflows/release-go.yml) and `gui-go/scripts/build-multi.*`):
+```bash
+curl -fsSL https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.sh | sh
+```
+
+### GitHub Release assets
+
+Via [`.github/workflows/release-go.yml`](../.github/workflows/release-go.yml):
 
 | Asset | Notes |
 | --- | --- |
@@ -18,7 +32,7 @@ Typical assets (via [`.github/workflows/release-go.yml`](../.github/workflows/re
 | `pulse-vault-gui-*` | Desktop **GUI** (built per OS runner; CGO/OpenGL) |
 | `SHA256SUMS` | Checksums for release files |
 
-If the Releases page still shows “No releases found”, no tag has been pushed yet (pre-1.0). Build locally instead (below).
+If Releases still says “No releases found”, no tag has been pushed yet. Build locally (below) or see [DISTRIBUTE.md](DISTRIBUTE.md).
 
 ### Build from source (Go)
 
@@ -42,8 +56,8 @@ CGO_ENABLED=1 go build -o pulse-vault-gui .
 
 Official site: [dnspulse.org](https://dnspulse.org). Source and issues: this GitHub repository.
 
-Old Python: [legacy/python/README.md](../legacy/python/README.md). Don't install it.
+`pip install pulse-vault` wraps the Go CLI. Do not install [legacy/python/](../legacy/python/).
 
 ## Planned (toward 1.0)
 
-Packaged installers, checksums, and polished end-user pages on [dnspulse.org](https://dnspulse.org). GitHub remains the public source tree and release asset host until then.
+Signed installers and a download page on [dnspulse.org](https://dnspulse.org). GitHub stays the file host. See [ROADMAP.md](ROADMAP.md).

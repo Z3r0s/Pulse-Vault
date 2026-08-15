@@ -1,6 +1,7 @@
 # don't commit this stuff. vaults, keys, editor junk, local paths.
 
-ROADMAP.md
+# local scratch only (docs/ROADMAP.md is the real one)
+/ROADMAP.md
 
 # editors / agents (can have notes, paths, tokens)
 .grok/

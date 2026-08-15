@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 520" role="img" aria-label="Wall time comparison, Python versus Go, lower is better">
+  <rect width="920" height="520" rx="16" fill="#07090e"/>
+  <text x="36" y="42" fill="#f0f6fa" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="20" font-weight="700">Wall time — lower is better</text>
+  <text x="36" y="66" fill="#7a8e9e" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">Windows, 2026-08-14, best of 3. Same payloads. High-entropy Python is off this scale.</text>
+  <rect x="700" y="24" width="12" height="12" rx="2" fill="#ff6b7a"/>
+  <text x="718" y="35" fill="#f0f6fa" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">Python</text>
+  <rect x="790" y="24" width="12" height="12" rx="2" fill="#00e5c0"/>
+  <text x="808" y="35" fill="#f0f6fa" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">Go</text>
+
+  <!-- axis -->
+  <line x1="250" y1="100" x2="250" y2="430" stroke="#1a2a38" stroke-width="1"/>
+  <line x1="250" y1="430" x2="880" y2="430" stroke="#1a2a38" stroke-width="1"/>
+  <text x="250" y="450" fill="#7a8e9e" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11">0</text>
+  <text x="406" y="450" fill="#7a8e9e" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11">12.5 ms</text>
+  <text x="562" y="450" fill="#7a8e9e" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11">25 ms</text>
+  <text x="718" y="450" fill="#7a8e9e" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11">37.5 ms</text>
+  <text x="850" y="450" fill="#7a8e9e" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11">50 ms</text>
+  <line x1="406" y1="100" x2="406" y2="430" stroke="#1a2a38" stroke-width="1" stroke-dasharray="3 5"/>
+  <line x1="562" y1="100" x2="562" y2="430" stroke="#1a2a38" stroke-width="1" stroke-dasharray="3 5"/>
+  <line x1="718" y1="100" x2="718" y2="430" stroke="#1a2a38" stroke-width="1" stroke-dasharray="3 5"/>
+  <line x1="874" y1="100" x2="874" y2="430" stroke="#1a2a38" stroke-width="1" stroke-dasharray="3 5"/>
+
+  <!-- scale: 50ms = 624px -->
+  <!-- Encrypt 4MiB text: P 34.0 = 424px, G 2.1 = 26px -->
+  <text x="236" y="138" text-anchor="end" fill="#c5d4de" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">Encrypt 4 MiB text</text>
+  <rect x="250" y="118" width="424" height="14" rx="3" fill="#ff6b7a"/>
+  <text x="680" y="130" fill="#ff6b7a" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">34.0</text>
+  <rect x="250" y="136" width="26" height="14" rx="3" fill="#00e5c0"/>
+  <text x="282" y="148" fill="#00e5c0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">2.1</text>
+
+  <!-- 4x 1MiB: P 39.3 = 490, G 3.7 = 46 -->
+  <text x="236" y="198" text-anchor="end" fill="#c5d4de" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">4× 1 MiB parallel</text>
+  <rect x="250" y="178" width="490" height="14" rx="3" fill="#ff6b7a"/>
+  <text x="746" y="190" fill="#ff6b7a" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">39.3</text>
+  <rect x="250" y="196" width="46" height="14" rx="3" fill="#00e5c0"/>
+  <text x="302" y="208" fill="#00e5c0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">3.7</text>
+
+  <!-- Extract 2MiB: P 26.2 = 327, G 4.9 = 61 -->
+  <text x="236" y="258" text-anchor="end" fill="#c5d4de" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">Extract 2 MiB</text>
+  <rect x="250" y="238" width="327" height="14" rx="3" fill="#ff6b7a"/>
+  <text x="583" y="250" fill="#ff6b7a" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">26.2</text>
+  <rect x="250" y="256" width="61" height="14" rx="3" fill="#00e5c0"/>
+  <text x="317" y="268" fill="#00e5c0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">4.9</text>
+
+  <!-- Add 2MiB: P 44.3 = 553, G 22.2 = 277 -->
+  <text x="236" y="318" text-anchor="end" fill="#c5d4de" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">Add 2 MiB</text>
+  <rect x="250" y="298" width="553" height="14" rx="3" fill="#ff6b7a"/>
+  <text x="809" y="310" fill="#ff6b7a" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">44.3</text>
+  <rect x="250" y="316" width="277" height="14" rx="3" fill="#00e5c0"/>
+  <text x="533" y="328" fill="#00e5c0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">22.2</text>
+
+  <!-- High entropy note row -->
+  <text x="236" y="390" text-anchor="end" fill="#c5d4de" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">Encrypt 4 MiB photo-like</text>
+  <rect x="250" y="368" width="624" height="14" rx="3" fill="#5a2430"/>
+  <text x="500" y="380" fill="#ffc4d0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">Python 1932 ms — bar would be 38× this width</text>
+  <rect x="250" y="386" width="79" height="14" rx="3" fill="#00e5c0"/>
+  <text x="336" y="398" fill="#00e5c0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">Go 6.3 ms (skip LZMA on high entropy)</text>
+
+  <text x="36" y="498" fill="#7a8e9e" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">Pulse-Vault · DNSPulse · dnspulse.org · re-run: go test ./internal/vault -run TestCompareGoVsArchivedPython -v</text>
+</svg>

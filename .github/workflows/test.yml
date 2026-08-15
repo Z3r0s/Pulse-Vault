@@ -28,6 +28,12 @@ jobs:
           CGO_ENABLED: "0"
         run: go test ./internal/crypto ./internal/vault ./internal/ui ./cmd/pulse-vault -count=1
 
+      - name: Packaging contract tests
+        working-directory: ${{ github.workspace }}
+        env:
+          CGO_ENABLED: "0"
+        run: go test ./packaging -count=1
+
       - name: Go public API tests and vet
         env:
           CGO_ENABLED: "0"
@@ -65,8 +71,17 @@ jobs:
             sudo apt-get install -y desktop-file-utils libappstream-glib8 || true
 
       - name: Validate desktop file
+        run: desktop-file-validate packaging/linux/pulse-vault.desktop
+
+      - name: PyPI launcher tests
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run launcher unit tests
+        working-directory: packaging/pypi
         run: |
-          desktop-file-validate packaging/linux/pulse-vault.desktop || (echo "Desktop validation failed (non-fatal in early dev)" && true)
+          PYTHONPATH=src python -m unittest discover -s tests -v
 
       - name: Validate AppStream metainfo (relaxed, no net)
         run: |

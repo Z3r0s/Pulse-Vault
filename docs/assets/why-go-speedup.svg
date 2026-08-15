@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 380" role="img" aria-label="Go speedup over archived Python">
+  <rect width="920" height="380" rx="16" fill="#07090e"/>
+  <text x="36" y="42" fill="#f0f6fa" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="20" font-weight="700">How many times faster is Go?</text>
+  <text x="36" y="66" fill="#7a8e9e" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">Python wall / Go wall. Same V5 work. High-entropy win is skip-compress, not a magic codec.</text>
+
+  <!-- columns: 5 bars, max 306 mapped with log-ish visual: use sqrt scale so 306 doesn't crush others -->
+  <!-- sqrt(16)=4, 10.5=3.24, 5.3=2.30, 2=1.41, 306=17.5. scale 14px per unit, max 245 -->
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif">
+    <rect x="80" y="175" width="88" height="56" rx="6" fill="#00e5c0"/>
+    <text x="124" y="168" text-anchor="middle" fill="#00e5c0" font-size="22" font-weight="700">16×</text>
+    <text x="124" y="252" text-anchor="middle" fill="#c5d4de" font-size="12">Encrypt text</text>
+    <text x="124" y="270" text-anchor="middle" fill="#7a8e9e" font-size="11">34.0 → 2.1 ms</text>
+
+    <rect x="250" y="190" width="88" height="41" rx="6" fill="#00e5c0"/>
+    <text x="294" y="183" text-anchor="middle" fill="#00e5c0" font-size="22" font-weight="700">10.5×</text>
+    <text x="294" y="252" text-anchor="middle" fill="#c5d4de" font-size="12">4-way encrypt</text>
+    <text x="294" y="270" text-anchor="middle" fill="#7a8e9e" font-size="11">39.3 → 3.7 ms</text>
+
+    <rect x="420" y="205" width="88" height="26" rx="6" fill="#3de09a"/>
+    <text x="464" y="198" text-anchor="middle" fill="#3de09a" font-size="22" font-weight="700">5.3×</text>
+    <text x="464" y="252" text-anchor="middle" fill="#c5d4de" font-size="12">Extract</text>
+    <text x="464" y="270" text-anchor="middle" fill="#7a8e9e" font-size="11">26.2 → 4.9 ms</text>
+
+    <rect x="590" y="216" width="88" height="15" rx="6" fill="#7a8e9e"/>
+    <text x="634" y="209" text-anchor="middle" fill="#c5d4de" font-size="22" font-weight="700">2×</text>
+    <text x="634" y="252" text-anchor="middle" fill="#c5d4de" font-size="12">Add file</text>
+    <text x="634" y="270" text-anchor="middle" fill="#7a8e9e" font-size="11">44.3 → 22.2 ms</text>
+
+    <rect x="760" y="100" width="88" height="131" rx="6" fill="#3dffd0"/>
+    <text x="804" y="93" text-anchor="middle" fill="#3dffd0" font-size="22" font-weight="700">306×</text>
+    <text x="804" y="252" text-anchor="middle" fill="#c5d4de" font-size="12">Photo-like</text>
+    <text x="804" y="270" text-anchor="middle" fill="#7a8e9e" font-size="11">1932 → 6.3 ms</text>
+  </g>
+  <line x1="60" y1="231" x2="880" y2="231" stroke="#1a2a38" stroke-width="1"/>
+  <text x="36" y="350" fill="#7a8e9e" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">Add is closest because both sides rewrite a ZIP. Parallel encrypt is where goroutines show. Pulse-Vault · dnspulse.org</text>
+</svg>

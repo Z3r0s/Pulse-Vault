@@ -66,6 +66,7 @@ func TestGUISourceHasPrimaryAffordances(t *testing.T) {
 		"setBusyChrome",
 		"os.Remove",
 		"version.Version",
+		"dnspulse.org",
 	}
 	for _, n := range needles {
 		if !strings.Contains(code, n) {

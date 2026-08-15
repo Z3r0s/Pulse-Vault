@@ -38,6 +38,14 @@ func TestPublicMetadataRoundTripAndTamper(t *testing.T) {
 	}
 }
 
+func TestPublicEmptyPasswordRejected(t *testing.T) {
+	salt := bytes.Repeat([]byte{0x33}, pulsecrypto.SaltSize)
+	profile := pulsecrypto.Profiles["fast"]
+	if _, err := pulsecrypto.DeriveKeyScrypt("", salt, profile.N, profile.R, profile.P); err == nil {
+		t.Fatal("empty password must fail")
+	}
+}
+
 func TestPublicLegacyKeyAndStreamingAPI(t *testing.T) {
 	salt := bytes.Repeat([]byte{0x11}, pulsecrypto.SaltSize)
 	legacyKey, err := pulsecrypto.DeriveKeyLegacy("legacy-api-password", salt)

@@ -11,9 +11,12 @@ App is Go, under [`gui-go/`](gui-go/). Install notes: [INSTALL.md](INSTALL.md).
 ```bash
 cd gui-go
 go test ./internal/crypto ./internal/vault ./internal/ui ./cmd/pulse-vault ./crypto -count=1
+# from repo root:
+go test ./packaging -count=1
+PYTHONPATH=packaging/pypi/src python -m unittest discover -s packaging/pypi/tests -v
 ```
 
-That's what CI runs. No gcc needed.
+That's what CI runs. No gcc needed. How to tag / pip / snap: [docs/DISTRIBUTE.md](docs/DISTRIBUTE.md).
 
 Don't set `CGO_ENABLED=1` and then `go test ./...` unless `gcc` is on PATH — Fyne will try to compile the GUI package and die with `cgo: C compiler "gcc" not found`. Windows: `.\test.ps1` (skips GUI if no gcc) or `.\build.ps1` for the actual window.
 

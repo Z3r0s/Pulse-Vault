@@ -6,17 +6,17 @@
 
 Official site: [dnspulse.org](https://dnspulse.org)
 
-**[Why Go](docs/WHY_GO.md)** · **[Install](INSTALL.md)** · **[Downloads](docs/DOWNLOADS.md)** · **[Threat model](docs/THREAT_MODEL.md)** · **[Vault format](docs/VAULT_FORMAT.md)** · **[Changelog](CHANGELOG.md)**
+**[Why Go](docs/WHY_GO.md)** · **[Install](INSTALL.md)** · **[Downloads](docs/DOWNLOADS.md)** · **[Ship it](docs/DISTRIBUTE.md)** · **[Roadmap](docs/ROADMAP.md)** · **[Threat model](docs/THREAT_MODEL.md)** · **[Changelog](CHANGELOG.md)**
 
-**Pulse-Vault** is a local encrypted file vault from DNSPulse. One `.pulsevault` file, offline, password-derived keys, authenticated encryption.
+**Pulse-Vault** is a local encrypted file vault from **[DNSPulse](https://dnspulse.org)**. One `.pulsevault` file, offline, password-derived keys, authenticated encryption.
 
-Go GUI + CLI live in [`gui-go/`](gui-go/). Python is dead (too slow). Old tree: [legacy/python/](legacy/python/).
+Go GUI + CLI live in [`gui-go/`](gui-go/). The old Python vault is dead (too slow): [legacy/python/](legacy/python/). `pip install pulse-vault` is a **Go binary launcher**, not that archive.
 
-Install from source or [GitHub Releases](https://github.com/Z3r0s/Pulse-Vault/releases). Steps: [INSTALL.md](INSTALL.md). Downloads: [docs/DOWNLOADS.md](docs/DOWNLOADS.md). Site: [dnspulse.org](https://dnspulse.org).
+[GitHub Releases](https://github.com/Z3r0s/Pulse-Vault/releases) · [dnspulse.org](https://dnspulse.org) · [INSTALL.md](INSTALL.md) · [DOWNLOADS](docs/DOWNLOADS.md)
 
 ## Why Go (not Python, not Rust)
 
-This is a local confidentiality tool. Language choice is the trusted computing base, the packaging attack surface, and whether the UI can encrypt without freezing. Python lost that. Rust is fine for a parser, not for this product. [Full write-up →](docs/WHY_GO.md)
+This is a local confidentiality tool. Language choice is the trusted computing base, the packaging attack surface, and whether the UI can encrypt without freezing. Python lost that. Rust is fine for a parser, not for this product. Charts and the full argument: [docs/WHY_GO.md](docs/WHY_GO.md).
 
 Re-run the bench: `cd gui-go && go test ./internal/vault -run TestCompareGoVsArchivedPython -v`
 
@@ -51,7 +51,7 @@ High-entropy Python is **1932 ms** (off the chart). Go is **6.3 ms** because we 
 
 **Python** added interpreter / `pip` / PyInstaller attack surface and a GIL on the exact work we want concurrent. **Rust** wouldn't give us a new cipher, and the GUI + release-matrix tax is real. **Go** is one language for vault, CLI, and GUI, with a static CLI and no freezer.
 
-Old Python tree: [`legacy/python/`](legacy/python/). Don't pip install it. Full comparison: [docs/WHY_GO.md](docs/WHY_GO.md).
+Old Python tree: [`legacy/python/`](legacy/python/). Do not install that folder. Full comparison: [docs/WHY_GO.md](docs/WHY_GO.md).
 
 ## Goals
 
@@ -73,6 +73,25 @@ Old Python tree: [`legacy/python/`](legacy/python/). Don't pip install it. Full 
 - Offline only.
 
 ## Installation
+
+After a `v*` tag is on GitHub:
+
+```powershell
+# Windows CLI
+irm https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.ps1 | iex
+```
+
+```bash
+# Linux / macOS CLI
+curl -fsSL https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.sh | sh
+```
+
+```bash
+pip install pulse-vault          # launcher for the official Go CLI
+# sudo snap install pulse-vault  # after it is on the Snap Store (see docs/DISTRIBUTE.md)
+```
+
+Or grab a file from [GitHub Releases](https://github.com/Z3r0s/Pulse-Vault/releases). Walkthrough: [docs/DISTRIBUTE.md](docs/DISTRIBUTE.md).
 
 ### Desktop GUI
 
@@ -138,6 +157,8 @@ CLI has a console look. `--plain` or `NO_COLOR` if you hate color. `open` drops 
 ## Documentation
 
 - [Why Go (not Python, not Rust)](docs/WHY_GO.md)
+- [Ship it (pip, snap, GitHub Releases)](docs/DISTRIBUTE.md)
+- [Roadmap](docs/ROADMAP.md)
 - [Installation](INSTALL.md)
 - [Go GUI / CLI](gui-go/README.md)
 - [Public Go crypto library](gui-go/crypto/README.md)
@@ -178,4 +199,4 @@ See [CHANGELOG.md](CHANGELOG.md) (Keep a Changelog + SemVer).
 
 ## License
 
-MIT License. Created by DNSPulse / Z3r0s.
+MIT License. Created by [DNSPulse](https://dnspulse.org) / Z3r0s.

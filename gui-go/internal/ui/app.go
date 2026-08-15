@@ -102,7 +102,7 @@ func (ui *App) build() {
 	ui.brandTitle.TextStyle = fyne.TextStyle{Bold: true}
 	ui.brandTitle.TextSize = 22
 
-	ui.brandSub = canvas.NewText("encrypted  ·  offline  ·  native", colMuted)
+	ui.brandSub = canvas.NewText("DNSPulse  ·  dnspulse.org  ·  offline", colMuted)
 	ui.brandSub.TextSize = 12
 
 	ui.versionChip = canvas.NewText("  v"+version.Version+"  ", colPrimary)
@@ -243,7 +243,7 @@ func (ui *App) build() {
 		container.NewStack(topBarBg, container.NewPadded(topBarInner)),
 	)
 
-	privacy := canvas.NewText("No cloud  ·  No telemetry", colMuted)
+	privacy := canvas.NewText("dnspulse.org  ·  No cloud  ·  No telemetry", colMuted)
 	privacy.TextSize = 11
 	nav := container.NewVBox(
 		ui.sectionVault,

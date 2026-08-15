@@ -1,6 +1,6 @@
 # Pulse-Vault desktop GUI (Go)
 
-Desktop app for V5 vaults. One binary, no Python. Version gets stamped from the git tag on release.
+Desktop app for V5 vaults from [DNSPulse](https://dnspulse.org). One Go binary. Version gets stamped from the git tag on release. `pip install pulse-vault` is a launcher for this CLI, not the retired Python tree.
 
 ## Features
 

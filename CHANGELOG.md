@@ -10,7 +10,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Removed
-- Python is out. No pip, no PyInstaller, no Python in CI. Old code is sitting in `legacy/python/` if you want to look at it. Don't install it.
+- The **Python vault** is out. No PyInstaller, no Python engine in CI. Old code is sitting in `legacy/python/` if you want to look at it. Do not install that folder.
+
+  `pip install pulse-vault` (when published) is a **launcher for the Go CLI**, not a revival of the interpreter vault.
 
   Why: Go doesn't have a GIL so the GUI doesn't freeze on encrypt. One language for the vault, CLI, and GUI. Our own crypto package instead of wrapping whoever's Python bindings. One `.exe` / binary, done.
 
@@ -35,13 +37,16 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Hide in picture (`--carrier` / GUI button)
 - GUI: delete, change password, overwrite on extract, weak password warning
 - CLI looks like a console now. `open` is a prompt. Also `delete`, `--plain`
+- pip launcher (`packaging/pypi`) and snap recipe (`snap/snapcraft.yaml`) that ship the Go CLI
+- `scripts/install.sh` / `scripts/install.ps1` hash-checked GitHub Release installers
+- Deeper Why Go write-up with charts ([docs/WHY_GO.md](docs/WHY_GO.md)), [DISTRIBUTE.md](docs/DISTRIBUTE.md), [ROADMAP.md](docs/ROADMAP.md)
 
 ### Changed
 - New files use zstd (flag 2). Old XZ (flag 1) still decrypts. Random-looking files skip compress (flag 0) so we don't waste time on jpgs.
 - ZIP rewrite copies old blobs instead of loading them all. Extract hashes while it writes.
 - Builds: `-trimpath -buildvcs=false -s -w`. Vault only stores the filename, not `C:\Users\...`. ZIP timestamps are zeroed. File bytes are still exact.
 - GUI shell: tighter brand mark, wrapping header, scroll instead of clip on a small window, lock/accent/hero motion, drag-and-drop add/open. Windows GUI builds use `-H windowsgui` so double-click does not open a console.
-- Why Go (not Python, not Rust) is its own page ([docs/WHY_GO.md](docs/WHY_GO.md)) and sits at the top of the README.
+- Why Go (not Python, not Rust) is its own page ([docs/WHY_GO.md](docs/WHY_GO.md)) at the top of the README, with charts.
 
 ### Fixed
 - Hide in picture actually works (create used to refuse an existing image)

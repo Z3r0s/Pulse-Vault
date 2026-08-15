@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 460" role="img" aria-label="Trusted computing base stacks for Python, Rust, and Go">
+  <rect width="920" height="460" rx="16" fill="#07090e"/>
+  <text x="36" y="42" fill="#f0f6fa" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="20" font-weight="700">What you have to trust</text>
+  <text x="36" y="66" fill="#7a8e9e" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">Fewer layers on the path from password to ciphertext. Same ciphers in every column.</text>
+
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">
+    <!-- Python -->
+    <text x="168" y="100" text-anchor="middle" fill="#ff6b7a" font-size="16" font-weight="700">Python (retired)</text>
+    <rect x="70" y="114" width="196" height="36" rx="6" fill="#2a1218"/>
+    <text x="168" y="137" text-anchor="middle" fill="#ffc4d0">PyInstaller / venv / pip</text>
+    <rect x="70" y="156" width="196" height="36" rx="6" fill="#2a1218"/>
+    <text x="168" y="179" text-anchor="middle" fill="#ffc4d0">CPython + GIL</text>
+    <rect x="70" y="198" width="196" height="36" rx="6" fill="#2a1218"/>
+    <text x="168" y="221" text-anchor="middle" fill="#ffc4d0">Tk / CustomTkinter loop</text>
+    <rect x="70" y="240" width="196" height="36" rx="6" fill="#2a1218"/>
+    <text x="168" y="263" text-anchor="middle" fill="#ffc4d0">cryptography (C bindings)</text>
+    <rect x="70" y="282" width="196" height="36" rx="6" fill="#1a2a38"/>
+    <text x="168" y="305" text-anchor="middle" fill="#c5d4de">Scrypt + AEAD + ZIP</text>
+    <text x="168" y="340" text-anchor="middle" fill="#ff6b7a">5 layers above the vault</text>
+
+    <!-- Rust -->
+    <text x="460" y="100" text-anchor="middle" fill="#ffc457" font-size="16" font-weight="700">Rust (not chosen)</text>
+    <rect x="362" y="156" width="196" height="36" rx="6" fill="#2a2310"/>
+    <text x="460" y="179" text-anchor="middle" fill="#ffe3a6">cargo + often C GUI deps</text>
+    <rect x="362" y="198" width="196" height="36" rx="6" fill="#2a2310"/>
+    <text x="460" y="221" text-anchor="middle" fill="#ffe3a6">egui / iced / GTK glue</text>
+    <rect x="362" y="240" width="196" height="36" rx="6" fill="#2a2310"/>
+    <text x="460" y="263" text-anchor="middle" fill="#ffe3a6">You own more of the stack</text>
+    <rect x="362" y="282" width="196" height="36" rx="6" fill="#1a2a38"/>
+    <text x="460" y="305" text-anchor="middle" fill="#c5d4de">Scrypt + AEAD + ZIP</text>
+    <text x="460" y="340" text-anchor="middle" fill="#ffc457">Same crypto, more product work</text>
+
+    <!-- Go -->
+    <text x="752" y="100" text-anchor="middle" fill="#00e5c0" font-size="16" font-weight="700">Go (what we ship)</text>
+    <rect x="654" y="198" width="196" height="36" rx="6" fill="#06241e"/>
+    <text x="752" y="221" text-anchor="middle" fill="#9ff5e4">One static CLI artifact</text>
+    <rect x="654" y="240" width="196" height="36" rx="6" fill="#06241e"/>
+    <text x="752" y="263" text-anchor="middle" fill="#9ff5e4">Fyne GUI (CGO) optional</text>
+    <rect x="654" y="282" width="196" height="36" rx="6" fill="#1a2a38"/>
+    <text x="752" y="305" text-anchor="middle" fill="#c5d4de">Scrypt + AEAD + ZIP</text>
+    <text x="752" y="340" text-anchor="middle" fill="#00e5c0">One language, one process</text>
+  </g>
+  <text x="36" y="400" fill="#7a8e9e" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">We did not invent a cipher. We removed interpreters, freezers, and a second language from the path that touches keys.</text>
+  <text x="36" y="432" fill="#7a8e9e" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">Pulse-Vault · DNSPulse · dnspulse.org</text>
+</svg>
