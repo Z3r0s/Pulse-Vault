@@ -22,6 +22,10 @@ jobs:
         with:
           go-version: "1.25.x"
           cache-dependency-path: go.sum
+      - name: Install Linux GUI dependencies for autobuild
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
       - uses: github/codeql-action/init@v3
         with:
           languages: go
