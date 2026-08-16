@@ -18,100 +18,121 @@ git push origin v0.2.0
 
 5. Watch [Actions → Release Go](https://github.com/Z3r0s/Pulse-Vault/actions). It builds CLI (windows/linux/darwin × amd64/arm64), host GUI, `SHA256SUMS`, and attaches them to the tag.
 
-Users then:
+Users then (see [INSTALL.md](../INSTALL.md)):
 
 ```text
-Windows:  irm https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.ps1 | iex
+Windows app:  Releases → pulse-vault-gui-windows-amd64.exe
+Windows CLI:  irm https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.ps1 | iex
 Linux/macOS:  curl -fsSL https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.sh | sh
-Or click:     https://github.com/Z3r0s/Pulse-Vault/releases
+Clone, no tag:  scripts\install.cmd   or   ./scripts/install.sh --from-source
 ```
 
 Manual dispatch: Actions → Release Go → Run workflow (no tag = artifacts only, no GitHub Release).
 
-## 2. pip (PyPI)
+## 2. You, submitting to PyPI (pip)
 
-The package lives in [`packaging/pypi/`](../packaging/pypi/). It is a launcher: first `pulse-vault` call downloads the matching Go asset and checks SHA-256.
+Do this on your own machine after the GitHub Release exists. The package is [`packaging/pypi/`](../packaging/pypi/). It is a **launcher** that fetches the official Go CLI. It is not the retired Python vault.
 
-### One-time PyPI setup
+### One-time (30 minutes)
 
-1. Create an account on [pypi.org](https://pypi.org) (and [test.pypi.org](https://test.pypi.org)).
-2. Enable 2FA.
-3. Create an **API token** (scope: entire account the first time, then lock it to `pulse-vault`).
-4. Check the name: <https://pypi.org/project/pulse-vault/>
-   - Empty → you can claim `pulse-vault`.
-   - Occupied by someone else → change `name` in `packaging/pypi/pyproject.toml` (e.g. `dnspulse-pulse-vault`) and the `pip install` lines in the README.
-   - Occupied by *your* old Python vault → upload this as a **new version** (0.2.0+) and say in the long description that the interpreter vault is gone.
+1. Open <https://pypi.org/account/register/> and create an account. Use a real email.
+2. Also register on <https://test.pypi.org/account/register/> (same idea, separate site).
+3. On both: enable 2FA (Account settings → Two-factor).
+4. On pypi.org: Account settings → API tokens → **Add API token**.
+   - First token: scope “Entire account”. After the project exists, make a new token scoped to `pulse-vault` and delete the first one.
+   - Copy the token once (`pypi-...`). You will not see it again.
+5. Check the name: <https://pypi.org/project/pulse-vault/>
+   - **404 / not found** → you can claim `pulse-vault`.
+   - **Your old Python package** → upload this as a new version (0.2.0+) and say the interpreter vault is gone.
+   - **Someone else owns it** → change `name` in `packaging/pypi/pyproject.toml` to e.g. `dnspulse-pulse-vault` and use that in `pip install`.
 
-### Build and upload
+### Every release
 
 ```bash
 python -m pip install --upgrade build twine
 cd packaging/pypi
 python -m build
 python -m twine check dist/*
+```
 
-# dry run
+Dry run (Test PyPI):
+
+```bash
 python -m twine upload --repository testpypi dist/*
+python -m pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple pulse-vault
+pulse-vault version
+```
 
-# real
+When that works, the real upload:
+
+```bash
 python -m twine upload dist/*
 ```
 
-Twine will ask for username `__token__` and the token as the password. Or set `TWINE_USERNAME` / `TWINE_PASSWORD`.
+Username is `__token__`. Password is the API token (including the `pypi-` prefix).
 
-Test:
+Bump `version` in `packaging/pypi/pyproject.toml` and `packaging/pypi/src/pulse_vault/__init__.py` for each upload (PyPI will not replace 0.1.0). Current tree is **0.2.0**.
 
-```bash
-python -m pip install -i https://test.pypi.org/simple/ pulse-vault
-pulse-vault version
-```
+The tag that triggers CI must be lowercase `v0.2.0`. A GitHub Release named “V0.2.0” on tag `upload` does **not** attach CLI binaries, and pip will say so.
 
-Users (after the GitHub Release exists):
+Users then run:
 
 ```bash
-pip install pulse-vault
+pip install -U pulse-vault
 pulse-vault version
+pulse-vault --launcher-info
 ```
 
-CI already runs the launcher unit tests (no network). Do not point pip at `legacy/python/`.
+Do **not** `pip install` [`legacy/python/`](../legacy/python/).
 
-## 3. snap (Snap Store)
+## 3. You, submitting to the Snap Store
 
-[`snap/snapcraft.yaml`](../snap/snapcraft.yaml) builds the Go CLI with `CGO_ENABLED=0`. Strict confinement, `home` + `removable-media`.
+Recipe: [`snap/snapcraft.yaml`](../snap/snapcraft.yaml). Builds the Go CLI. The GUI stays on GitHub Releases.
 
-### One-time Snapcraft setup
+You need an Ubuntu machine or Multipass/LXD. Windows can do this in WSL **after** you install a distro (`wsl --install -d Ubuntu`).
 
-1. Account: <https://snapcraft.io>
-2. Register the name (once):
+### One-time
+
+1. Create an account at <https://snapcraft.io> (Ubuntu One login).
+2. On that Ubuntu/WSL box:
 
 ```bash
 sudo snap install snapcraft --classic
+sudo snap install lxd
+sudo lxd init --auto
 snapcraft login
 snapcraft register pulse-vault
 ```
 
-If `pulse-vault` is taken, change `name:` in `snap/snapcraft.yaml` and register that.
+If `pulse-vault` is taken, change `name:` in `snap/snapcraft.yaml` and register that name instead.
 
-### Build and upload
-
-On Ubuntu (or a Multipass/LXD box):
+### Every release (from the repo root)
 
 ```bash
 cd /path/to/OpenSourceFileVault
+# keep version: in snap/snapcraft.yaml in sync with the git tag
 snapcraft
 snapcraft upload --release=edge pulse-vault_0.1.0_amd64.snap
 ```
 
-`grade: devel` is correct until you want `stable`. Promote in the Snapcraft dashboard: edge → beta → candidate → stable.
-
-Local try:
+Local check before upload:
 
 ```bash
-sudo snap install --dangerous pulse-vault_0.1.0_amd64.snap
+sudo snap install --dangerous ./pulse-vault_0.1.0_amd64.snap
 pulse-vault version
+sudo snap remove pulse-vault
 ```
 
-The GUI is **not** in the snap (Fyne + OpenGL + strict confinement is a second project). Point GUI users at GitHub Releases.
+Then in the [Snapcraft dashboard](https://snapcraft.io/pulse-vault/releases):
+
+1. Confirm the revision landed on **edge**.
+2. Promote edge → **beta** when you have tried it.
+3. Promote beta → **candidate**, wait a day.
+4. Promote candidate → **stable**. That is what `sudo snap install pulse-vault` hits.
+
+Leave `grade: devel` until you are ready for stable, then change it to `stable` in `snapcraft.yaml` on the next upload.
+
+Fill the store listing (icon, summary, dnspulse.org, license MIT) on the dashboard. Use `gui-go/assets/pulse-vault.png` as the icon.
 
 ## Order that actually works
 
@@ -120,3 +141,5 @@ The GUI is **not** in the snap (Fyne + OpenGL + strict confinement is a second p
 3. Snap can build from source without a tag, but store users still expect a version that matches the tag.
 
 Site copy and download buttons belong on [dnspulse.org](https://dnspulse.org) once the first `v*` tag is public. See [ROADMAP.md](ROADMAP.md).
+
+Windows SmartScreen / “virus” flags: [TRUST.md](TRUST.md). Sign the Windows exes before you tell the world to download them.

@@ -34,8 +34,8 @@ if ($onWindows) {
         $env:Path = "$(go env GOPATH)\bin;" + $env:Path
     }
     if (Get-Command goversioninfo -ErrorAction SilentlyContinue) {
-        Write-Host "Generating Windows version resource (ProductName=Pulse-Vault + icon)..."
-        & goversioninfo -64 -o $syso -icon "assets\pulse-vault.ico"
+        Write-Host "Generating Windows version resource (ProductName=Pulse-Vault + icon + manifest)..."
+        & goversioninfo -64 -o $syso -icon "assets\pulse-vault.ico" -manifest "app.manifest"
         if (Test-Path $syso) {
             $branded = $true
             Write-Host "  OK $syso ($((Get-Item $syso).Length) bytes)"
@@ -54,3 +54,7 @@ go build -trimpath -buildvcs=false -ldflags $ldflags -o $Out .
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $item = Get-Item $Out
 Write-Host ("OK {0} ({1:N0} bytes) brandedPE={2} version={3}" -f $item.FullName, $item.Length, $branded, $Version)
+$sign = Join-Path $Root "scripts\sign-windows.ps1"
+if (Test-Path $sign) {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $sign -Path $item.FullName
+}

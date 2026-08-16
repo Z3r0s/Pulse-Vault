@@ -20,7 +20,7 @@ That's what CI runs. No gcc needed. How to tag / pip / snap: [docs/DISTRIBUTE.md
 
 Don't set `CGO_ENABLED=1` and then `go test ./...` unless `gcc` is on PATH — Fyne will try to compile the GUI package and die with `cgo: C compiler "gcc" not found`. Windows: `.\test.ps1` (skips GUI if no gcc) or `.\build.ps1` for the actual window.
 
-Build locally with `go build` (CLI) or [`gui-go/build.ps1`](gui-go/build.ps1) (Windows GUI). See [INSTALL.md](INSTALL.md).
+CLI from the repo root: `.\cli.ps1` / `./cli.sh` (do not set `CGO_ENABLED`). Windows GUI: [`gui-go/build.ps1`](gui-go/build.ps1). See [INSTALL.md](INSTALL.md).
 
 `tests/vectors/` is locked in. Don't regenerate those unless you actually changed the format.
 

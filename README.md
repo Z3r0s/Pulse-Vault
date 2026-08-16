@@ -6,7 +6,7 @@
 
 Official site: [dnspulse.org](https://dnspulse.org)
 
-**[Why Go](docs/WHY_GO.md)** · **[Install](INSTALL.md)** · **[Downloads](docs/DOWNLOADS.md)** · **[Ship it](docs/DISTRIBUTE.md)** · **[Roadmap](docs/ROADMAP.md)** · **[Threat model](docs/THREAT_MODEL.md)** · **[Changelog](CHANGELOG.md)**
+**[Why Go](docs/WHY_GO.md)** · **[Install](INSTALL.md)** · **[Downloads](docs/DOWNLOADS.md)** · **[Ship it](docs/DISTRIBUTE.md)** · **[Trust / SmartScreen](docs/TRUST.md)** · **[Roadmap](docs/ROADMAP.md)** · **[Changelog](CHANGELOG.md)**
 
 **Pulse-Vault** is a local encrypted file vault from **[DNSPulse](https://dnspulse.org)**. One `.pulsevault` file, offline, password-derived keys, authenticated encryption.
 
@@ -74,51 +74,36 @@ Old Python tree: [`legacy/python/`](legacy/python/). Do not install that folder.
 
 ## Installation
 
-After a `v*` tag is on GitHub:
+**Windows app:** [Releases](https://github.com/Z3r0s/Pulse-Vault/releases) → `pulse-vault-gui-windows-amd64.exe` → double-click.  
+From this repo: double-click [`scripts/install.cmd`](scripts/install.cmd).
 
 ```powershell
-# Windows CLI
-irm https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.ps1 | iex
+# Windows CLI from a clone (no env vars). Prefer this over irm|iex.
+.\cli.ps1 version
+.\scripts\install.ps1
 ```
 
 ```bash
-# Linux / macOS CLI
+# Linux / macOS CLI  (add --gui for the desktop build when it exists)
 curl -fsSL https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.sh | sh
 ```
 
 ```bash
-pip install pulse-vault          # launcher for the official Go CLI
-# sudo snap install pulse-vault  # after it is on the Snap Store (see docs/DISTRIBUTE.md)
+pip install -U pulse-vault       # live on PyPI — official Go CLI launcher
+go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@main
 ```
 
-Or grab a file from [GitHub Releases](https://github.com/Z3r0s/Pulse-Vault/releases). Walkthrough: [docs/DISTRIBUTE.md](docs/DISTRIBUTE.md).
-
-### Desktop GUI
+Cloned the repo? Don't set any CGO flags:
 
 ```powershell
-cd gui-go
-.\build.ps1          # Go + CGO (MSYS2 mingw64 gcc). No console on double-click.
-.\pulse-vault-gui.exe
-.\pulse-vault-gui.exe --version
+.\cli.ps1 version
 ```
 
 ```bash
-cd gui-go
-CGO_ENABLED=1 go build -o pulse-vault-gui .
-./pulse-vault-gui --version
+./cli.sh version
 ```
 
-### CLI (no CGO)
-
-```bash
-cd gui-go
-go build -o pulse-vault ./cmd/pulse-vault
-./pulse-vault version
-./pulse-vault create demo.pulsevault --password 'your-strong-password'
-./pulse-vault list demo.pulsevault --password 'your-strong-password'
-```
-
-See [INSTALL.md](INSTALL.md) and [gui-go/README.md](gui-go/README.md) for platform notes.
+More: **[INSTALL.md](INSTALL.md)**.
 
 ## Usage (GUI)
 

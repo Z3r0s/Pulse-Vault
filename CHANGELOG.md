@@ -38,7 +38,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - GUI: delete, change password, overwrite on extract, weak password warning
 - CLI looks like a console now. `open` is a prompt. Also `delete`, `--plain`
 - pip launcher (`packaging/pypi`) and snap recipe (`snap/snapcraft.yaml`) that ship the Go CLI
-- `scripts/install.sh` / `scripts/install.ps1` hash-checked GitHub Release installers
+- `scripts/install.sh` / `scripts/install.ps1` / `scripts/install.cmd` hash-checked installers (CLI, optional GUI, Start Menu, build-from-clone if no tag)
 - Deeper Why Go write-up with charts ([docs/WHY_GO.md](docs/WHY_GO.md)), [DISTRIBUTE.md](docs/DISTRIBUTE.md), [ROADMAP.md](docs/ROADMAP.md)
 
 ### Changed
@@ -47,6 +47,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Builds: `-trimpath -buildvcs=false -s -w`. Vault only stores the filename, not `C:\Users\...`. ZIP timestamps are zeroed. File bytes are still exact.
 - GUI shell: tighter brand mark, wrapping header, scroll instead of clip on a small window, lock/accent/hero motion, drag-and-drop add/open. Windows GUI builds use `-H windowsgui` so double-click does not open a console.
 - Why Go (not Python, not Rust) is its own page ([docs/WHY_GO.md](docs/WHY_GO.md)) at the top of the README, with charts.
+- Install docs lead with “download the exe / one-liner”, not `go build`. Scripts fall back to building from a clone when GitHub has no `v*` tag.
+- CLI from a clone is `.\cli.ps1` / `./cli.sh` or `go install ...@main`. You do not set `CGO_ENABLED`.
+- pip launcher 0.2.0: GitHub API (skips source-only releases), `--launcher-update` / `--launcher-info`, pin with `PULSE_VAULT_VERSION`, re-checks the cached SHA-256. `pip install -U pulse-vault` after you upload 0.2.0.
+- Windows PE now carries DNSPulse company/product strings, an asInvoker manifest, and an optional Authenticode hook (`gui-go/scripts/sign-windows.ps1`). See [docs/TRUST.md](docs/TRUST.md).
 
 ### Fixed
 - Hide in picture actually works (create used to refuse an existing image)

@@ -65,6 +65,8 @@ gui-go/.gocache-*/
 gui-go/resource_windows_*.syso
 gui-go/pulse-vault-gui.exe
 gui-go/pulse-vault.exe
+/pulse-vault
+/pulse-vault.exe
 downloads/
 eggs/
 .eggs/

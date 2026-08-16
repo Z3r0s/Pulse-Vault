@@ -31,3 +31,5 @@ Format is in `docs/CRYPTO_PROTOCOL.md`. Regular ciphers, not a new one. If you f
 ## Non-Goals
 
 Won't save you if the machine is already owned, the password is "password", or some other app leaves junk after you extract.
+
+Windows SmartScreen / antivirus false positives: [docs/TRUST.md](docs/TRUST.md). We do not ship Defender exclusions.

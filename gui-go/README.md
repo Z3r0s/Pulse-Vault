@@ -13,6 +13,10 @@ Desktop app for V5 vaults from [DNSPulse](https://dnspulse.org). One Go binary. 
 - Long ops run off the UI thread
 - Same V5 format (Scrypt, ChaCha + AES, ZIP_STORED)
 
+## Install (users)
+
+See **[INSTALL.md](../INSTALL.md)**. Windows: grab `pulse-vault-gui-windows-amd64.exe` from Releases, or run `..\scripts\install.cmd` from a clone.
+
 ## Build
 
 Requirements:

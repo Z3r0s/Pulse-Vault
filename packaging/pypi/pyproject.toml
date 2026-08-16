@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pulse-vault"
-version = "0.1.0"
-description = "DNSPulse Pulse-Vault CLI installer — fetches the official Go binary from GitHub Releases."
+version = "0.2.0"
+description = "DNSPulse Pulse-Vault: pip launcher for the official Go CLI (hash-checked GitHub Release)."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -20,6 +20,11 @@ classifiers = [
   "Operating System :: Microsoft :: Windows",
   "Operating System :: MacOS",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Security :: Cryptography",
   "Topic :: Utilities",
 ]
@@ -35,6 +40,7 @@ Releases = "https://github.com/Z3r0s/Pulse-Vault/releases"
 
 [project.scripts]
 pulse-vault = "pulse_vault.launcher:main"
+pulsevault = "pulse_vault.launcher:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

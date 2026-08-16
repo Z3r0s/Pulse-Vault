@@ -1,63 +1,46 @@
 # Downloads
 
-A **[DNSPulse](https://dnspulse.org)** product. Go GUI + CLI: [`gui-go/`](../gui-go/). Publish walkthrough: [DISTRIBUTE.md](DISTRIBUTE.md).
+A **[DNSPulse](https://dnspulse.org)** product. How to install: **[INSTALL.md](../INSTALL.md)**. How we publish: [DISTRIBUTE.md](DISTRIBUTE.md).
 
-## Get a binary
+## Fastest
 
-| How | What you get |
+| You | Do this |
 | --- | --- |
-| [GitHub Releases](https://github.com/Z3r0s/Pulse-Vault/releases) | CLI + GUI + `SHA256SUMS` after a `v*` tag |
-| `scripts/install.ps1` / `scripts/install.sh` | CLI into a user bin dir, hash-checked |
-| `pip install pulse-vault` | Launcher that fetches that same CLI |
-| `snap install pulse-vault` | Store build of the Go CLI (after upload) |
-| Build from source | [`INSTALL.md`](../INSTALL.md) |
+| Windows, want the window | [Releases](https://github.com/Z3r0s/Pulse-Vault/releases) → `pulse-vault-gui-windows-amd64.exe` |
+| Windows, want the CLI | `irm https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.ps1 \| iex` |
+| Linux / macOS CLI | `curl -fsSL https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.sh \| sh` |
+| pip | `pip install pulse-vault` (Go launcher; needs a `v*` tag) |
+| This git clone | `.\cli.ps1` / `./cli.sh` (CLI, no env vars) or `scripts\install.cmd` |
 
-```powershell
-irm https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.ps1 | iex
-```
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.sh | sh
-```
-
-### GitHub Release assets
+## GitHub Release assets
 
 Via [`.github/workflows/release-go.yml`](../.github/workflows/release-go.yml):
 
-| Asset | Notes |
+| Asset | What it is |
 | --- | --- |
-| `pulse-vault-windows-amd64.exe` / `arm64` | Pure-Go **CLI** |
-| `pulse-vault-linux-amd64` / `arm64` | Pure-Go **CLI** |
-| `pulse-vault-darwin-amd64` / `arm64` | Pure-Go **CLI** |
-| `pulse-vault-gui-*` | Desktop **GUI** (built per OS runner; CGO/OpenGL) |
-| `SHA256SUMS` | Checksums for release files |
+| `pulse-vault-gui-windows-amd64.exe` | **Desktop app** (double-click, no console) |
+| `pulse-vault-gui-linux-*` / `darwin-*` | Desktop app for that OS |
+| `pulse-vault-windows-amd64.exe` / `arm64` | CLI |
+| `pulse-vault-linux-amd64` / `arm64` | CLI |
+| `pulse-vault-darwin-amd64` / `arm64` | CLI |
+| `SHA256SUMS` | Checksums (install scripts verify these) |
+| `install.sh` / `install.ps1` | Same installers, attached to the tag |
 
-If Releases still says “No releases found”, no tag has been pushed yet. Build locally (below) or see [DISTRIBUTE.md](DISTRIBUTE.md).
+If Releases says “No releases found”, no `v*` tag has been pushed. Use a clone + `--from-source`, or see [DISTRIBUTE.md](DISTRIBUTE.md).
 
-### Build from source (Go)
+## Build it yourself
 
-Full steps: [INSTALL.md](../INSTALL.md) and [gui-go/README.md](../gui-go/README.md).
+[INSTALL.md](../INSTALL.md) (developer section) and [gui-go/README.md](../gui-go/README.md).
 
 ```powershell
-# Multi-OS CLI + host GUI (Windows example)
-powershell -File gui-go/scripts/build-multi.ps1 -OutDir dist
+.\cli.ps1 -Build
 ```
 
 ```bash
-# CLI only (any GOOS/GOARCH, no CGO)
-cd gui-go
-CGO_ENABLED=0 go build -o pulse-vault ./cmd/pulse-vault
-./pulse-vault version
-
-# Desktop GUI (needs CGO toolchain)
-CGO_ENABLED=1 go build -o pulse-vault-gui .
-./pulse-vault-gui --version
+./cli.sh --build
+# or: go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@main
 ```
-
-Official site: [dnspulse.org](https://dnspulse.org). Source and issues: this GitHub repository.
 
 `pip install pulse-vault` wraps the Go CLI. Do not install [legacy/python/](../legacy/python/).
 
-## Planned (toward 1.0)
-
-Signed installers and a download page on [dnspulse.org](https://dnspulse.org). GitHub stays the file host. See [ROADMAP.md](ROADMAP.md).
+Site: [dnspulse.org](https://dnspulse.org).
