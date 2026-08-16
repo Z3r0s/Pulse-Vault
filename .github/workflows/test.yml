@@ -27,7 +27,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
+          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
       - name: Go test (crypto + vault + UI + CLI)
         env:
           CGO_ENABLED: "0"
@@ -95,7 +95,7 @@ jobs:
       - name: Install Fyne/OpenGL build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
+          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
       - name: Build GUI with CGO enabled
         env:
           CGO_ENABLED: "1"
@@ -113,7 +113,7 @@ jobs:
       - name: Install Linux GUI dependencies for analyzers
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
+          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
       - name: Verify module graph
         run: go mod verify
       - name: Install pinned analyzers
