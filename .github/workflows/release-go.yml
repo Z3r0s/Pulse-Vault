@@ -34,7 +34,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25.x"
+          go-version: "1.25.13"
           cache-dependency-path: go.sum
 
       - name: Install Linux GUI dependencies for tests
@@ -93,7 +93,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25.x"
+          go-version: "1.25.13"
           cache-dependency-path: go.sum
 
       - name: Resolve version
@@ -151,7 +151,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25.x"
+          go-version: "1.25.13"
           cache-dependency-path: go.sum
 
       - name: Install Linux GUI deps (Fyne / OpenGL)
