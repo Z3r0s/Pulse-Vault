@@ -2,13 +2,13 @@
   "FixedFileInfo": {
     "FileVersion": {
       "Major": 0,
-      "Minor": 1,
+      "Minor": 2,
       "Patch": 0,
       "Build": 0
     },
     "ProductVersion": {
       "Major": 0,
-      "Minor": 1,
+      "Minor": 2,
       "Patch": 0,
       "Build": 0
     },
@@ -22,14 +22,14 @@
     "Comments": "Local encrypted file vault CLI. Official site https://dnspulse.org",
     "CompanyName": "DNSPulse",
     "FileDescription": "Pulse-Vault CLI (DNSPulse)",
-    "FileVersion": "0.1.0.0",
+    "FileVersion": "0.2.0.0",
     "InternalName": "pulse-vault",
     "LegalCopyright": "Copyright (c) 2026 DNSPulse / Z3r0s",
     "LegalTrademarks": "Pulse-Vault",
     "OriginalFilename": "pulse-vault.exe",
     "PrivateBuild": "",
     "ProductName": "Pulse-Vault",
-    "ProductVersion": "0.1.0.0",
+    "ProductVersion": "0.2.0.0",
     "SpecialBuild": ""
   },
   "VarFileInfo": {

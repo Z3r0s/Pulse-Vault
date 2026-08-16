@@ -1,8 +1,13 @@
 import hashlib
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+
+# Keep the package tests runnable from the repository root as well as from
+# the CI working directory, which supplies PYTHONPATH=src.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from pulse_vault.launcher import (
     LauncherError,

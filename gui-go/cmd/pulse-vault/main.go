@@ -70,10 +70,6 @@ func exit(err error) {
 	}
 }
 
-func usage() {
-	printHelp()
-}
-
 func flagPassword(args []string) (pw string, rest []string, err error) {
 	rest = make([]string, 0, len(args))
 	var source string
@@ -109,6 +105,16 @@ func flagPassword(args []string) (pw string, rest []string, err error) {
 				return "", nil, readErr
 			}
 			if err := set(value, "--password-stdin"); err != nil {
+				return "", nil, err
+			}
+			continue
+		}
+		if a == "--password-prompt" {
+			value, readErr := readHiddenPassword("password: ")
+			if readErr != nil {
+				return "", nil, readErr
+			}
+			if err := set(value, "--password-prompt"); err != nil {
 				return "", nil, err
 			}
 			continue
@@ -333,6 +339,16 @@ func flagNewPassword(args []string) (pw string, rest []string, err error) {
 				return "", nil, readErr
 			}
 			if err := set(value, "--new-password-stdin"); err != nil {
+				return "", nil, err
+			}
+			continue
+		}
+		if a == "--new-password-prompt" {
+			value, readErr := readHiddenPassword("new password: ")
+			if readErr != nil {
+				return "", nil, readErr
+			}
+			if err := set(value, "--new-password-prompt"); err != nil {
 				return "", nil, err
 			}
 			continue

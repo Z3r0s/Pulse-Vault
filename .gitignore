@@ -77,6 +77,7 @@ share/python-wheels/
 MANIFEST
 .installed.cfg
 *.manifest
+!gui-go/app.manifest
 *.spec
 *.so
 

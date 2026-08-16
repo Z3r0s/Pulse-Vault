@@ -5,11 +5,11 @@ Pulse-Vault's authenticated encryption formats.
 
 It provides:
 
-- Scrypt key derivation for V3–V5 vaults (passwords — not SHA-256).
+- Scrypt key derivation for V3–V6 vaults (passwords — not SHA-256).
 - PBKDF2-SHA256 and AES-GCM compatibility for V1/V2 vaults.
 - SHA-256 file-content fingerprints (`FileDigestHex`) for extract/verify only.
 - ChaCha20-Poly1305 + AES-GCM cascade encryption for metadata.
-- V5 stream encrypt/decrypt (zstd now, old XZ still reads)
+- V6 finalized stream encrypt/decrypt (zstd; V5/XZ remains readable)
 - V4 stream decrypt (old vaults)
 - Constants, limits, profiles, errors
 
@@ -57,7 +57,7 @@ func main() {
 
 The package is tested against the Python Pulse-Vault implementation and the
 repository's V1–V5 fixtures. V1/V2 are read-only compatibility formats and
-should be migrated to V5 before modification.
+should be migrated to V6 before modification.
 
 The stream and metadata layouts are protocol formats. Changes require new
 format identifiers and cross-language vectors; do not silently change the

@@ -112,8 +112,8 @@ func TestCLIVersionBanner(t *testing.T) {
 	if !strings.Contains(s, "version:") {
 		t.Fatalf("missing version line: %s", out)
 	}
-	if !strings.Contains(s, "V5") {
-		t.Fatalf("missing V5 format mention: %s", out)
+	if !strings.Contains(s, "V6") {
+		t.Fatalf("missing V6 format mention: %s", out)
 	}
 }
 
@@ -156,7 +156,7 @@ func TestCLIInfo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("info: %v\n%s", err, out)
 	}
-	if !strings.Contains(out, "V5") || !strings.Contains(out, "path:") {
+	if !strings.Contains(out, "V6") || !strings.Contains(out, "path:") {
 		t.Fatalf("info missing fields: %s", out)
 	}
 	if !strings.Contains(out, "kdf:") {

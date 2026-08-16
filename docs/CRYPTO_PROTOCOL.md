@@ -8,7 +8,7 @@ identifiers.
 
 ## Primitive and key layout
 
-V3–V5 derive a 64-byte key with Scrypt. The first 32 bytes are the
+V3–V6 derive a 64-byte key with Scrypt. The first 32 bytes are the
 ChaCha20-Poly1305 key and the second 32 bytes are the AES-256-GCM key.
 
 The built-in profiles are:
@@ -24,7 +24,7 @@ V1/V2 compatibility uses PBKDF2-HMAC-SHA256, 600,000 iterations, and a
 
 ## Metadata cascade
 
-V3–V5 metadata is encoded as UTF-8 JSON, then encrypted as:
+V3–V6 metadata is encoded as UTF-8 JSON, then encrypted as:
 
 1. ChaCha20-Poly1305 with a random 12-byte nonce.
 2. AES-256-GCM over the resulting ciphertext with a random 12-byte nonce.
@@ -34,7 +34,7 @@ The stored value is `chacha_nonce || aes_nonce || outer_ciphertext`.
 V1/V2 metadata uses `nonce || AES-GCM ciphertext`. V1 authenticates the
 `Z3R0VAULT1` magic as AAD; V2 has no AAD.
 
-## V5 stream format
+## V5 stream format (legacy)
 
 V5 streams are:
 
@@ -73,6 +73,27 @@ Chunk sizes are bounded by the library's exported limits. Truncation,
 reordering, nonce changes, length corruption, and authentication failures must
 be rejected.
 
+## V6 finalized stream format
+
+Current Go vaults use `PV6STRM1`:
+
+```text
+PV6STRM1                       8 bytes
+compression flag               1 byte (0 none, 2 zstd)
+ChaCha base nonce              16 bytes
+AES base nonce                 12 bytes
+repeat {
+    record kind                1 byte (0 data, 1 terminal)
+    encrypted record length    4-byte big-endian unsigned integer
+    encrypted record           length bytes
+}
+```
+
+Data records use the V5 compression choices where applicable, and the final
+record encrypts the fixed terminal marker `PULSEVAULT6-END`. V6 associated data
+is `PV6STRM1 || compression flag || nonces || record kind || index`. Readers
+must require a valid terminal record and reject trailing bytes after it.
+
 ## V4 compatibility stream
 
 V4 uses the same two-layer chunk construction but stores only the 16-byte
@@ -84,7 +105,7 @@ legacy Python vaults and is not emitted by the current Go writer.
 
 - Existing format identifiers must not be silently redefined.
 - New framing or primitive choices require a new format identifier.
-- V1/V2 are read-only compatibility formats and should be migrated to V5.
+- V1/V2 are read-only compatibility formats and should be migrated to V6.
 - Cross-language vectors must be updated before changing any byte layout.
 - Passwords, keys, and plaintext must not be logged by library consumers.
 

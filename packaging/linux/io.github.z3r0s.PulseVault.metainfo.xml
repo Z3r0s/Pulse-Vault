@@ -100,6 +100,13 @@
        Always update the latest release entry + add new <release> when bumping version.
   -->
   <releases>
+    <release version="0.2.0" date="2026-08-15">
+      <description>
+        <p>Pulse-Vault 0.2.0 continues the native Go product path with the offline GUI and pure-Go CLI as the primary experience.</p>
+        <p>Go/Python protocol compatibility is covered by shared vectors and bidirectional current-format tests. The retired Python implementation remains an archive reference only.</p>
+        <p>Distribution metadata and release documentation are aligned with the v0.2.0 tag.</p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-07-22">
       <description>
         <p>Pulse-Vault 0.1.0 is the native Go rewrite: desktop GUI + pure-Go CLI as the primary product path.</p>

@@ -9,6 +9,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+_No unreleased changes yet._
+
+## [0.2.0] - 2026-08-15
+
 ### Removed
 - The **Python vault** is out. No PyInstaller, no Python engine in CI. Old code is sitting in `legacy/python/` if you want to look at it. Do not install that folder.
 
@@ -33,7 +37,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 - Go crypto package: `github.com/Z3r0s/Pulse-Vault/gui-go/crypto`
 - Protocol doc, threat model, benches, fuzz smoke
-- CLI can unlock V1–V4 and migrate to V5
+- CLI can unlock V1–V5 and migrate to the current V6 format
 - Hide in picture (`--carrier` / GUI button)
 - GUI: delete, change password, overwrite on extract, weak password warning
 - CLI looks like a console now. `open` is a prompt. Also `delete`, `--plain`
@@ -42,7 +46,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Deeper Why Go write-up with charts ([docs/WHY_GO.md](docs/WHY_GO.md)), [DISTRIBUTE.md](docs/DISTRIBUTE.md), [ROADMAP.md](docs/ROADMAP.md)
 
 ### Changed
-- New files use zstd (flag 2). Old XZ (flag 1) still decrypts. Random-looking files skip compress (flag 0) so we don't waste time on jpgs.
+- New vaults use V6 finalized streams: authenticated terminal records detect clean-boundary truncation. V5 and old XZ (flag 1) streams still decrypt. Random-looking files skip compression (flag 0) so we don't waste time on jpgs.
 - ZIP rewrite copies old blobs instead of loading them all. Extract hashes while it writes.
 - Builds: `-trimpath -buildvcs=false -s -w`. Vault only stores the filename, not `C:\Users\...`. ZIP timestamps are zeroed. File bytes are still exact.
 - GUI shell: tighter brand mark, wrapping header, scroll instead of clip on a small window, lock/accent/hero motion, drag-and-drop add/open. Windows GUI builds use `-H windowsgui` so double-click does not open a console.
@@ -59,7 +63,11 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Picture prefix survives add / delete / password change
 
 ### Security
-- Same ciphers as before. Empty files still get an authenticated record.
+- Same standard ciphers as before. New V6 streams require an authenticated terminal record, including empty files.
+- Scrypt KDF records now have combined memory and work budgets before derivation starts.
+- Vault rewrites use rollback-safe replacement; add and password-rotation staging no longer holds every blob in RAM.
+- Interactive password changes use hidden terminal input; `--password-prompt` and `--new-password-prompt` avoid process-list exposure.
+- Added pinned Staticcheck and govulncheck CI, CGO GUI compile smoke, Go 1.25 CI, and fixed x/image/xz dependencies.
 - SHA-256 in the crypto package is only a file-integrity digest (verify/extract). Passwords stay on scrypt / legacy PBKDF2. CodeQL `go/weak-sensitive-data-hashing` was a false positive on that helper.
 
 ## [0.1.0] - 2026-07-22
@@ -104,6 +112,7 @@ This release focuses on making Pulse-Vault feel like a proper, polished desktop 
 ### Changed
 - README / INSTALL expansion for pip and store prep (superseded by Go path in 0.1.0).
 
-[Unreleased]: https://github.com/Z3r0s/Pulse-Vault/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Z3r0s/Pulse-Vault/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Z3r0s/Pulse-Vault/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Z3r0s/Pulse-Vault/releases/tag/v0.1.0
 [0.0.21]: https://github.com/Z3r0s/Pulse-Vault/releases/tag/v0.0.21

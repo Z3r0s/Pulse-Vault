@@ -13,7 +13,7 @@ and `gui-go/crypto`. Python in `legacy/python/` doesn't count.
 - Avoid nonce reuse within a key and stream by using random base nonces and
   authenticated chunk indices.
 - Preserve compatibility with existing V1–V5 files without weakening the
-  authentication checks for newly written V5 files.
+  authentication checks for newly written V6 files.
 
 ## Assumptions
 

@@ -65,9 +65,7 @@ func paint(code, s string) string {
 }
 
 func bold(s string) string   { return paint(ansiBold, s) }
-func dim(s string) string    { return paint(ansiDim, s) }
 func cyan(s string) string   { return paint(ansiCyan, s) }
-func teal(s string) string   { return paint(ansiTeal, s) }
 func fg(s string) string     { return paint(ansiFg, s) }
 func muted(s string) string  { return paint(ansiMuted, s) }
 func red(s string) string    { return paint(ansiRed, s) }
@@ -113,13 +111,6 @@ func humanSize(n int64) string {
 		return fmt.Sprintf("%d %s", n, units[0])
 	}
 	return fmt.Sprintf("%.1f %s", f, units[i])
-}
-
-func hr(width int) string {
-	if width < 8 {
-		width = 8
-	}
-	return muted(strings.Repeat("─", width))
 }
 
 func box(title string, lines []string, width int) string {

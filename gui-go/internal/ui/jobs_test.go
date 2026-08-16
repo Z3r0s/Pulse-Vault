@@ -70,7 +70,7 @@ func TestPrepareHidePathKeepsMediaAndVaultExt(t *testing.T) {
 		t.Fatalf("rem = %v", rem)
 	}
 
-	final, rem = PrepareHidePath(`C:\tmp\out.JPEG`, `D:\cover.png`)
+	final, _ = PrepareHidePath(`C:\tmp\out.JPEG`, `D:\cover.png`)
 	if final != `C:\tmp\out.JPEG` {
 		t.Fatalf("keep JPEG = %q", final)
 	}
@@ -83,7 +83,7 @@ func TestPrepareHidePathKeepsMediaAndVaultExt(t *testing.T) {
 		t.Fatalf("pulsevault rem = %v", rem)
 	}
 
-	final, rem = PrepareHidePath(`C:\tmp\clip.mp4`, `D:\cover.png`)
+	final, _ = PrepareHidePath(`C:\tmp\clip.mp4`, `D:\cover.png`)
 	if final != `C:\tmp\clip.mp4` {
 		t.Fatalf("keep mp4 = %q", final)
 	}
@@ -98,12 +98,12 @@ func TestPrepareHidePathInheritsCarrierExt(t *testing.T) {
 		t.Fatalf("rem = %v", rem)
 	}
 
-	final, rem = PrepareHidePath(`C:\tmp\movie`, `D:\clip.MP4`)
+	final, _ = PrepareHidePath(`C:\tmp\movie`, `D:\clip.MP4`)
 	if final != `C:\tmp\movie.MP4` {
 		t.Fatalf("inherit MP4 = %q", final)
 	}
 
-	final, rem = PrepareHidePath(`C:\tmp\notes.txt`, `D:\cover.png`)
+	final, _ = PrepareHidePath(`C:\tmp\notes.txt`, `D:\cover.png`)
 	if final != `C:\tmp\notes.txt.png` {
 		t.Fatalf("unrecognized ext = %q", final)
 	}

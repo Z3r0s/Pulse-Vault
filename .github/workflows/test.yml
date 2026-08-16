@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  # Product path: Go vault/crypto/UI/CLI suite (V5 product).
+  # Product path: Go vault/crypto/UI/CLI suite (V6 current format; V5 readable).
   go-parity:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
+          go-version: "1.25.x"
           cache-dependency-path: go.sum
       - name: Go test (crypto + vault + UI + CLI)
         env:
@@ -54,6 +54,68 @@ jobs:
         run: |
           go test ./crypto -run=^$ -fuzz=FuzzDecryptStreamV5NeverPanics -fuzztime=30s
           go test ./crypto -run=^$ -fuzz=FuzzDecryptStreamV4NeverPanics -fuzztime=15s
+
+  # The Python tree is retired, but it remains the protocol oracle for
+  # compatibility. Keep the focused current-format matrix in CI without
+  # making the archived GUI/runtime a product dependency.
+  go-python-interop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache-dependency-path: go.sum
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install interop test dependencies
+        run: python -m pip install pytest cryptography zstandard
+      - name: Run bidirectional Go/Python current-format matrix
+        env:
+          PULSEVAULT_TEST_FAST_KDF: "1"
+          PULSEVAULT_SCRYPT_PROFILE: fast
+        run: python -m pytest legacy/python/tests/test_go_interop.py -q
+
+  # Compile the real Fyne/OpenGL GUI on Linux so CGO regressions are visible
+  # on pull requests even though the main test matrix stays headless.
+  go-gui-cgo-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache-dependency-path: go.sum
+      - name: Install Fyne/OpenGL build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
+      - name: Build GUI with CGO enabled
+        env:
+          CGO_ENABLED: "1"
+        run: go build -trimpath -buildvcs=false -o /tmp/pulse-vault-gui ./gui-go
+
+  go-quality:
+    name: Go quality and vulnerability scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache-dependency-path: go.sum
+      - name: Verify module graph
+        run: go mod verify
+      - name: Install pinned analyzers
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@v0.6.1
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Run static analysis
+        run: staticcheck ./...
+      - name: Scan dependencies and reachable code
+        run: govulncheck ./...
 
   # Packaging / App Store validation (Linux desktop metadata + AppStream)
   # Helps catch issues before Ubuntu App Store / Snap / .deb submissions.

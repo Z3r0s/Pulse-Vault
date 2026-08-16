@@ -19,11 +19,15 @@ const (
 	MaxScryptN             = inner.MaxScryptN
 	MaxScryptR             = inner.MaxScryptR
 	MaxScryptP             = inner.MaxScryptP
+	MaxScryptMemoryBytes   = inner.MaxScryptMemoryBytes
+	MaxScryptWorkFactor    = inner.MaxScryptWorkFactor
 	LegacyKeySize          = inner.LegacyKeySize
 	LegacyPBKDF2Iterations = inner.LegacyPBKDF2Iterations
 
-	// StreamV5Magic identifies the authenticated V5 stream framing.
+	// StreamV5Magic identifies the legacy authenticated V5 stream framing.
 	StreamV5Magic = "PV5STRM1"
+	// StreamV6Magic identifies the current finalized stream framing.
+	StreamV6Magic = "PV6STRM1"
 )
 
 var ErrCrypto = inner.ErrCrypto
@@ -41,6 +45,10 @@ var Profiles = map[string]Profile{
 
 func DeriveKeyScrypt(password string, salt []byte, n, r, p int) ([]byte, error) {
 	return inner.DeriveKeyScrypt(password, salt, n, r, p)
+}
+
+func ValidateScryptParams(n, r, p int) error {
+	return inner.ValidateScryptParams(n, r, p)
 }
 
 func DeriveKeyLegacy(password string, salt []byte) ([]byte, error) {
@@ -75,6 +83,16 @@ func EncryptStreamV5(key64 []byte, src io.Reader, dst io.Writer, compress bool) 
 
 func DecryptStreamV5(key64 []byte, src io.Reader, dst io.Writer) error {
 	return inner.DecryptStreamV5(key64, src, dst)
+}
+
+// EncryptStreamV6 writes the current finalized stream format.
+func EncryptStreamV6(key64 []byte, src io.Reader, dst io.Writer, compress bool) error {
+	return inner.EncryptStreamV6(key64, src, dst, compress)
+}
+
+// DecryptStreamV6 decrypts the finalized stream format.
+func DecryptStreamV6(key64 []byte, src io.Reader, dst io.Writer) error {
+	return inner.DecryptStreamV6(key64, src, dst)
 }
 
 func DecryptStreamV4(key64 []byte, src io.Reader, dst io.Writer) error {

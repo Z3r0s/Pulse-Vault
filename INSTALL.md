@@ -106,7 +106,7 @@ That builds `pulse-vault.exe` / `pulse-vault` next to the script the first time.
 Already have Go and just want it on PATH:
 
 ```bash
-go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@main
+go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@v0.2.0
 ```
 
 Same thing, no extra env vars. `$(go env GOPATH)/bin` should be on your PATH.
@@ -141,7 +141,7 @@ Release files include `SHA256SUMS`. The install scripts check that automatically
 .pulsevault
 ```
 
-Format: [docs/VAULT_FORMAT.md](docs/VAULT_FORMAT.md). Marker: `PULSEVAULT5_COMPRESSED_CASCADE`.
+Format: [docs/VAULT_FORMAT.md](docs/VAULT_FORMAT.md). Current marker: `PULSEVAULT6_AUTHENTICATED_CASCADE` (V5 remains readable).
 
 ## Uninstall
 

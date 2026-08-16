@@ -17,7 +17,7 @@ func printBanner() {
 	ver := version.Version
 	lines := []string{
 		bold(fg("PULSE-VAULT")) + muted("   v"+ver),
-		muted("offline sealed storage  ·  V5 cascade"),
+		muted("offline sealed storage  ·  V6 finalized cascade"),
 	}
 	fmt.Fprintln(out(), box("⬡  "+productName, lines, 56))
 }
@@ -45,7 +45,7 @@ func printHelp() {
 		{"verify", "Integrity-check every entry"},
 		{"info", "Inspect the container (no password)"},
 		{"change-password", "Rotate the key (full re-encrypt)"},
-		{"migrate", "Upgrade a legacy vault to V5"},
+		{"migrate", "Upgrade a legacy vault to V6"},
 		{"version", "Print product version"},
 		{"help", "This screen"},
 	}
@@ -72,7 +72,7 @@ func printHelp() {
 	fmt.Fprintln(out())
 	fmt.Fprintln(out(), "  "+muted("create destination may be a .pulsevault file or an image/video path (e.g. hidden.png)."))
 	fmt.Fprintln(out(), "  "+muted("--carrier prepends that picture/video so the vault is hidden inside the file."))
-	fmt.Fprintln(out(), "  "+muted("Use --password-stdin / --password-file to avoid exposing passwords in process listings."))
+	fmt.Fprintln(out(), "  "+muted("Use --password-prompt, --password-stdin, or --password-file to avoid exposing passwords in process listings."))
 	fmt.Fprintln(out(), "  "+muted("--plain or NO_COLOR disables color. Primary product is this Go binary (and the desktop GUI)."))
 }
 
@@ -81,7 +81,7 @@ func printVersion() {
 	fmt.Fprintln(out())
 	fmt.Fprintln(out(), productName)
 	fmt.Fprintf(out(), "version: %s\n", version.Version)
-	fmt.Fprintln(out(), "Go native CLI — V5 encrypted vault")
+	fmt.Fprintln(out(), "Go native CLI — V6 encrypted vault (V5 readable)")
 }
 
 func printCreated(path, profile string, hidden bool, elapsed time.Duration) {
@@ -90,7 +90,7 @@ func printCreated(path, profile string, hidden bool, elapsed time.Duration) {
 		markOK() + "  " + bold("vault sealed"),
 		kv("path", path),
 		kv("profile", profile),
-		kv("format", "V5"),
+		kv("format", "V6"),
 		kv("elapsed", elapsed.Round(time.Millisecond).String()),
 	}
 	if hidden {
@@ -202,10 +202,10 @@ func printPasswordChanged() {
 func printMigrated() {
 	printSlimHead("migrate")
 	fmt.Fprintln(out(), box("migrate", []string{
-		markOK() + "  " + bold("now V5"),
+		markOK() + "  " + bold("now V6"),
 		muted("legacy container rewritten in place"),
 	}, 52))
-	fmt.Fprintln(out(), "Legacy vault migrated to the current V5 format.")
+	fmt.Fprintln(out(), "Legacy vault migrated to the current V6 format.")
 }
 
 func printInfo(path string, size int64, rec vault.KDFRecord, recOK bool, recErr error, prefix int64, prefixErr error, unlocked *vault.Vault) {
@@ -216,10 +216,10 @@ func printInfo(path string, size int64, rec vault.KDFRecord, recOK bool, recErr 
 	}
 	if recOK {
 		lines = append(lines, kv("kdf", fmt.Sprintf("%s profile=%s n=%d r=%d p=%d", rec.Algorithm, rec.Profile, rec.N, rec.R, rec.P)))
-		lines = append(lines, kv("format", "V5"))
+		lines = append(lines, kv("format", "V6 (or V5; unlock for exact format)"))
 	} else {
 		lines = append(lines, kv("kdf", fmt.Sprintf("(unavailable: %v)", recErr)))
-		lines = append(lines, kv("format", "legacy or V5 (unlock required for exact format)"))
+		lines = append(lines, kv("format", "legacy or V5/V6 (unlock required for exact format)"))
 	}
 	if prefixErr != nil {
 		lines = append(lines, kv("carrier", fmt.Sprintf("(unavailable: %v)", prefixErr)))
@@ -247,10 +247,10 @@ func printInfo(path string, size int64, rec vault.KDFRecord, recOK bool, recErr 
 	fmt.Fprintf(out(), "  size: %d bytes\n", size)
 	if recOK {
 		fmt.Printf("  kdf: %s profile=%s n=%d r=%d p=%d\n", rec.Algorithm, rec.Profile, rec.N, rec.R, rec.P)
-		fmt.Println("  format: V5")
+		fmt.Println("  format: V6 (or V5; unlock for exact format)")
 	} else {
 		fmt.Printf("  kdf: (unavailable: %v)\n", recErr)
-		fmt.Println("  format: legacy or V5 (unlock required for exact format)")
+		fmt.Println("  format: legacy or V5/V6 (unlock required for exact format)")
 	}
 	if prefixErr != nil {
 		fmt.Printf("  carrier: (unavailable: %v)\n", prefixErr)
@@ -271,13 +271,6 @@ func printError(err error) {
 
 func printUnknown(cmd string) {
 	fmt.Fprintf(os.Stderr, "%s  unknown command: %s\n", markErr(), cmd)
-}
-
-func formatWhen(ts int64) string {
-	if ts <= 0 {
-		return "—"
-	}
-	return time.Unix(ts, 0).Format("2006-01-02 15:04")
 }
 
 func consumeGlobals(args []string) []string {

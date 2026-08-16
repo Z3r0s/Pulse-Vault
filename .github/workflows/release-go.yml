@@ -1,5 +1,5 @@
 # Build and publish pure-Go Pulse-Vault CLI for multiple OS/arch combinations.
-# Product path: gui-go/ (V5 vault via internal/vault). Python is not tested here.
+# Product path: gui-go/ (V6 current vault; V5 remains readable). Python is not tested here.
 #
 # Triggers: version tags (v*) or manual workflow_dispatch.
 
@@ -29,12 +29,12 @@ jobs:
     name: Test (crypto/vault/CLI)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
+          go-version: "1.25.x"
           cache-dependency-path: go.sum
 
       - name: go test (pure packages + CLI)
@@ -83,12 +83,12 @@ jobs:
             goarch: arm64
             artifact: pulse-vault-darwin-arm64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
+          go-version: "1.25.x"
           cache-dependency-path: go.sum
 
       - name: Resolve version
@@ -117,6 +117,7 @@ jobs:
         run: |
           mkdir -p dist
           go build -trimpath \
+            -buildvcs=false \
             -ldflags "-s -w -X github.com/Z3r0s/Pulse-Vault/gui-go/internal/version.Version=${RELEASE_VERSION}" \
             -o "dist/${{ matrix.artifact }}" \
             ./cmd/pulse-vault
@@ -140,12 +141,12 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
+          go-version: "1.25.x"
           cache-dependency-path: go.sum
 
       - name: Install Linux GUI deps (Fyne / OpenGL)
@@ -204,6 +205,7 @@ jobs:
           NAME="pulse-vault-gui-${HOST_OS}-${HOST_ARCH}"
           mkdir -p dist
           go build -trimpath \
+            -buildvcs=false \
             -ldflags "-s -w -X github.com/Z3r0s/Pulse-Vault/gui-go/internal/version.Version=${RELEASE_VERSION}" \
             -o "dist/${NAME}" .
           test -f "dist/${NAME}"
@@ -231,7 +233,7 @@ jobs:
     needs: [build-cli, build-gui-host]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -244,7 +246,11 @@ jobs:
         run: |
           ls -la
           # Only hash regular files (artifacts), not nested dirs if any
-          find . -maxdepth 1 -type f ! -name 'SHA256SUMS' -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+          for file in *; do
+            if [ -f "$file" ] && [ "$file" != "SHA256SUMS" ]; then
+              sha256sum "$file"
+            fi
+          done > SHA256SUMS
           cat SHA256SUMS
 
       - name: Upload checksums artifact

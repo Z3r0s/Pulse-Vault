@@ -2,7 +2,7 @@
 
 A product from **[DNSPulse](https://dnspulse.org)**. This is a recommended order, not a promise.
 
-Pulse-Vault is already a real local vault: V5 format, Go CLI + Fyne GUI, hide-in-picture, checksummed releases. “Full fledged” is distribution, trust, and a few product edges — not a rewrite.
+Pulse-Vault is already a real local vault: V6 finalized format with V5 read compatibility, Go CLI + Fyne GUI, hide-in-picture, checksummed releases. “Full fledged” is distribution, trust, and a few product edges — not a rewrite.
 
 ## Do next (makes it a product people can install)
 

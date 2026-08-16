@@ -605,5 +605,31 @@ if HAS_HYPOTHESIS:
             self.assertEqual(dec.getvalue(), plaintext)
 
 
+class StreamV6FinalizationTests(unittest.TestCase):
+    def setUp(self):
+        self.key = _make_key("v6-finalization-pw!")
+
+    def _encrypt(self, payload: bytes, compress: bool = True) -> bytes:
+        out = io.BytesIO()
+        crypto.encrypt_stream_v6(self.key, io.BytesIO(payload), out, compress=compress)
+        return out.getvalue()
+
+    def test_roundtrip_and_terminal_record(self):
+        payload = b"V6 finalized payload\n" * 4096
+        for compress in (False, True):
+            blob = self._encrypt(payload, compress=compress)
+            self.assertTrue(blob.startswith(crypto.STREAM_V6_MAGIC))
+            out = io.BytesIO()
+            crypto.decrypt_stream_v6(self.key, io.BytesIO(blob), out)
+            self.assertEqual(out.getvalue(), payload)
+
+    def test_truncation_and_trailing_bytes_fail(self):
+        blob = self._encrypt(b"terminal-required")
+        with self.assertRaises(crypto.CryptoError):
+            crypto.decrypt_stream_v6(self.key, io.BytesIO(blob[:-1]), io.BytesIO())
+        with self.assertRaises(crypto.CryptoError):
+            crypto.decrypt_stream_v6(self.key, io.BytesIO(blob + b"trailing"), io.BytesIO())
+
+
 if __name__ == "__main__":
     unittest.main()

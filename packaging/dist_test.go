@@ -126,7 +126,7 @@ func TestInstallDocsLeadWithDownloadNotBuild(t *testing.T) {
 		"install.sh",
 		".\\cli.ps1",
 		"./cli.sh",
-		"go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@main",
+		"go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@v0.2.0",
 		"--from-source",
 		"-FromSource",
 		"-WithGui",

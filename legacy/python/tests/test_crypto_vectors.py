@@ -12,7 +12,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import pulsevault.core.crypto as crypto
 from vector_constants import VECTOR_TEST_PASSWORD
 
-VECTOR_DIR = Path(__file__).resolve().parent / "vectors"
+# Shared protocol vectors live at the repository root.  The Python archive
+# intentionally consumes the same fixtures as the Go implementation.
+VECTOR_DIR = Path(__file__).resolve().parents[3] / "tests" / "vectors"
 
 
 class CryptoVectorTests(unittest.TestCase):

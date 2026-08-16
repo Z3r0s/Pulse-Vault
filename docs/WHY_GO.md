@@ -6,13 +6,19 @@ Pulse-Vault is a **local confidentiality tool**. The adversary we design for has
 
 Language choice is not a taste poll. It is the **trusted computing base**, the **side-channel surface**, the **packaging attack surface**, and whether the UI can derive a key and stream AEAD **without blocking**.
 
-Python lost on all four. Rust is memory-safe and fast, but for *this* product — one static CLI, a Fyne desktop shell, Windows/Linux/macOS artifacts, people who will actually patch it — Go is the operational fit. We measured the archived Python engine against this Go engine on the same V5 work.
+Python lost on all four. Rust is memory-safe and fast, but for *this* product — one static CLI, a Fyne desktop shell, Windows/Linux/macOS artifacts, people who will actually patch it — Go is the operational fit. We measured the archived Python engine against this Go engine on the same V5-compatible stream work; new Go vaults now use V6 finalized streams.
 
 Re-run the bench:
 
 ```text
 cd gui-go
 go test ./internal/vault -run TestCompareGoVsArchivedPython -v
+```
+
+Run the bidirectional compatibility matrix as well:
+
+```text
+python -m pytest legacy/python/tests/test_go_interop.py -q
 ```
 
 Windows, 2026-08-14, best of 3, same payloads both sides.
@@ -100,7 +106,7 @@ sequenceDiagram
 
 ## How this shows up in the product
 
-- Format stays V5 (`PULSEVAULT5_COMPRESSED_CASCADE`). Old XZ streams still decrypt.
+- New writes use V6 (`PULSEVAULT6_AUTHENTICATED_CASCADE`). V5 and old XZ streams still decrypt.
 - New writes use zstd or skip. Photos and video-like blobs skip.
 - ZIP members store the basename only. Timestamps are zeroed.
 - Hide-in-picture appends the ZIP after the cover media. The file still opens as a picture.

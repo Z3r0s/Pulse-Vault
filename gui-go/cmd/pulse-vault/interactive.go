@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Z3r0s/Pulse-Vault/gui-go/internal/vault"
+	"golang.org/x/term"
 )
 
 func cmdOpen(args []string) error {
@@ -54,7 +55,14 @@ func printOpenStatus(v *vault.Vault) {
 	if v.HasCarrier() {
 		bits = append(bits, "hidden inside picture")
 	}
-	bits = append(bits, "V5")
+	version := v.Format
+	if strings.HasPrefix(version, "PULSEVAULT") {
+		version = strings.TrimPrefix(version, "PULSEVAULT")
+		if idx := strings.IndexByte(version, '_'); idx >= 0 {
+			version = version[:idx]
+		}
+	}
+	bits = append(bits, version)
 	fmt.Fprintf(out(), "  %s\n\n", strings.Join(bits, muted("  ·  ")))
 	fmt.Fprintln(out(), muted("  /list  /add  /extract  /delete  /verify  /info  /password  /help  /quit"))
 	fmt.Fprintln(out())
@@ -90,7 +98,10 @@ var errConsoleQuit = fmt.Errorf("quit")
 
 func handleConsole(v *vault.Vault, line string, in *bufio.Reader) error {
 	line = strings.TrimPrefix(line, "/")
-	fields := strings.Fields(line)
+	fields, err := splitConsoleLine(line)
+	if err != nil {
+		return err
+	}
 	if len(fields) == 0 {
 		return nil
 	}
@@ -105,7 +116,7 @@ func handleConsole(v *vault.Vault, line string, in *bufio.Reader) error {
 			cyan("delete") + muted(" <name>        remove a sealed file"),
 			cyan("verify") + muted("               integrity check"),
 			cyan("info") + muted("                 container card"),
-			cyan("password") + muted(" <new>       rotate the key"),
+			cyan("password") + muted(" [new]       rotate the key (hidden prompts)"),
 			cyan("quit") + muted("                 lock and leave"),
 		}, 56))
 		return nil
@@ -166,18 +177,21 @@ func handleConsole(v *vault.Vault, line string, in *bufio.Reader) error {
 		printInfo(v.Path, st.Size(), rec, recErr == nil, recErr, prefix, pErr, v)
 		return nil
 	case "password", "passwd":
-		if len(rest) < 1 {
-			return fmt.Errorf("usage: password <new-password>")
+		newPassword := ""
+		if len(rest) >= 1 {
+			newPassword = rest[0]
+		} else {
+			newPassword, err = readHiddenPassword("  new password: ")
+			if err != nil {
+				return err
+			}
 		}
-		warnPasswordPolicy(rest[0])
-		// Need the current password — prompt if TTY, else require it inline is already new only.
-		fmt.Fprint(out(), "  current password: ")
-		old, err := in.ReadString('\n')
+		warnPasswordPolicy(newPassword)
+		old, err := readHiddenPassword("  current password: ")
 		if err != nil {
 			return err
 		}
-		old = strings.TrimRight(old, "\r\n")
-		if err := v.ChangePassword(old, rest[0]); err != nil {
+		if err := v.ChangePassword(old, newPassword); err != nil {
 			return err
 		}
 		printPasswordChanged()
@@ -187,4 +201,59 @@ func handleConsole(v *vault.Vault, line string, in *bufio.Reader) error {
 	default:
 		return fmt.Errorf("unknown console command %q — try help", cmd)
 	}
+}
+
+func readHiddenPassword(prompt string) (string, error) {
+	if !stdinIsTTY() {
+		return "", fmt.Errorf("%s requires an interactive terminal", strings.TrimSpace(prompt))
+	}
+	fmt.Fprint(out(), prompt)
+	value, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Fprintln(out())
+	if err != nil {
+		return "", fmt.Errorf("read password: %w", err)
+	}
+	return strings.TrimRight(string(value), "\r\n"), nil
+}
+
+// splitConsoleLine accepts quoted paths so the interactive CLI can handle
+// filenames containing spaces without requiring shell-specific escaping.
+func splitConsoleLine(line string) ([]string, error) {
+	var fields []string
+	var current strings.Builder
+	var quote rune
+	started := false
+	flush := func() {
+		if started {
+			fields = append(fields, current.String())
+			current.Reset()
+			started = false
+		}
+	}
+	for _, r := range line {
+		if quote != 0 {
+			if r == quote {
+				quote = 0
+			} else {
+				current.WriteRune(r)
+			}
+			started = true
+			continue
+		}
+		switch r {
+		case '\'', '"':
+			quote = r
+			started = true
+		case ' ', '\t', '\r', '\n':
+			flush()
+		default:
+			current.WriteRune(r)
+			started = true
+		}
+	}
+	if quote != 0 {
+		return nil, fmt.Errorf("unterminated quote in console command")
+	}
+	flush()
+	return fields, nil
 }

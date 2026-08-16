@@ -1,4 +1,4 @@
-// Package crypto is the V5 engine. Apps should import gui-go/crypto, not this.
+// Package crypto is the internal V5/V6 engine. Apps should import gui-go/crypto, not this.
 package crypto
 
 import (
@@ -34,18 +34,24 @@ const (
 	uniqueByteSkip = 240
 
 	// 0 none, 1 old xz, 2 zstd (what we write now)
-	compressNone           = byte(0)
-	compressXZ             = byte(1)
-	compressZstd           = byte(2)
-	MaxScryptN             = 1 << 20
-	MaxScryptR             = 32
-	MaxScryptP             = 16
+	compressNone = byte(0)
+	compressXZ   = byte(1)
+	compressZstd = byte(2)
+	MaxScryptN   = 1 << 20
+	MaxScryptR   = 32
+	MaxScryptP   = 16
+	// MaxScryptMemoryBytes and MaxScryptWorkFactor bound attacker-controlled
+	// KDF records before scrypt allocates memory or burns CPU. The hardened
+	// profile remains valid at exactly 1 GiB / 8,388,608 work units.
+	MaxScryptMemoryBytes   = uint64(1 << 30)
+	MaxScryptWorkFactor    = uint64(1 << 24)
 	LegacyKeySize          = 32
 	LegacyPBKDF2Iterations = 600000
 )
 
 var (
 	StreamV5Magic = []byte("PV5STRM1")
+	StreamV6Magic = []byte("PV6STRM1")
 	ErrCrypto     = errors.New("crypto error")
 )
 
@@ -70,14 +76,31 @@ func DeriveKeyScrypt(password string, salt []byte, n, r, p int) ([]byte, error) 
 	if len(salt) != SaltSize {
 		return nil, fmt.Errorf("%w: invalid salt size", ErrCrypto)
 	}
-	if n <= 1 || n > MaxScryptN || n&(n-1) != 0 || r <= 0 || r > MaxScryptR || p <= 0 || p > MaxScryptP {
-		return nil, fmt.Errorf("%w: invalid scrypt parameters", ErrCrypto)
+	if err := ValidateScryptParams(n, r, p); err != nil {
+		return nil, err
 	}
 	key, err := scrypt.Key([]byte(password), salt, n, r, p, V3KeySize)
 	if err != nil {
 		return nil, fmt.Errorf("%w: scrypt: %v", ErrCrypto, err)
 	}
 	return key, nil
+}
+
+// ValidateScryptParams rejects malformed or resource-exhausting persisted KDF
+// records before calling the memory-hard implementation.
+func ValidateScryptParams(n, r, p int) error {
+	if n <= 1 || n > MaxScryptN || n&(n-1) != 0 || r <= 0 || r > MaxScryptR || p <= 0 || p > MaxScryptP {
+		return fmt.Errorf("%w: invalid scrypt parameters", ErrCrypto)
+	}
+	memory := uint64(128) * uint64(n) * uint64(r) * uint64(p)
+	if memory > MaxScryptMemoryBytes {
+		return fmt.Errorf("%w: scrypt memory budget exceeded", ErrCrypto)
+	}
+	work := uint64(n) * uint64(r) * uint64(p)
+	if work > MaxScryptWorkFactor {
+		return fmt.Errorf("%w: scrypt work budget exceeded", ErrCrypto)
+	}
+	return nil
 }
 
 // DeriveKeyLegacy matches the PBKDF2-SHA256 construction used by V1/V2.
@@ -125,16 +148,25 @@ func chunkNonce(base []byte, idx uint32) []byte {
 	return nonce
 }
 
-func streamAAD(flag byte, chachaNonce, aesNonce []byte, idx uint32) []byte {
-	aad := make([]byte, 0, len(StreamV5Magic)+1+len(chachaNonce)+len(aesNonce)+4)
-	aad = append(aad, StreamV5Magic...)
+func streamAADFor(magic []byte, flag byte, chachaNonce, aesNonce []byte, idx uint32, recordKind byte) []byte {
+	aad := make([]byte, 0, len(magic)+1+len(chachaNonce)+len(aesNonce)+5)
+	aad = append(aad, magic...)
 	aad = append(aad, flag)
 	aad = append(aad, chachaNonce...)
 	aad = append(aad, aesNonce...)
+	if magic == nil || bytes.Equal(magic, StreamV5Magic) {
+		// V5 authenticates data chunks with the historical AAD layout.
+	} else {
+		aad = append(aad, recordKind)
+	}
 	var idxBytes [4]byte
 	binary.BigEndian.PutUint32(idxBytes[:], idx)
 	aad = append(aad, idxBytes[:]...)
 	return aad
+}
+
+func streamAAD(flag byte, chachaNonce, aesNonce []byte, idx uint32) []byte {
+	return streamAADFor(StreamV5Magic, flag, chachaNonce, aesNonce, idx, 0)
 }
 
 func aesGCM(key []byte) (cipher.AEAD, error) {
@@ -256,30 +288,6 @@ func looksIncompressible(sample []byte) bool {
 	return false
 }
 
-func xzCompress(src []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	w, err := newFastXZWriter(&buf)
-	if err != nil {
-		return nil, err
-	}
-	if _, err = w.Write(src); err != nil {
-		_ = w.Close()
-		return nil, err
-	}
-	if err = w.Close(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
-func xzDecompress(src []byte) ([]byte, error) {
-	r, err := xz.NewReader(bytes.NewReader(src))
-	if err != nil {
-		return nil, err
-	}
-	return io.ReadAll(r)
-}
-
 // EncryptStreamV5 writes a V5 encrypted stream to dst.
 // Format: magic(8) | flag(1) | chacha_nonce(16) | aes_nonce(12) | repeated: len(4 BE) | chunk
 func EncryptStreamV5(key64 []byte, src io.Reader, dst io.Writer, compress bool) error {
@@ -322,6 +330,11 @@ func encryptStreamV5WithNonces(key64 []byte, src io.Reader, dst io.Writer, compr
 			return readErr
 		}
 		prefix = prefix[:n]
+		if n == 0 && errors.Is(readErr, io.EOF) {
+			// The zstd writer emits no frame for an empty input; use the
+			// authenticated uncompressed representation instead.
+			compress = false
+		}
 		if looksIncompressible(prefix) {
 			compress = false
 		}
@@ -361,6 +374,7 @@ func encryptStreamV5WithNonces(key64 []byte, src io.Reader, dst io.Writer, compr
 	innerCap := ChunkSize + aeadC.Overhead()
 	chunker := &streamChunkWriter{
 		dst:         dst,
+		magic:       StreamV5Magic,
 		flag:        flag,
 		chachaNonce: chachaNonce,
 		aesNonce:    aesNonce,
@@ -411,10 +425,7 @@ func DecryptStreamV5(key64 []byte, src io.Reader, dst io.Writer) error {
 	}
 	magic := make([]byte, len(StreamV5Magic))
 	if _, err = io.ReadFull(src, magic); err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		return err
+		return fmt.Errorf("%w: truncated stream header", ErrCrypto)
 	}
 	if !bytes.Equal(magic, StreamV5Magic) {
 		return fmt.Errorf("%w: unknown stream header", ErrCrypto)
@@ -449,6 +460,7 @@ func DecryptStreamV5(key64 []byte, src io.Reader, dst io.Writer) error {
 
 	chunkReader := &streamChunkReader{
 		src:         src,
+		magic:       StreamV5Magic,
 		flag:        flag,
 		chachaNonce: chachaNonce,
 		aesNonce:    aesNonce,
@@ -481,6 +493,162 @@ func DecryptStreamV5(key64 []byte, src io.Reader, dst io.Writer) error {
 		_, err = io.CopyBuffer(dst, chunkReader, copyBuf)
 		return err
 	}
+}
+
+const streamV6EndMarker = "PULSEVAULT6-END"
+
+// EncryptStreamV6 writes a finalized, authenticated stream. V5 remains
+// readable for existing vaults; V6 adds a framed terminal record so a clean
+// chunk-boundary truncation cannot be mistaken for EOF.
+// Format: magic(8) | flag(1) | chacha_nonce(16) | aes_nonce(12) |
+// repeated: kind(1) | len(4 BE) | ciphertext, where kind 0 is data and kind
+// 1 is the authenticated terminal record.
+func EncryptStreamV6(key64 []byte, src io.Reader, dst io.Writer, compress bool) error {
+	chachaNonce := make([]byte, 16)
+	aesNonce := make([]byte, NonceSize)
+	if _, err := rand.Read(chachaNonce); err != nil {
+		return err
+	}
+	if _, err := rand.Read(aesNonce); err != nil {
+		return err
+	}
+	return encryptStreamV6WithNonces(key64, src, dst, compress, chachaNonce, aesNonce)
+}
+
+func encryptStreamV6WithNonces(key64 []byte, src io.Reader, dst io.Writer, compress bool, chachaNonce, aesNonce []byte) error {
+	chachaKey, aesKey, err := SplitV3Key(key64)
+	if err != nil {
+		return err
+	}
+	if len(chachaNonce) != 16 || len(aesNonce) != NonceSize {
+		return fmt.Errorf("%w: invalid stream nonce size", ErrCrypto)
+	}
+	if compress {
+		prefix := make([]byte, sniffBytes)
+		n, readErr := io.ReadFull(src, prefix)
+		if readErr != nil && !errors.Is(readErr, io.EOF) && !errors.Is(readErr, io.ErrUnexpectedEOF) {
+			return readErr
+		}
+		prefix = prefix[:n]
+		if n == 0 && errors.Is(readErr, io.EOF) {
+			// The zstd writer intentionally emits no frame for an empty input;
+			// encode empty streams as uncompressed rather than writing a V6
+			// stream that advertises compression without a compressed payload.
+			compress = false
+		}
+		if looksIncompressible(prefix) {
+			compress = false
+		}
+		src = io.MultiReader(bytes.NewReader(prefix), src)
+	}
+	flag := compressNone
+	if compress {
+		flag = compressZstd
+	}
+	if err = writeFull(dst, StreamV6Magic); err != nil {
+		return err
+	}
+	for _, part := range [][]byte{{flag}, chachaNonce, aesNonce} {
+		if err = writeFull(dst, part); err != nil {
+			return err
+		}
+	}
+	aeadC, err := chacha20poly1305.New(chachaKey)
+	if err != nil {
+		return err
+	}
+	aeadA, err := aesGCM(aesKey)
+	if err != nil {
+		return err
+	}
+	chunker := &streamChunkWriter{
+		dst: dst, magic: StreamV6Magic, framed: true,
+		flag: flag, chachaNonce: chachaNonce, aesNonce: aesNonce,
+		aeadC: aeadC, aeadA: aeadA,
+		buf:   make([]byte, 0, ChunkSize),
+		inner: make([]byte, 0, ChunkSize+aeadC.Overhead()),
+		outer: make([]byte, 0, ChunkSize+aeadC.Overhead()+aeadA.Overhead()),
+	}
+	copyBuf := make([]byte, streamCopyBuf)
+	if compress {
+		compressor, err := newZstdWriter(chunker)
+		if err != nil {
+			return fmt.Errorf("%w: zstd compress: %v", ErrCrypto, err)
+		}
+		if _, err = io.CopyBuffer(compressor, src, copyBuf); err != nil {
+			_ = compressor.Close()
+			return err
+		}
+		if err = compressor.Close(); err != nil {
+			return fmt.Errorf("%w: compress: %v", ErrCrypto, err)
+		}
+	} else if _, err = io.CopyBuffer(chunker, src, copyBuf); err != nil {
+		return err
+	}
+	return chunker.Close()
+}
+
+// DecryptStreamV6 requires and authenticates the terminal record, including
+// after decompression has reached its logical EOF.
+func DecryptStreamV6(key64 []byte, src io.Reader, dst io.Writer) error {
+	chachaKey, aesKey, err := SplitV3Key(key64)
+	if err != nil {
+		return err
+	}
+	magic := make([]byte, len(StreamV6Magic))
+	if _, err = io.ReadFull(src, magic); err != nil || !bytes.Equal(magic, StreamV6Magic) {
+		return fmt.Errorf("%w: invalid or truncated V6 stream header", ErrCrypto)
+	}
+	flagBuf := make([]byte, 1)
+	if _, err = io.ReadFull(src, flagBuf); err != nil {
+		return fmt.Errorf("%w: truncated V6 stream", ErrCrypto)
+	}
+	flag := flagBuf[0]
+	if flag != compressNone && flag != compressZstd {
+		return fmt.Errorf("%w: invalid V6 compression flag", ErrCrypto)
+	}
+	chachaNonce := make([]byte, 16)
+	aesNonce := make([]byte, NonceSize)
+	if _, err = io.ReadFull(src, chachaNonce); err != nil {
+		return fmt.Errorf("%w: truncated V6 stream", ErrCrypto)
+	}
+	if _, err = io.ReadFull(src, aesNonce); err != nil {
+		return fmt.Errorf("%w: truncated V6 stream", ErrCrypto)
+	}
+	aeadC, err := chacha20poly1305.New(chachaKey)
+	if err != nil {
+		return err
+	}
+	aeadA, err := aesGCM(aesKey)
+	if err != nil {
+		return err
+	}
+	r := &streamChunkReader{
+		src: src, magic: StreamV6Magic, framed: true,
+		flag: flag, chachaNonce: chachaNonce, aesNonce: aesNonce,
+		aeadC: aeadC, aeadA: aeadA, bindAAD: true,
+	}
+	copyBuf := make([]byte, streamCopyBuf)
+	switch flag {
+	case compressZstd:
+		decompressor, err := zstd.NewReader(r)
+		if err != nil {
+			return fmt.Errorf("%w: zstd decompress: %v", ErrCrypto, err)
+		}
+		_, copyErr := io.CopyBuffer(dst, decompressor, copyBuf)
+		decompressor.Close()
+		if copyErr != nil {
+			return fmt.Errorf("%w: zstd decompress: %v", ErrCrypto, copyErr)
+		}
+	default:
+		if _, err = io.CopyBuffer(dst, r, copyBuf); err != nil {
+			return err
+		}
+	}
+	if err := r.finishV6(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // DecryptStreamV4 reads the legacy V4 stream format. V4 uses the same
@@ -518,6 +686,8 @@ func DecryptStreamV4(key64 []byte, src io.Reader, dst io.Writer) error {
 
 type streamChunkWriter struct {
 	dst         io.Writer
+	magic       []byte
+	framed      bool
 	flag        byte
 	chachaNonce []byte
 	aesNonce    []byte
@@ -550,6 +720,14 @@ func (w *streamChunkWriter) Write(p []byte) (int, error) {
 }
 
 func (w *streamChunkWriter) Close() error {
+	if w.framed {
+		if len(w.buf) > 0 {
+			if err := w.flush(); err != nil {
+				return err
+			}
+		}
+		return w.writeEnd()
+	}
 	if len(w.buf) > 0 {
 		return w.flush()
 	}
@@ -564,15 +742,10 @@ func (w *streamChunkWriter) flush() error {
 	if w.idx == ^uint32(0) {
 		return fmt.Errorf("%w: too many chunks", ErrCrypto)
 	}
-	aad := streamAAD(w.flag, w.chachaNonce, w.aesNonce, w.idx)
+	aad := streamAADFor(w.magic, w.flag, w.chachaNonce, w.aesNonce, w.idx, 0)
 	w.inner = w.aeadC.Seal(w.inner[:0], chunkNonce(w.chachaNonce, w.idx), w.buf, aad)
 	w.outer = w.aeadA.Seal(w.outer[:0], chunkNonce(w.aesNonce, w.idx), w.inner, aad)
-	var lenBuf [4]byte
-	binary.BigEndian.PutUint32(lenBuf[:], uint32(len(w.outer)))
-	if err := writeFull(w.dst, lenBuf[:]); err != nil {
-		return err
-	}
-	if err := writeFull(w.dst, w.outer); err != nil {
+	if err := w.writeRecord(0, w.outer); err != nil {
 		return err
 	}
 	w.buf = w.buf[:0]
@@ -581,8 +754,34 @@ func (w *streamChunkWriter) flush() error {
 	return nil
 }
 
+func (w *streamChunkWriter) writeRecord(kind byte, ciphertext []byte) error {
+	if w.framed {
+		if err := writeFull(w.dst, []byte{kind}); err != nil {
+			return err
+		}
+	}
+	var lenBuf [4]byte
+	binary.BigEndian.PutUint32(lenBuf[:], uint32(len(ciphertext)))
+	if err := writeFull(w.dst, lenBuf[:]); err != nil {
+		return err
+	}
+	return writeFull(w.dst, ciphertext)
+}
+
+func (w *streamChunkWriter) writeEnd() error {
+	if w.idx == ^uint32(0) {
+		return fmt.Errorf("%w: too many chunks", ErrCrypto)
+	}
+	aad := streamAADFor(w.magic, w.flag, w.chachaNonce, w.aesNonce, w.idx, 1)
+	inner := w.aeadC.Seal(nil, chunkNonce(w.chachaNonce, w.idx), []byte(streamV6EndMarker), aad)
+	outer := w.aeadA.Seal(nil, chunkNonce(w.aesNonce, w.idx), inner, aad)
+	return w.writeRecord(1, outer)
+}
+
 type streamChunkReader struct {
 	src         io.Reader
+	magic       []byte
+	framed      bool
 	flag        byte
 	chachaNonce []byte
 	aesNonce    []byte
@@ -595,10 +794,26 @@ type streamChunkReader struct {
 	plain       []byte
 	idx         uint32
 	done        bool
+	ended       bool
 }
 
 func (r *streamChunkReader) Read(p []byte) (int, error) {
 	for len(r.buf) == 0 && !r.done {
+		var kind byte
+		if r.framed {
+			var kindBuf [1]byte
+			n, err := io.ReadFull(r.src, kindBuf[:])
+			if errors.Is(err, io.EOF) && n == 0 {
+				return 0, fmt.Errorf("%w: missing V6 terminal record", ErrCrypto)
+			}
+			if err != nil {
+				return 0, fmt.Errorf("%w: truncated V6 record kind", ErrCrypto)
+			}
+			kind = kindBuf[0]
+			if kind != 0 && kind != 1 {
+				return 0, fmt.Errorf("%w: invalid V6 record kind", ErrCrypto)
+			}
+		}
 		var lenBuf [4]byte
 		n, err := io.ReadFull(r.src, lenBuf[:])
 		if errors.Is(err, io.EOF) && n == 0 {
@@ -625,7 +840,7 @@ func (r *streamChunkReader) Read(p []byte) (int, error) {
 		}
 		aad := []byte(nil)
 		if r.bindAAD {
-			aad = streamAAD(r.flag, r.chachaNonce, r.aesNonce, r.idx)
+			aad = streamAADFor(r.magic, r.flag, r.chachaNonce, r.aesNonce, r.idx, kind)
 		}
 		inner, err := r.aeadA.Open(r.inner[:0], chunkNonce(r.aesNonce, r.idx), r.enc, aad)
 		if err != nil {
@@ -635,6 +850,17 @@ func (r *streamChunkReader) Read(p []byte) (int, error) {
 		final, err := r.aeadC.Open(r.plain[:0], chunkNonce(r.chachaNonce, r.idx), r.inner, aad)
 		if err != nil {
 			return 0, fmt.Errorf("%w: cascade decrypt failed", ErrCrypto)
+		}
+		if r.framed && kind == 1 {
+			if !bytes.Equal(final, []byte(streamV6EndMarker)) {
+				return 0, fmt.Errorf("%w: invalid V6 terminal record", ErrCrypto)
+			}
+			r.ended = true
+			r.done = true
+			continue
+		}
+		if r.framed && kind != 0 {
+			return 0, fmt.Errorf("%w: invalid V6 data record", ErrCrypto)
 		}
 		r.plain = final
 		r.buf = r.plain
@@ -646,6 +872,27 @@ func (r *streamChunkReader) Read(p []byte) (int, error) {
 	n := copy(p, r.buf)
 	r.buf = r.buf[n:]
 	return n, nil
+}
+
+func (r *streamChunkReader) finishV6() error {
+	if !r.framed {
+		return nil
+	}
+	for !r.ended {
+		var discard [1]byte
+		if _, err := r.Read(discard[:]); err != nil {
+			return fmt.Errorf("%w: missing V6 terminal record", ErrCrypto)
+		}
+	}
+	var extra [1]byte
+	n, err := r.src.Read(extra[:])
+	if n != 0 {
+		return fmt.Errorf("%w: trailing bytes after V6 terminal record", ErrCrypto)
+	}
+	if err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
 }
 
 func writeFull(w io.Writer, p []byte) error {

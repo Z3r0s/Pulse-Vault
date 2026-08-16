@@ -9,9 +9,16 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM, ChaCha20Poly1305
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
+try:
+    import zstandard as zstd
+except ImportError:  # pragma: no cover - only needed for Go V6 interoperability
+    zstd = None
+
 
 VAULT1_MAGIC = b"Z3R0VAULT1"
 STREAM_V5_MAGIC = b"PV5STRM1"
+STREAM_V6_MAGIC = b"PV6STRM1"
+STREAM_V6_END_MARKER = b"PULSEVAULT6-END"
 
 SALT_SIZE = 16
 NONCE_SIZE = 12
@@ -54,6 +61,8 @@ V3_KEY_SIZE = 64
 
 CHUNK_SIZE = 1024 * 1024
 MAX_ENCRYPTED_CHUNK_SIZE = 64 * 1024 * 1024
+MAX_SCRYPT_MEMORY_BYTES = 1 << 30
+MAX_SCRYPT_WORK_FACTOR = 1 << 24
 
 
 class CryptoError(Exception):
@@ -105,8 +114,7 @@ def parse_kdf_record(raw: Dict[str, object]) -> Tuple[str, int, int, int]:
     except (KeyError, TypeError, ValueError) as exc:
         raise CryptoError("Invalid vault KDF parameters.") from exc
 
-    if n <= 0 or r <= 0 or p <= 0:
-        raise CryptoError("Invalid vault KDF parameters.")
+    validate_scrypt_params(n, r, p)
 
     profile = str(raw.get("profile") or "standard").strip().lower()
     if profile not in SCRYPT_PROFILES:
@@ -115,9 +123,20 @@ def parse_kdf_record(raw: Dict[str, object]) -> Tuple[str, int, int, int]:
     return profile, n, r, p
 
 
+def validate_scrypt_params(n: int, r: int, p: int) -> None:
+    if n <= 1 or n > 2**20 or n & (n - 1) != 0 or r <= 0 or r > 32 or p <= 0 or p > 16:
+        raise CryptoError("Invalid vault KDF parameters.")
+    if 128 * n * r * p > MAX_SCRYPT_MEMORY_BYTES:
+        raise CryptoError("Vault KDF memory budget exceeded.")
+    if n * r * p > MAX_SCRYPT_WORK_FACTOR:
+        raise CryptoError("Vault KDF work budget exceeded.")
+
+
 def derive_key_scrypt(password: str, salt: bytes, n: int, r: int, p: int) -> bytes:
     if not password:
         raise CryptoError("Password cannot be empty.")
+
+    validate_scrypt_params(n, r, p)
 
     kdf = Scrypt(
         salt=salt,
@@ -207,6 +226,15 @@ def _chunk_nonce(base_nonce: bytes, idx: int) -> bytes:
 
 def _stream_aad(flag: bytes, chacha_nonce: bytes, aes_nonce: bytes, idx: int) -> bytes:
     return STREAM_V5_MAGIC + flag + chacha_nonce + aes_nonce + struct.pack(">I", idx)
+
+
+def _stream_aad_v6(flag: bytes, chacha_nonce: bytes, aes_nonce: bytes, idx: int, kind: int) -> bytes:
+    return STREAM_V6_MAGIC + flag + chacha_nonce + aes_nonce + bytes([kind]) + struct.pack(">I", idx)
+
+
+def _require_zstd():
+    if zstd is None:
+        raise CryptoError("V6 zstd support requires the 'zstandard' package.")
 
 
 def encrypt_stream_v5(key64: bytes, source_file, target_file, compress: bool = True):
@@ -317,6 +345,129 @@ def decrypt_stream_v5(key64: bytes, source_file, target_file):
 
     if decompressor and not decompressor.eof:
         raise CryptoError("V5 decompression failed. Compressed stream was truncated.")
+
+
+def encrypt_stream_v6(key64: bytes, source_file, target_file, compress: bool = True):
+    """V6 stream with an authenticated terminal record and zstd compression."""
+    chacha_key, aes_key = split_v3_key(key64)
+    chacha_nonce = os.urandom(16)
+    aes_nonce = os.urandom(NONCE_SIZE)
+    flag = b"\x02" if compress else b"\x00"
+    if compress:
+        _require_zstd()
+
+    target_file.write(STREAM_V6_MAGIC)
+    target_file.write(flag)
+    target_file.write(chacha_nonce)
+    target_file.write(aes_nonce)
+
+    chacha = ChaCha20Poly1305(chacha_key)
+    aesgcm = AESGCM(aes_key)
+    compressor = zstd.ZstdCompressor(level=3).compressobj() if compress else None
+
+    def write_record(kind: int, plaintext: bytes, idx: int):
+        aad = _stream_aad_v6(flag, chacha_nonce, aes_nonce, idx, kind)
+        inner_ct = chacha.encrypt(_chunk_nonce(chacha_nonce, idx), plaintext, aad)
+        outer_ct = aesgcm.encrypt(_chunk_nonce(aes_nonce, idx), inner_ct, aad)
+        target_file.write(bytes([kind]))
+        target_file.write(len(outer_ct).to_bytes(4, byteorder="big"))
+        target_file.write(outer_ct)
+
+    chunk_index = 0
+    pending = bytearray()
+
+    def emit_pending():
+        nonlocal chunk_index
+        while len(pending) >= CHUNK_SIZE:
+            write_record(0, bytes(pending[:CHUNK_SIZE]), chunk_index)
+            del pending[:CHUNK_SIZE]
+            chunk_index += 1
+
+    while True:
+        raw_chunk = source_file.read(CHUNK_SIZE)
+        if not raw_chunk:
+            break
+        pending.extend(compressor.compress(raw_chunk) if compressor else raw_chunk)
+        emit_pending()
+
+    if compressor:
+        pending.extend(compressor.flush())
+    while pending:
+        piece = bytes(pending[:CHUNK_SIZE])
+        del pending[:CHUNK_SIZE]
+        write_record(0, piece, chunk_index)
+        chunk_index += 1
+
+    write_record(1, STREAM_V6_END_MARKER, chunk_index)
+
+
+def decrypt_stream_v6(key64: bytes, source_file, target_file):
+    """Decrypt V6 and require the authenticated terminal record."""
+    chacha_key, aes_key = split_v3_key(key64)
+    magic = source_file.read(len(STREAM_V6_MAGIC))
+    if magic != STREAM_V6_MAGIC:
+        raise CryptoError("V6 decryption failed. Invalid stream header.")
+
+    flag = source_file.read(1)
+    if flag not in {b"\x00", b"\x02"}:
+        raise CryptoError("V6 decryption failed. Invalid compression flag.")
+    if flag == b"\x02":
+        _require_zstd()
+
+    chacha_nonce = source_file.read(16)
+    aes_nonce = source_file.read(NONCE_SIZE)
+    if len(chacha_nonce) != 16 or len(aes_nonce) != NONCE_SIZE:
+        raise CryptoError("V6 decryption failed. Nonce truncated.")
+
+    chacha = ChaCha20Poly1305(chacha_key)
+    aesgcm = AESGCM(aes_key)
+    decompressor = zstd.ZstdDecompressor().decompressobj() if flag == b"\x02" else None
+    chunk_index = 0
+    ended = False
+
+    while True:
+        kind = source_file.read(1)
+        if not kind:
+            raise CryptoError("V6 decryption failed. Terminal record missing.")
+        if kind not in {b"\x00", b"\x01"}:
+            raise CryptoError("V6 decryption failed. Invalid record kind.")
+        len_bytes = source_file.read(4)
+        if len(len_bytes) != 4:
+            raise CryptoError("V6 decryption failed. Truncated record length.")
+        chunk_len = int.from_bytes(len_bytes, byteorder="big")
+        if chunk_len <= 0 or chunk_len > MAX_ENCRYPTED_CHUNK_SIZE:
+            raise CryptoError("V6 decryption failed. Invalid record length.")
+        chunk = source_file.read(chunk_len)
+        if len(chunk) != chunk_len:
+            raise CryptoError("V6 decryption failed. Record truncated.")
+
+        kind_int = kind[0]
+        aad = _stream_aad_v6(flag, chacha_nonce, aes_nonce, chunk_index, kind_int)
+        try:
+            inner_pt = aesgcm.decrypt(_chunk_nonce(aes_nonce, chunk_index), chunk, aad)
+            final_pt = chacha.decrypt(_chunk_nonce(chacha_nonce, chunk_index), inner_pt, aad)
+        except Exception as exc:
+            raise CryptoError("V6 cascade decryption failed. Invalid key or corrupted MAC.") from exc
+
+        if kind_int == 1:
+            if final_pt != STREAM_V6_END_MARKER:
+                raise CryptoError("V6 decryption failed. Invalid terminal record.")
+            ended = True
+            break
+
+        if decompressor:
+            try:
+                target_file.write(decompressor.decompress(final_pt))
+            except Exception as exc:
+                raise CryptoError("V6 decompression failed. Data corrupted.") from exc
+        else:
+            target_file.write(final_pt)
+        chunk_index += 1
+
+    if not ended or decompressor and not decompressor.eof:
+        raise CryptoError("V6 decryption failed. Compressed stream was truncated.")
+    if source_file.read(1):
+        raise CryptoError("V6 decryption failed. Trailing bytes after terminal record.")
 
 
 def _decrypt_legacy_stream_v5(key64: bytes, first_bytes: bytes, source_file, target_file):

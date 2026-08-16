@@ -624,7 +624,7 @@ func (ui *App) onCreate() {
 				dialog.ShowInformation("Password warning", warn, ui.win)
 			}
 			var created *vault.Vault
-			ui.runAsync("Create vault", "Deriving key & writing V5 container…", func() error {
+			ui.runAsync("Create vault", "Deriving key & writing V6 container…", func() error {
 				v := vault.New(path)
 				if err := v.Create(pw, "standard"); err != nil {
 					return err

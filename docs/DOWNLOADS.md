@@ -38,7 +38,7 @@ If Releases says “No releases found”, no `v*` tag has been pushed. Use a clo
 
 ```bash
 ./cli.sh --build
-# or: go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@main
+# or: go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@v0.2.0
 ```
 
 `pip install pulse-vault` wraps the Go CLI. Do not install [legacy/python/](../legacy/python/).

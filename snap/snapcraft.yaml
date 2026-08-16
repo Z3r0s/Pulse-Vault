@@ -1,6 +1,6 @@
 name: pulse-vault
 base: core22
-version: "0.1.0"
+version: "0.2.0"
 summary: Local encrypted file vault from DNSPulse
 description: |
   Pulse-Vault by DNSPulse (https://dnspulse.org) keeps files in one
@@ -31,12 +31,12 @@ parts:
     plugin: nil
     source: .
     build-snaps:
-      - go/1.22/stable
+      - go/1.25/stable
     override-build: |
       set -eu
       export CGO_ENABLED=0
       export GO111MODULE=on
-      VER="${SNAPCRAFT_PROJECT_VERSION:-${CRAFT_PROJECT_VERSION:-0.1.0}}"
+      VER="${SNAPCRAFT_PROJECT_VERSION:-${CRAFT_PROJECT_VERSION:-0.2.0}}"
       go build -trimpath -buildvcs=false \
         -ldflags "-s -w -X github.com/Z3r0s/Pulse-Vault/gui-go/internal/version.Version=$VER" \
         -o "$CRAFT_PART_INSTALL/bin/pulse-vault" \

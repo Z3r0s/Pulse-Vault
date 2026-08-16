@@ -48,7 +48,7 @@ Prefer, in this order:
 
 1. GitHub Release exe (signed, once you have a cert)
 2. `.\cli.ps1` / `./cli.sh` from a clone they fetched themselves
-3. `go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@main`
+3. `go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@v0.2.0`
 4. `pip install pulse-vault` after you publish it (downloads the Release CLI)
 
 Avoid advertising `irm ... | iex` as the main Windows path. It works, but Defender is trained to hate it.

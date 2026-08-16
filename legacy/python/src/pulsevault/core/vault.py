@@ -31,6 +31,8 @@ from pulsevault.core.crypto import (
     decrypt_stream_v4,
     encrypt_stream_v5,
     decrypt_stream_v5,
+    encrypt_stream_v6,
+    decrypt_stream_v6,
     parse_kdf_record,
     scrypt_params_for_profile,
     CryptoError,
@@ -176,6 +178,7 @@ def encrypt_from_decrypting_source(decrypt_func: Callable[[QueueWriter], None], 
         raise error[0]
 
 FORMAT_V5 = b"PULSEVAULT5_COMPRESSED_CASCADE"
+FORMAT_V6 = b"PULSEVAULT6_AUTHENTICATED_CASCADE"
 FORMAT_V4 = b"PULSEVAULT4_CASCADE"
 FORMAT_V3 = b"PULSEVAULT3_CASCADE"
 
@@ -461,10 +464,11 @@ class EncryptedVault:
             format_txt = read_zip_entry(z, "format.txt", MAX_FORMAT_SIZE) if "format.txt" in names else b""
             self._format_marker = format_txt
             is_v5 = format_txt == FORMAT_V5
+            is_v6 = format_txt == FORMAT_V6
             is_v4 = format_txt == FORMAT_V4
             is_v3 = format_txt == FORMAT_V3
 
-            if is_v5 and "kdf.json" not in names:
+            if (is_v5 or is_v6) and "kdf.json" not in names:
                 raise VaultError("Invalid vault KDF record.")
 
             salt = read_zip_entry(z, "salt.bin", SALT_SIZE, exact_size=SALT_SIZE)
@@ -476,9 +480,9 @@ class EncryptedVault:
                 except (UnicodeDecodeError, json.JSONDecodeError) as exc:
                     raise VaultError("Invalid vault KDF record.") from exc
 
-            if is_v5 or is_v4 or is_v3:
+            if is_v5 or is_v6 or is_v4 or is_v3:
                 self._load_kdf_record(kdf_raw)
-                self._unlock_scrypt_metadata(password, salt, enc_meta, 5 if is_v5 else 4 if is_v4 else 3)
+                self._unlock_scrypt_metadata(password, salt, enc_meta, 6 if is_v6 else 5 if is_v5 else 4 if is_v4 else 3)
             else:
                 self._unlock_v2(password, salt, enc_meta)
 
@@ -701,13 +705,19 @@ class EncryptedVault:
         with checked_zip(self.vault_path) as z:
             names = set(z.namelist())
             format_txt = self._format_marker
-            if format_txt not in {FORMAT_V5, FORMAT_V4, FORMAT_V3} and "format.txt" in names:
+            if format_txt not in {FORMAT_V6, FORMAT_V5, FORMAT_V4, FORMAT_V3} and "format.txt" in names:
                 format_txt = read_zip_entry(z, "format.txt", MAX_FORMAT_SIZE)
             source_name = f"data/{internal_id}.enc"
             if source_name not in names:
                 raise VaultError("Internal data file missing from vault.")
 
-            if format_txt == FORMAT_V5:
+            if format_txt == FORMAT_V6:
+                with z.open(source_name, "r") as source:
+                    try:
+                        decrypt_stream_v6(self.key, source, target)
+                    except CryptoError as exc:
+                        raise VaultError("Failed to decrypt file (V6 stream authentication failed).") from exc
+            elif format_txt == FORMAT_V5:
                 with z.open(source_name, "r") as source:
                     try:
                         decrypt_stream_v5(self.key, source, target)
@@ -970,7 +980,7 @@ class EncryptedVault:
                     with checked_zip(self.vault_path) as old_z:
                         names = set(old_z.namelist())
                         format_txt = self._format_marker
-                        if format_txt not in {FORMAT_V5, FORMAT_V4, FORMAT_V3} and "format.txt" in names:
+                        if format_txt not in {FORMAT_V6, FORMAT_V5, FORMAT_V4, FORMAT_V3} and "format.txt" in names:
                             format_txt = read_zip_entry(old_z, "format.txt", MAX_FORMAT_SIZE)
                         for meta in self.data.get("files", {}).values():
                             internal_id = meta.get("internal_id")
@@ -981,7 +991,13 @@ class EncryptedVault:
                             if source_name not in names:
                                 raise VaultError(f"Internal data file missing from vault: {internal_id}")
 
-                            if format_txt == FORMAT_V5:
+                            if format_txt == FORMAT_V6:
+                                with z.open(source_name, "r") as source:
+                                    try:
+                                        decrypt_stream_v6(self.key, source, writer)
+                                    except CryptoError as exc:
+                                        raise VaultError("Failed to decrypt file during password change.") from exc
+                            elif format_txt == FORMAT_V5:
                                 def decrypt_to_writer(writer, name=source_name):
                                     with old_z.open(name, "r") as source:
                                         decrypt_stream_v5(old_key, source, writer)

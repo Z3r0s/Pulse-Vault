@@ -4,6 +4,8 @@
 [![Latest Release](https://img.shields.io/github/v/release/Z3r0s/Pulse-Vault?sort=semver)](https://github.com/Z3r0s/Pulse-Vault/releases/latest)
 [![Changelog](https://img.shields.io/badge/CHANGELOG-Keep%20a%20Changelog-blue)](CHANGELOG.md)
 
+![Pulse-Vault secure local file vault](docs/assets/pulse-vault-hero.png)
+
 Official site: [dnspulse.org](https://dnspulse.org)
 
 **[Why Go](docs/WHY_GO.md)** · **[Install](INSTALL.md)** · **[Downloads](docs/DOWNLOADS.md)** · **[Ship it](docs/DISTRIBUTE.md)** · **[Trust / SmartScreen](docs/TRUST.md)** · **[Roadmap](docs/ROADMAP.md)** · **[Changelog](CHANGELOG.md)**
@@ -18,7 +20,9 @@ Go GUI + CLI live in [`gui-go/`](gui-go/). The old Python vault is dead (too slo
 
 This is a local confidentiality tool. Language choice is the trusted computing base, the packaging attack surface, and whether the UI can encrypt without freezing. Python lost that. Rust is fine for a parser, not for this product. Charts and the full argument: [docs/WHY_GO.md](docs/WHY_GO.md).
 
-Re-run the bench: `cd gui-go && go test ./internal/vault -run TestCompareGoVsArchivedPython -v`
+Re-run the benchmark: `cd gui-go && go test ./internal/vault -run TestCompareGoVsArchivedPython -v`
+
+Run the bidirectional compatibility matrix: `python -m pytest legacy/python/tests/test_go_interop.py -q`
 
 Windows, 2026-08-14, best of 3, same payloads both sides:
 
@@ -72,6 +76,10 @@ Old Python tree: [`legacy/python/`](legacy/python/). Do not install that folder.
 - zstd before encrypt (skips junk that won't shrink, like jpgs).
 - Offline only.
 
+![A normal picture can carry the encrypted vault](docs/assets/pulse-vault-carrier.png)
+
+The carrier feature keeps the outer media recognizable while the encrypted ZIP rides behind it. The illustration is a visual metaphor; the exact on-disk behavior is documented in [Vault Format](docs/VAULT_FORMAT.md).
+
 ## Installation
 
 **Windows app:** [Releases](https://github.com/Z3r0s/Pulse-Vault/releases) → `pulse-vault-gui-windows-amd64.exe` → double-click.  
@@ -90,7 +98,7 @@ curl -fsSL https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/inst
 
 ```bash
 pip install -U pulse-vault       # live on PyPI — official Go CLI launcher
-go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@main
+go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@v0.2.0
 ```
 
 Cloned the repo? Don't set any CGO flags:
@@ -172,7 +180,7 @@ Same format the app uses. Regular ciphers, not a homemade one.
 - File encryption: ChaCha20-Poly1305 followed by AES-GCM
 - Compression: zstd (old XZ streams still decrypt)
 - Container: ZIP with encrypted metadata and encrypted `data/*.enc` entries
-- Current marker: `PULSEVAULT5_COMPRESSED_CASCADE`
+- Current marker: `PULSEVAULT6_AUTHENTICATED_CASCADE` (V5 remains readable)
 
 ## Changelog & Releases
 

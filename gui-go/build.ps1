@@ -1,5 +1,5 @@
 # Build the Pulse-Vault Go desktop GUI into a single native Windows-ready binary.
-# Requires: Go 1.22+, CGO (MSYS2 mingw64 gcc on Windows).
+# Requires: Go 1.25+, CGO (MSYS2 mingw64 gcc on Windows).
 #
 # Usage (from gui-go/):
 #   .\build.ps1

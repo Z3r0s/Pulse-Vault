@@ -112,13 +112,13 @@ If `pulse-vault` is taken, change `name:` in `snap/snapcraft.yaml` and register 
 cd /path/to/OpenSourceFileVault
 # keep version: in snap/snapcraft.yaml in sync with the git tag
 snapcraft
-snapcraft upload --release=edge pulse-vault_0.1.0_amd64.snap
+snapcraft upload --release=edge pulse-vault_0.2.0_amd64.snap
 ```
 
 Local check before upload:
 
 ```bash
-sudo snap install --dangerous ./pulse-vault_0.1.0_amd64.snap
+sudo snap install --dangerous ./pulse-vault_0.2.0_amd64.snap
 pulse-vault version
 sudo snap remove pulse-vault
 ```

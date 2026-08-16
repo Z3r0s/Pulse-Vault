@@ -1,10 +1,10 @@
 # Vault Format
 
-This document describes the current Pulse-Vault V5 container at a high level. It is intended for maintainers and security reviewers, not as a frozen compatibility contract.
+This document describes the current Pulse-Vault V6 container at a high level. It is intended for maintainers and security reviewers, not as a frozen compatibility contract.
 
 ## Container
 
-V5 vaults are ZIP containers with encrypted metadata and encrypted file blobs.
+V6 vaults are ZIP containers with encrypted metadata and encrypted file blobs.
 
 ```text
 salt.bin
@@ -22,10 +22,12 @@ Go locates the ZIP via the end-of-central-directory record so a `PK\x03\x04` seq
 ## Format Marker
 
 ```text
-PULSEVAULT5_COMPRESSED_CASCADE
+PULSEVAULT6_AUTHENTICATED_CASCADE
 ```
 
-Legacy vaults are upgraded to the current format when opened and saved.
+V1–V4 vaults are upgraded to V6 during migration or password rotation. V5
+vaults remain readable and retain their marker during ordinary add/delete
+writes; password rotation upgrades their file streams to V6.
 
 ## Key Derivation
 
@@ -66,13 +68,25 @@ Metadata is encrypted with the same cascade construction used by legacy in-memor
 
 Each file is stored as an encrypted stream under `data/<uuid>.enc`.
 
-V5 stream layout:
+V5 stream layout (legacy, still readable):
 
 ```text
 magic | compression_flag | chacha_nonce | aes_nonce | repeated encrypted chunks
 ```
 
 Chunks are bound to the header + index. New writes: zstd (flag 2). Old files: XZ (flag 1). Random-looking files: no compress (flag 0). Decrypt handles all three. Lossless — a jpg is not going to shrink 50x.
+
+V6 stream layout (current writes):
+
+```text
+PV6STRM1 | compression_flag | chacha_nonce | aes_nonce |
+repeated: record_kind | record_length | encrypted_record
+```
+
+Record kind `0` is encrypted data and kind `1` is an encrypted terminal
+marker. The terminal marker is required, authenticated with the chunk index,
+and checked after decompression. This makes truncation at a clean chunk
+boundary fail instead of looking like a valid EOF.
 
 ## Integrity
 
@@ -82,4 +96,7 @@ Chunks are bound to the header + index. New writes: zstd (flag 2). Old files: XZ
 
 ## Compatibility Notes
 
-Pulse-Vault keeps read support for older vault markers where practical, then rewrites current vaults as V5 on save or password rotation.
+Pulse-Vault keeps read support for V1–V5, then writes new vaults and password
+rotations as V6. Existing V5 vaults remain V5 on ordinary add/delete writes so
+their historical blobs stay readable; password rotation upgrades all blobs to
+V6.

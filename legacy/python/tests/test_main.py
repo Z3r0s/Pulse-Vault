@@ -58,7 +58,8 @@ class MainDispatchTests(unittest.TestCase):
         self.assertEqual(gui_modules, [], f"CLI path leaked new GUI modules: {gui_modules}")
         # Direct verification of clean CLI import (the important packaging guarantee)
         import subprocess, sys as real_sys
-        code = 'import sys; sys.path.insert(0,"src"); import pulsevault.cli; print("GUI_LEAK" if any("gui" in m or "customtkinter" in m or "tkinter" in m for m in sys.modules) else "CLEAN")'
+        src = str(Path(__file__).resolve().parents[1] / "src")
+        code = f'import sys; sys.path.insert(0,{src!r}); import pulsevault.cli; print("GUI_LEAK" if any("gui" in m or "customtkinter" in m or "tkinter" in m for m in sys.modules) else "CLEAN")'
         out = subprocess.check_output([real_sys.executable, "-c", code], text=True)
         self.assertIn("CLEAN", out)
 
