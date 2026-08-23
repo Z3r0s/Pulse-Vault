@@ -7,8 +7,8 @@ require (
 	github.com/klauspost/compress v1.17.11
 	github.com/ulikunitz/xz v0.5.15
 	golang.org/x/crypto v0.51.0
-	golang.org/x/sys v0.45.0
-	golang.org/x/term v0.43.0
+	golang.org/x/sys v0.47.0
+	golang.org/x/term v0.45.0
 )
 
 require github.com/kr/text v0.2.0 // indirect
