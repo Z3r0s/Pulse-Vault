@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	fyne.io/fyne/v2 v2.6.3
-	github.com/klauspost/compress v1.17.11
+	github.com/klauspost/compress v1.19.2
 	github.com/ulikunitz/xz v0.5.15
 	golang.org/x/crypto v0.51.0
 	golang.org/x/sys v0.45.0
