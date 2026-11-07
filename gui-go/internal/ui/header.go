@@ -10,7 +10,7 @@ const (
 	headerSideGap    float32 = 16
 	navTargetWidth   float32 = 228
 	shellMinWidth    float32 = 640
-	shellMinHeight   float32 = 240
+	shellMinHeight   float32 = 328
 	stageBodyReserve float32 = 72
 )
 

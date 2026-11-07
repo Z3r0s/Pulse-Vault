@@ -93,7 +93,7 @@ func Run(a fyne.App) {
 	ui.win = a.NewWindow(AppTitle + "  ·  " + version.Version)
 	ui.win.SetIcon(mark)
 	ui.win.SetPadded(false)
-	ui.win.Resize(fyne.NewSize(1120, 700))
+	ui.win.Resize(fyne.NewSize(1120, 740))
 	ui.win.SetFixedSize(false)
 	ui.win.SetMaster()
 	ui.build()
@@ -113,7 +113,11 @@ func (ui *App) build() {
 	ui.brandSub = canvas.NewText("DNSPulse  ·  dnspulse.org  ·  offline", colMuted)
 	ui.brandSub.TextSize = 12
 
-	ui.versionChip = canvas.NewText("  v"+version.Version+"  ", colPrimary)
+	versionLabel := "v" + version.Version
+	if version.Version == "dev" {
+		versionLabel = "DEV"
+	}
+	ui.versionChip = canvas.NewText("  "+versionLabel+"  ", colPrimary)
 	ui.versionChip.TextSize = 11
 	ui.versionChip.TextStyle = fyne.TextStyle{Bold: true}
 
@@ -323,7 +327,13 @@ func newFileListRow() fyne.CanvasObject {
 	name.Truncation = fyne.TextTruncateEllipsis
 	tag := canvas.NewText("ENCRYPTED", colPrimary)
 	tag.TextSize = 10
-	return container.NewBorder(nil, nil, icon, tag, name)
+	// Keep the state marker away from the window edge. Without a trailing
+	// gutter, Fyne's border layout places the marker flush against the viewport
+	// and its final letters look clipped in compact windows.
+	trailingGutter := canvas.NewRectangle(color.Transparent)
+	trailingGutter.SetMinSize(fyne.NewSize(12, 1))
+	trailing := container.NewHBox(tag, trailingGutter)
+	return container.NewBorder(nil, nil, icon, trailing, name)
 }
 
 func (ui *App) bindShortcuts() {

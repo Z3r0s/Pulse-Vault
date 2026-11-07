@@ -106,7 +106,7 @@ func TestWindowMinimumSizeKeepsWorkspaceUsable(t *testing.T) {
 	ui.v = v
 	ui.setUnlockedUI("example.pulsevault")
 	minimum := ui.root.MinSize()
-	if minimum.Width < 640 || minimum.Height < 380 {
+	if minimum.Width < 640 || minimum.Height < 460 {
 		t.Fatalf("window minimum %v is too small for both panes and persistent controls", minimum)
 	}
 	ui.win.Resize(minimum)
@@ -303,26 +303,43 @@ func TestLongFileNamesStayInsideNarrowRows(t *testing.T) {
 	}
 	var name *widget.Label
 	var encrypted *canvas.Text
-	for _, child := range row.Objects {
-		switch child := child.(type) {
+	var markerPosition fyne.Position
+	var markerSize fyne.Size
+	var visit func(fyne.CanvasObject, fyne.Position)
+	visit = func(object fyne.CanvasObject, parent fyne.Position) {
+		position := parent.Add(object.Position())
+		switch child := object.(type) {
 		case *widget.Label:
 			name = child
 		case *canvas.Text:
 			if child.Text == "ENCRYPTED" {
 				encrypted = child
+				markerPosition = position
+				markerSize = child.Size()
+			}
+		case *fyne.Container:
+			for _, nested := range child.Objects {
+				visit(nested, position)
 			}
 		}
 	}
+	visit(row, fyne.NewPos(0, 0))
 	if name == nil || encrypted == nil {
 		t.Fatal("file row should contain a filename and encrypted marker")
 	}
 	name.SetText(strings.Repeat("very-long-project-name-", 20) + ".csv")
 	row.Resize(fyne.NewSize(220, 42))
 	row.Refresh()
+	markerPosition = fyne.NewPos(0, 0)
+	markerSize = fyne.NewSize(0, 0)
+	visit(row, fyne.NewPos(0, 0))
 	if name.Truncation != fyne.TextTruncateEllipsis || name.Wrapping != fyne.TextWrapOff {
 		t.Fatal("long file names should truncate on one line")
 	}
-	if name.Position().X+name.Size().Width > encrypted.Position().X+1 {
-		t.Fatalf("filename overlaps the encrypted marker: name=%v+%v marker=%v+%v", name.Position(), name.Size(), encrypted.Position(), encrypted.Size())
+	if name.Position().X+name.Size().Width > markerPosition.X+1 {
+		t.Fatalf("filename overlaps the encrypted marker: name=%v+%v marker=%v+%v", name.Position(), name.Size(), markerPosition, markerSize)
+	}
+	if markerPosition.X+markerSize.Width > row.Size().Width-12 {
+		t.Fatalf("encrypted marker needs a visible right gutter: row=%v marker=%v+%v", row.Size(), markerPosition, markerSize)
 	}
 }

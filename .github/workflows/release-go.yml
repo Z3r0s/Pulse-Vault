@@ -29,7 +29,7 @@ jobs:
     name: Test (crypto/vault/CLI)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -88,7 +88,7 @@ jobs:
             goarch: arm64
             artifact: pulse-vault-darwin-arm64
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -129,7 +129,7 @@ jobs:
           ls -la "dist/${{ matrix.artifact }}"
 
       - name: Upload CLI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: gui-go/dist/${{ matrix.artifact }}
@@ -146,7 +146,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -219,7 +219,7 @@ jobs:
 
       - name: Upload GUI artifact (Windows)
         if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.gui-win.outputs.name }}
           path: gui-go/dist/${{ steps.gui-win.outputs.name }}
@@ -227,7 +227,7 @@ jobs:
 
       - name: Upload GUI artifact (Unix)
         if: matrix.os != 'windows-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.gui.outputs.name }}
           path: gui-go/dist/${{ steps.gui.outputs.name }}
@@ -238,10 +238,10 @@ jobs:
     needs: [build-cli, build-gui-host]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: release-go
           merge-multiple: true
@@ -259,7 +259,7 @@ jobs:
           cat SHA256SUMS
 
       - name: Upload checksums artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SHA256SUMS
           path: release-go/SHA256SUMS

@@ -4,7 +4,7 @@ The first run takes about two minutes with a small test file, after the desktop 
 
 Get the app from [GitHub Releases](https://github.com/Z3r0s/Pulse-Vault/releases). Choose the GUI file for your operating system; if there is no matching download, use the [install guide](../INSTALL.md). No account or network connection is needed to use the app after installation.
 
-![Pulse-Vault desktop app at its default 1120 by 700 window size](assets/pulse-vault-desktop.png)
+![Pulse-Vault desktop app at its default 1120 by 740 window size](assets/pulse-vault-desktop.png)
 
 [Open the same screen at full 1440p resolution (2560×1440)](assets/pulse-vault-desktop-1440p.png).
 
