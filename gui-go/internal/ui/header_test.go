@@ -30,6 +30,20 @@ func TestHeaderWrapStacksWhenNarrow(t *testing.T) {
 	}
 }
 
+func TestHeaderWrapMinSizeUsesCompactRow(t *testing.T) {
+	left := canvas.NewRectangle(color.White)
+	left.SetMinSize(fyne.NewSize(280, 48))
+	right := canvas.NewRectangle(color.White)
+	right.SetMinSize(fyne.NewSize(180, 36))
+	min := (headerWrapLayout{}).MinSize([]fyne.CanvasObject{left, right})
+	if min.Height != 48 {
+		t.Fatalf("header min height = %v, want one-row height 48", min.Height)
+	}
+	if min.Width < left.MinSize().Width+headerSideGap+right.MinSize().Width {
+		t.Fatalf("header min width = %v, does not fit both groups", min.Width)
+	}
+}
+
 func TestSplitFitMinSize(t *testing.T) {
 	inner := canvas.NewRectangle(color.White)
 	inner.SetMinSize(fyne.NewSize(100, 100))

@@ -22,7 +22,7 @@ Pulse-Vault is local storage, not a backup service. Keep a separate backup of th
 
 Follow the [two-minute desktop guide](docs/TWO_MINUTE_GUIDE.md) to create a vault, add a file, reopen it, and test a restore. Download the app for your operating system from [GitHub Releases](https://github.com/Z3r0s/Pulse-Vault/releases); the [install guide](INSTALL.md) covers source builds if your release asset is unavailable.
 
-The GUI works offline. It does not create an account or sync your files.
+The GUI works offline. It does not create an account or sync your files. An empty unlocked vault offers **Add file** and **Add folder** directly; once files are present, the workspace adds path search, **Save a copy**, and **Save all files**.
 
 ![Pulse-Vault desktop app showing a locked vault](docs/assets/pulse-vault-desktop.png)
 

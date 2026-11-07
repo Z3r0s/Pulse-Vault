@@ -6,11 +6,12 @@ import (
 )
 
 const (
-	headerStackGap float32 = 8
-	headerSideGap  float32 = 16
-	navTargetWidth float32 = 228
-	shellMinWidth  float32 = 560
-	shellMinHeight float32 = 160
+	headerStackGap   float32 = 8
+	headerSideGap    float32 = 16
+	navTargetWidth   float32 = 228
+	shellMinWidth    float32 = 640
+	shellMinHeight   float32 = 240
+	stageBodyReserve float32 = 72
 )
 
 // stageContentLayout gives the workspace priority in short windows. The
@@ -27,7 +28,7 @@ func (stageContentLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	}
 	header, content := objects[0], objects[1]
 	headerHeight := header.MinSize().Height
-	if size.Height < headerHeight+120 {
+	if size.Height < headerHeight+stageBodyReserve {
 		header.Hide()
 		headerHeight = 0
 	} else {
@@ -53,10 +54,13 @@ func (headerWrapLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 	}
 	left := objects[0].MinSize()
 	right := objects[1].MinSize()
-	// Always reserve stacked height so a shrink cannot clip the chips.
+	// The minimum size should reflect the compact one-row layout. The window
+	// already has a minimum width large enough for the brand and status groups;
+	// reserving their stacked height here wastes most of the workspace on short
+	// windows even when Layout can place them side by side.
 	return fyne.NewSize(
-		fyne.Max(left.Width, right.Width),
-		left.Height+headerStackGap+right.Height,
+		left.Width+headerSideGap+right.Width,
+		fyne.Max(left.Height, right.Height),
 	)
 }
 

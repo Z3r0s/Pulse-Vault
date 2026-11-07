@@ -19,6 +19,7 @@ import (
 func testUI(t *testing.T, size fyne.Size) (*App, fyne.App) {
 	t.Helper()
 	a := test.NewApp()
+	a.Settings().SetTheme(&PulseTheme{})
 	ui := &App{fyneApp: a}
 	ui.win = a.NewWindow(AppTitle)
 	ui.win.SetPadded(false)
@@ -35,7 +36,7 @@ func testUI(t *testing.T, size fyne.Size) (*App, fyne.App) {
 func TestResponsiveWindowLayoutAcrossCommonSizes(t *testing.T) {
 	ui, _ := testUI(t, fyne.NewSize(1120, 700))
 	sizes := []fyne.Size{
-		fyne.NewSize(560, 360),
+		fyne.NewSize(640, 360),
 		fyne.NewSize(640, 480),
 		fyne.NewSize(800, 600),
 		fyne.NewSize(1024, 768),
@@ -59,6 +60,9 @@ func TestResponsiveWindowLayoutAcrossCommonSizes(t *testing.T) {
 		if !ui.heroTitle.Visible() || !ui.heroActions.Visible() {
 			t.Errorf("at %v, the locked-state headline and actions must remain visible", size)
 		}
+		if size.Height <= 360 && ui.topBar.Size().Height >= size.Height/2 {
+			t.Errorf("at %v, the brand header consumes half the window: %v", size, ui.topBar.Size())
+		}
 		if ui.heroActions.Size().Width > ui.heroCard.Size().Width {
 			t.Errorf("at %v, empty-state actions exceed their card: actions=%v card=%v", size, ui.heroActions.Size(), ui.heroCard.Size())
 		}
@@ -75,12 +79,46 @@ func TestResponsiveWindowLayoutAcrossCommonSizes(t *testing.T) {
 	if math.Abs(ui.split.Offset-0.37) > 0.001 {
 		t.Fatal("a normal relayout should preserve the user's divider position")
 	}
-	for _, size := range []fyne.Size{fyne.NewSize(2560, 1440), fyne.NewSize(800, 600), fyne.NewSize(560, 360)} {
+	for _, size := range []fyne.Size{fyne.NewSize(2560, 1440), fyne.NewSize(800, 600), fyne.NewSize(640, 360)} {
 		ui.win.Resize(size)
 		want := float64(sidebarWidth(size.Width) / size.Width)
 		if math.Abs(ui.split.Offset-want) > 0.001 {
 			t.Errorf("after resizing back to %v, split offset = %.3f, want %.3f", size, ui.split.Offset, want)
 		}
+	}
+}
+
+func TestWindowMinimumSizeKeepsWorkspaceUsable(t *testing.T) {
+	ui, _ := testUI(t, fyne.NewSize(1120, 700))
+	tmp := t.TempDir()
+	v := vault.New(filepath.Join(tmp, "minimum.pulsevault"))
+	if err := v.Create("test-only-passphrase", "standard"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(v.Lock)
+	source := filepath.Join(tmp, "sample.txt")
+	if err := os.WriteFile(source, []byte("sample"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.AddFile(source, false); err != nil {
+		t.Fatal(err)
+	}
+	ui.v = v
+	ui.setUnlockedUI("example.pulsevault")
+	minimum := ui.root.MinSize()
+	if minimum.Width < 640 || minimum.Height < 380 {
+		t.Fatalf("window minimum %v is too small for both panes and persistent controls", minimum)
+	}
+	ui.win.Resize(minimum)
+	if ui.mainStage.Size().Width < 300 || ui.mainStage.Size().Height < 160 {
+		t.Fatalf("minimum supported window leaves an unusable workspace: %v", ui.mainStage.Size())
+	}
+	stageInner := ui.mainStage.Objects[1].(*fyne.Container)
+	if !stageInner.Objects[0].Visible() || ui.search.Size().Height <= 0 {
+		t.Fatalf("file heading and search must remain visible at minimum size %v: stage=%v header=%v/%v search=%v", minimum, ui.mainStage.Size(), stageInner.Objects[0].Visible(), stageInner.Objects[0].Size(), ui.search.Size())
+	}
+	if !ui.fileList.Visible() {
+		t.Fatal("the file list should remain visible at the minimum supported window size")
 	}
 }
 
@@ -121,7 +159,7 @@ func TestShortWindowRendersWithProductTheme(t *testing.T) {
 	ui := &App{fyneApp: a}
 	ui.win = a.NewWindow(AppTitle)
 	ui.win.SetPadded(false)
-	ui.win.Resize(fyne.NewSize(560, 360))
+	ui.win.Resize(fyne.NewSize(640, 360))
 	ui.build()
 	ui.setLockedUI()
 	t.Cleanup(func() { ui.win.Close(); a.Quit() })
@@ -135,8 +173,12 @@ func TestShortWindowRendersWithProductTheme(t *testing.T) {
 		t.Fatal("window capture failed")
 	}
 	stage := ui.mainStage.Objects[1].(*fyne.Container)
+	if !stage.Objects[0].Visible() {
+		t.Fatal("the contextual header should remain visible when the compact layout has room")
+	}
+	ui.win.Resize(fyne.NewSize(640, 240))
 	if stage.Objects[0].Visible() {
-		t.Fatal("the contextual header should collapse in a short window")
+		t.Fatal("the contextual header should collapse when the workspace is too short")
 	}
 	ui.win.Resize(fyne.NewSize(1120, 700))
 	if !stage.Objects[0].Visible() {
@@ -212,7 +254,7 @@ func TestControlStatesAcrossLockedBusyAndUnlocked(t *testing.T) {
 	if !ui.fileNav.Visible() || !ui.btnAdd.Visible() || !ui.btnAddFolder.Visible() {
 		t.Fatal("add actions should remain available in the unlocked navigation")
 	}
-	ui.win.Resize(fyne.NewSize(560, 360))
+	ui.win.Resize(fyne.NewSize(640, 360))
 	if ui.heroEmptyActions.Size().Width > ui.heroCard.Size().Width || !ui.heroAddFile.Visible() || !ui.heroAddFolder.Visible() {
 		t.Fatalf("empty-state actions should stay visible and fit at the minimum window size: actions=%v card=%v", ui.heroEmptyActions.Size(), ui.heroCard.Size())
 	}

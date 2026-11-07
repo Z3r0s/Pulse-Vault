@@ -97,9 +97,9 @@ func (t *PulseTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
 func (t *PulseTheme) Size(name fyne.ThemeSizeName) float32 {
 	switch name {
 	case theme.SizeNamePadding:
-		return 12
+		return 8
 	case theme.SizeNameInnerPadding:
-		return 14
+		return 10
 	case theme.SizeNameText:
 		return 14
 	case theme.SizeNameHeadingText:

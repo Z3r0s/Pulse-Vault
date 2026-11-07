@@ -14,6 +14,8 @@ For everyday use, start with the [desktop walkthrough](../docs/TWO_MINUTE_GUIDE.
 - Append a vault to supported image/video media. This preserves the media prefix but is not steganography.
 - Cancelable long-running GUI work, with progress and a temporary-space estimate before add or password rotation.
 
+The desktop window opens at 1120×700 and keeps a minimum size of about 640×392 so the navigation, file search, and workspace remain usable together. The layout tightens its header and collapses secondary context when the window is short.
+
 New vaults use the V6 authenticated stream format. Folder trees use the V7 container marker and V6 streams; V5 streams remain readable. See [the format guide](../docs/VAULT_FORMAT.md).
 
 ## Build
