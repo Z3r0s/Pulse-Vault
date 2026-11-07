@@ -2,6 +2,8 @@ module github.com/Z3r0s/Pulse-Vault
 
 go 1.26.0
 
+toolchain go1.27.3
+
 require (
 	fyne.io/fyne/v2 v2.8.0
 	github.com/klauspost/compress v1.20.2
