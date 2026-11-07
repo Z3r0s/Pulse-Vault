@@ -26,7 +26,7 @@ Via [`.github/workflows/release-go.yml`](../.github/workflows/release-go.yml):
 | `SHA256SUMS` | Checksums (install scripts verify these) |
 | `install.sh` / `install.ps1` | Same installers, attached to the tag |
 
-If Releases says “No releases found”, no `v*` tag has been pushed. Use a clone + `--from-source`, or see [DISTRIBUTE.md](DISTRIBUTE.md).
+Git tags and published release assets are separate steps. If the latest release does not contain a binary for your platform, use a clone and build from source, or see [DISTRIBUTE.md](DISTRIBUTE.md).
 
 ## Build it yourself
 
@@ -38,7 +38,7 @@ If Releases says “No releases found”, no `v*` tag has been pushed. Use a clo
 
 ```bash
 ./cli.sh --build
-# or: go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@v0.2.0
+# or: go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@latest
 ```
 
 `pip install pulse-vault` wraps the Go CLI. Do not install [legacy/python/](../legacy/python/).

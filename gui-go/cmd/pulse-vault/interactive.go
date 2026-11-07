@@ -18,8 +18,12 @@ func cmdOpen(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(args) < 1 || pw == "" {
-		return fmt.Errorf("usage: open <vault> --password <pw>")
+	if len(args) < 1 {
+		return fmt.Errorf("usage: open <vault>")
+	}
+	pw, err = passwordOrPrompt(pw, "password: ")
+	if err != nil {
+		return err
 	}
 	path := args[0]
 	v := vault.New(path)
@@ -111,8 +115,9 @@ func handleConsole(v *vault.Vault, line string, in *bufio.Reader) error {
 	case "help", "h", "?":
 		fmt.Fprintln(out(), box("console", []string{
 			cyan("list") + muted("                 inventory"),
-			cyan("add") + muted(" <file>           seal a file"),
+			cyan("add") + muted(" <file-or-folder> seal files or a folder tree"),
 			cyan("extract") + muted(" <name> [dir]  write a file out"),
+			cyan("extract-all") + muted(" [dir]       restore every file"),
 			cyan("delete") + muted(" <name>        remove a sealed file"),
 			cyan("verify") + muted("               integrity check"),
 			cyan("info") + muted("                 container card"),
@@ -124,18 +129,13 @@ func handleConsole(v *vault.Vault, line string, in *bufio.Reader) error {
 		return printList(v)
 	case "add":
 		if len(rest) < 1 {
-			return fmt.Errorf("usage: add <file>")
+			return fmt.Errorf("usage: add <file-or-folder> [more paths ...]")
 		}
 		start := time.Now()
-		if err := v.AddFile(rest[0], false); err != nil {
+		if err := v.AddPaths(rest, false); err != nil {
 			return err
 		}
-		st, _ := os.Stat(rest[0])
-		var sz int64
-		if st != nil {
-			sz = st.Size()
-		}
-		printAdded(filepath.Base(rest[0]), sz, time.Since(start))
+		printAdded(len(rest), time.Since(start))
 		return nil
 	case "extract", "x":
 		if len(rest) < 1 {
@@ -150,6 +150,19 @@ func handleConsole(v *vault.Vault, line string, in *bufio.Reader) error {
 			return err
 		}
 		printExtracted(outPath)
+		return nil
+	case "extract-all", "extractall":
+		dir := "."
+		if len(rest) > 0 {
+			dir = rest[0]
+		}
+		paths, err := v.ExtractAll(dir, false)
+		if err != nil {
+			return err
+		}
+		for _, path := range paths {
+			printExtracted(path)
+		}
 		return nil
 	case "delete", "rm", "del":
 		if len(rest) < 1 {

@@ -20,17 +20,17 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25.13"
+          go-version: "1.27.3"
           cache-dependency-path: go.sum
       - name: Install Linux GUI dependencies for autobuild
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
-      - uses: github/codeql-action/init@v3
+          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev wayland-protocols
+      - uses: github/codeql-action/init@v4
         with:
           languages: go
           config-file: ./.github/codeql/codeql-config.yml
-      - uses: github/codeql-action/autobuild@v3
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/autobuild@v4
+      - uses: github/codeql-action/analyze@v4
         with:
           category: "/language:go"

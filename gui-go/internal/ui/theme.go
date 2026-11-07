@@ -53,6 +53,8 @@ func (t *PulseTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) 
 		return colMuted
 	case theme.ColorNamePrimary:
 		return colPrimary
+	case theme.ColorNameForegroundOnPrimary:
+		return colBg
 	case theme.ColorNameHover:
 		return colHover
 	case theme.ColorNameInputBackground:

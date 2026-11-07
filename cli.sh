@@ -5,7 +5,7 @@
 #
 #   ./cli.sh
 #   ./cli.sh version
-#   ./cli.sh create ./demo.pulsevault --password 'choose-a-strong-password'
+#   ./cli.sh create ./demo.pulsevault  # prompts for a password
 #   ./cli.sh --build
 set -eu
 

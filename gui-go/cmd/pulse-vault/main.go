@@ -46,6 +46,8 @@ func main() {
 		exit(cmdAdd(rest))
 	case "extract":
 		exit(cmdExtract(rest))
+	case "extract-all", "extractall":
+		exit(cmdExtractAll(rest))
 	case "delete", "rm":
 		exit(cmdDelete(rest))
 	case "verify":
@@ -201,6 +203,16 @@ func warnPasswordPolicy(pw string) {
 	}
 }
 
+func passwordOrPrompt(password, label string) (string, error) {
+	if password != "" {
+		return password, nil
+	}
+	if !stdinIsTTY() {
+		return "", fmt.Errorf("password required; use --password-prompt, --password-stdin, or --password-file")
+	}
+	return readHiddenPassword(label)
+}
+
 func hasMediaExt(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".mp4", ".mov", ".webm":
@@ -232,8 +244,18 @@ func cmdCreate(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(args) < 1 || pw == "" {
-		return fmt.Errorf("usage: create <vault> --password <pw> [--profile standard|fast|hardened] [--carrier <path>]")
+	if len(args) < 1 {
+		return fmt.Errorf("usage: create <vault> [--profile standard|hardened] [--carrier <path>]")
+	}
+	if profile == "fast" && os.Getenv("PULSEVAULT_TEST_FAST_KDF") != "1" {
+		return fmt.Errorf("the fast KDF profile is test-only; use standard or hardened")
+	}
+	if profile != "standard" && profile != "hardened" && !(profile == "fast" && os.Getenv("PULSEVAULT_TEST_FAST_KDF") == "1") {
+		return fmt.Errorf("unknown KDF profile %q; choose standard or hardened", profile)
+	}
+	pw, err = passwordOrPrompt(pw, "password: ")
+	if err != nil {
+		return err
 	}
 	path := resolveCreateDest(args[0], carrier)
 	if carrier != "" {
@@ -266,8 +288,12 @@ func cmdList(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(args) < 1 || pw == "" {
-		return fmt.Errorf("usage: list <vault> --password <pw>")
+	if len(args) < 1 {
+		return fmt.Errorf("usage: list <vault>")
+	}
+	pw, err = passwordOrPrompt(pw, "password: ")
+	if err != nil {
+		return err
 	}
 	v := vault.New(args[0])
 	if err := v.Unlock(pw); err != nil {
@@ -283,8 +309,12 @@ func cmdAdd(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(args) < 2 || pw == "" {
-		return fmt.Errorf("usage: add <vault> --password <pw> <file>")
+	if len(args) < 2 {
+		return fmt.Errorf("usage: add <vault> <file-or-folder> [file-or-folder ...]")
+	}
+	pw, err = passwordOrPrompt(pw, "password: ")
+	if err != nil {
+		return err
 	}
 	v := vault.New(args[0])
 	if err := v.Unlock(pw); err != nil {
@@ -292,15 +322,10 @@ func cmdAdd(args []string) error {
 	}
 	defer v.Lock()
 	start := time.Now()
-	if err := v.AddFile(args[1], overwrite); err != nil {
+	if err := v.AddPaths(args[1:], overwrite); err != nil {
 		return err
 	}
-	st, _ := os.Stat(args[1])
-	var sz int64
-	if st != nil {
-		sz = st.Size()
-	}
-	printAdded(filepath.Base(args[1]), sz, time.Since(start))
+	printAdded(len(args)-1, time.Since(start))
 	return nil
 }
 
@@ -383,8 +408,12 @@ func cmdVerify(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(args) < 1 || pw == "" {
-		return fmt.Errorf("usage: verify <vault> --password <pw>")
+	if len(args) < 1 {
+		return fmt.Errorf("usage: verify <vault>")
+	}
+	pw, err = passwordOrPrompt(pw, "password: ")
+	if err != nil {
+		return err
 	}
 	v := vault.New(args[0])
 	if err := v.Unlock(pw); err != nil {
@@ -408,8 +437,16 @@ func cmdChangePassword(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(args) < 1 || oldPW == "" || newPW == "" {
-		return fmt.Errorf("usage: change-password <vault> --password <old> --new-password <new>")
+	if len(args) < 1 {
+		return fmt.Errorf("usage: change-password <vault>")
+	}
+	oldPW, err = passwordOrPrompt(oldPW, "current password: ")
+	if err != nil {
+		return err
+	}
+	newPW, err = passwordOrPrompt(newPW, "new password: ")
+	if err != nil {
+		return err
 	}
 	warnPasswordPolicy(newPW)
 	v := vault.New(args[0])
@@ -430,8 +467,12 @@ func cmdExtract(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(args) < 3 || pw == "" {
-		return fmt.Errorf("usage: extract <vault> --password <pw> <name> <outdir> [--overwrite]")
+	if len(args) < 3 {
+		return fmt.Errorf("usage: extract <vault> <name> <outdir> [--overwrite]")
+	}
+	pw, err = passwordOrPrompt(pw, "password: ")
+	if err != nil {
+		return err
 	}
 	v := vault.New(args[0])
 	if err := v.Unlock(pw); err != nil {
@@ -446,13 +487,43 @@ func cmdExtract(args []string) error {
 	return nil
 }
 
+func cmdExtractAll(args []string) error {
+	overwrite, args := flagBool(args, "--overwrite")
+	pw, args, err := flagPassword(args)
+	if err != nil {
+		return err
+	}
+	if len(args) < 2 {
+		return fmt.Errorf("usage: extract-all <vault> <outdir> [--overwrite]")
+	}
+	pw, err = passwordOrPrompt(pw, "password: ")
+	if err != nil {
+		return err
+	}
+	v := vault.New(args[0])
+	if err := v.Unlock(pw); err != nil {
+		return err
+	}
+	defer v.Lock()
+	paths, err := v.ExtractAll(args[1], overwrite)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out(), "Restored %d file(s) to %s\n", len(paths), args[1])
+	return nil
+}
+
 func cmdDelete(args []string) error {
 	pw, args, err := flagPassword(args)
 	if err != nil {
 		return err
 	}
-	if len(args) < 2 || pw == "" {
-		return fmt.Errorf("usage: delete <vault> --password <pw> <name>")
+	if len(args) < 2 {
+		return fmt.Errorf("usage: delete <vault> <name>")
+	}
+	pw, err = passwordOrPrompt(pw, "password: ")
+	if err != nil {
+		return err
 	}
 	v := vault.New(args[0])
 	if err := v.Unlock(pw); err != nil {
@@ -484,8 +555,12 @@ func cmdMigrate(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(args) < 1 || pw == "" {
-		return fmt.Errorf("usage: migrate <vault> --password <legacy-password>")
+	if len(args) < 1 {
+		return fmt.Errorf("usage: migrate <vault>")
+	}
+	pw, err = passwordOrPrompt(pw, "legacy password: ")
+	if err != nil {
+		return err
 	}
 	v := vault.New(args[0])
 	if err := v.Unlock(pw); err != nil {
@@ -495,7 +570,7 @@ func cmdMigrate(args []string) error {
 	if err := v.ChangePassword(pw, pw); err != nil {
 		return err
 	}
-	printMigrated()
+	printMigrated(v.Format)
 	return nil
 }
 

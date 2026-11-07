@@ -15,6 +15,9 @@ A **[DNSPulse](https://dnspulse.org)** product. One local encrypted vault. No ac
 
 Full asset list: [docs/DOWNLOADS.md](docs/DOWNLOADS.md). How we publish: [docs/DISTRIBUTE.md](docs/DISTRIBUTE.md).
 
+Once the app opens, follow the [two-minute guide](docs/TWO_MINUTE_GUIDE.md) to create a vault and test restoring a file.
+For terminal use, follow the [CLI guide](docs/CLI_GUIDE.md).
+
 ## Windows
 
 ### Desktop app (easiest)
@@ -27,7 +30,7 @@ If Releases is empty, clone this repo and double-click `scripts\install.cmd` (bu
 
 ### Command line
 
-From a clone (this is the path that does not look like malware to Defender):
+From a clone:
 
 ```powershell
 .\cli.ps1 version
@@ -39,10 +42,10 @@ Then:
 
 ```powershell
 pulse-vault version
-pulse-vault create $HOME\Documents\my.pulsevault --password 'choose-a-strong-password'
+pulse-vault create $HOME\Documents\my.pulsevault
 ```
 
-`irm | iex` works but Defender is trained to hate that pattern. Prefer the clone or a GitHub Release exe. SmartScreen notes: [docs/TRUST.md](docs/TRUST.md).
+In an interactive terminal, Pulse-Vault prompts for the password without echoing it. For scripts, use `--password-file` or `--password-stdin`; avoid placing passwords in command arguments because they may be saved in shell history or visible in process listings. SmartScreen notes: [docs/TRUST.md](docs/TRUST.md).
 
 ```powershell
 .\scripts\install.ps1 -FromSource  # ignore GitHub, build here
@@ -91,14 +94,14 @@ Install [Go](https://go.dev/dl/). Then, from the repo root:
 
 ```powershell
 .\cli.ps1 version
-.\cli.ps1 create .\demo.pulsevault --password 'choose-a-strong-password'
-.\cli.ps1 list .\demo.pulsevault --password 'choose-a-strong-password'
+.\cli.ps1 create .\demo.pulsevault
+.\cli.ps1 list .\demo.pulsevault
 ```
 
 ```bash
 chmod +x cli.sh
 ./cli.sh version
-./cli.sh create ./demo.pulsevault --password 'choose-a-strong-password'
+./cli.sh create ./demo.pulsevault
 ```
 
 That builds `pulse-vault.exe` / `pulse-vault` next to the script the first time. Rebuild: `.\cli.ps1 -Build` / `./cli.sh --build`.
@@ -106,7 +109,7 @@ That builds `pulse-vault.exe` / `pulse-vault` next to the script the first time.
 Already have Go and just want it on PATH:
 
 ```bash
-go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@v0.2.0
+go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@latest
 ```
 
 Same thing, no extra env vars. `$(go env GOPATH)/bin` should be on your PATH.
@@ -141,7 +144,7 @@ Release files include `SHA256SUMS`. The install scripts check that automatically
 .pulsevault
 ```
 
-Format: [docs/VAULT_FORMAT.md](docs/VAULT_FORMAT.md). Current marker: `PULSEVAULT6_AUTHENTICATED_CASCADE` (V5 remains readable).
+Format: [docs/VAULT_FORMAT.md](docs/VAULT_FORMAT.md). New vaults use `PULSEVAULT6_AUTHENTICATED_CASCADE`; folder trees use the V7 path marker. V5 and supported legacy vaults remain readable.
 
 ## Uninstall
 

@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"bytes"
+	"encoding/binary"
 	"testing"
 )
 
@@ -45,6 +46,59 @@ func TestStreamV6RejectsMissingOrTamperedTerminal(t *testing.T) {
 	var decrypted bytes.Buffer
 	if err := DecryptStreamV6(key, bytes.NewReader(tampered), &decrypted); err == nil {
 		t.Fatal("tampered terminal was accepted")
+	}
+}
+
+func TestStreamV6RejectsCleanChunkBoundaryTruncationAndReordering(t *testing.T) {
+	key := testKey(t)
+	payload := bytes.Repeat([]byte{0x5a}, ChunkSize*2+17)
+	var encrypted bytes.Buffer
+	if err := EncryptStreamV6(key, bytes.NewReader(payload), &encrypted, false); err != nil {
+		t.Fatal(err)
+	}
+	blob := encrypted.Bytes()
+	first := len(StreamV6Magic) + 1 + 16 + NonceSize
+	if blob[first] != 0 {
+		t.Fatalf("first record kind = %d, want data", blob[first])
+	}
+	firstLen := int(binary.BigEndian.Uint32(blob[first+1 : first+5]))
+	second := first + 5 + firstLen
+	if second >= len(blob) || blob[second] != 0 {
+		t.Fatal("second data record missing")
+	}
+	secondLen := int(binary.BigEndian.Uint32(blob[second+1 : second+5]))
+	third := second + 5 + secondLen
+	if third >= len(blob) || blob[third] != 0 {
+		t.Fatal("third data record missing")
+	}
+	thirdLen := int(binary.BigEndian.Uint32(blob[third+1 : third+5]))
+	terminal := third + 5 + thirdLen
+	if terminal >= len(blob) || blob[terminal] != 1 {
+		t.Fatal("terminal record missing")
+	}
+
+	// Truncating after a complete data record is the case that a plain EOF
+	// framed stream cannot distinguish from a successful shorter stream.
+	var out bytes.Buffer
+	if err := DecryptStreamV6(key, bytes.NewReader(blob[:second]), &out); err == nil {
+		t.Fatal("clean-boundary truncation was accepted")
+	}
+
+	// Records are authenticated with their position, so swapping complete
+	// ciphertext records must fail even though their framing remains valid.
+	reordered := append([]byte(nil), blob...)
+	firstRecord := append([]byte(nil), blob[first:second]...)
+	secondRecord := append([]byte(nil), blob[second:terminal]...)
+	reordered = append(reordered[:first], append(secondRecord, append(firstRecord, reordered[terminal:]...)...)...)
+	out.Reset()
+	if err := DecryptStreamV6(key, bytes.NewReader(reordered), &out); err == nil {
+		t.Fatal("reordered data records were accepted")
+	}
+
+	trailing := append(append([]byte(nil), blob...), 0)
+	out.Reset()
+	if err := DecryptStreamV6(key, bytes.NewReader(trailing), &out); err == nil {
+		t.Fatal("trailing bytes after terminal were accepted")
 	}
 }
 

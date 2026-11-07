@@ -1,10 +1,10 @@
-# Vault Format
+# Vault format
 
-This document describes the current Pulse-Vault V6 container at a high level. It is intended for maintainers and security reviewers, not as a frozen compatibility contract.
+This describes the container markers currently read and written by the Go implementation. It is a maintainer overview; the cryptographic details are in [CRYPTO_PROTOCOL.md](CRYPTO_PROTOCOL.md).
 
-## Container
+## Container layout
 
-V6 vaults are ZIP containers with encrypted metadata and encrypted file blobs.
+V5, V6, and V7 are ZIP containers. Members use ZIP's store method; file data is already compressed when compression is useful.
 
 ```text
 salt.bin
@@ -12,61 +12,42 @@ format.txt
 kdf.json
 metadata.enc
 data/<uuid>.enc
-data/<uuid>.enc
+...
 ```
 
-Hide-in-picture: vault ZIP is stuck on the end of a PNG/JPEG/MP4. The picture still opens. It's a disguise, not magic.
+`metadata.enc` contains authenticated encrypted JSON. It records file names, sizes, timestamps, SHA-256 digests, and blob IDs. `format.txt` and `kdf.json` are visible container metadata. V7 paths are relative and use `/` separators inside metadata; the V7 marker is checked against the authenticated metadata version to reject marker downgrades.
 
-Go locates the ZIP via the end-of-central-directory record so a `PK\x03\x04` sequence inside the image does not shift the prefix. The prefix is preserved on rewrite (add, delete, password change).
+### Vaults carried after media
 
-## Format Marker
+The container can be appended after a PNG, JPEG, or supported video file. Pulse-Vault locates the ZIP directory and preserves the leading media bytes when rewriting the vault. The media may still open in an ordinary viewer. This is a convenience and disguise only; it is not steganography and does not hide the appended data from inspection.
 
-```text
-PULSEVAULT6_AUTHENTICATED_CASCADE
-```
+## Format markers and writes
 
-V1–V4 vaults are upgraded to V6 during migration or password rotation. V5
-vaults remain readable and retain their marker during ordinary add/delete
-writes; password rotation upgrades their file streams to V6.
+| Marker | Use |
+| --- | --- |
+| `PULSEVAULT5_COMPRESSED_CASCADE` | Legacy authenticated stream format; read and retained by ordinary flat-file changes to V5 vaults. |
+| `PULSEVAULT6_AUTHENTICATED_CASCADE` | Current stream format for new vaults and flat-file additions. |
+| `PULSEVAULT7_PATHS_AUTHENTICATED_CASCADE` | Path-preserving container for folder trees; its new streams use V6 framing. |
 
-## Key Derivation
+New vaults use V6. Adding flat files to a V5 or V6 vault keeps that container marker. Adding a folder changes the container to V7 so relative paths can be stored. A V7 container may contain V5 streams retained from an older V5 vault and V6 streams added or re-encrypted later; each blob's `stream_format` metadata identifies its reader. Password rotation re-encrypts all streams as V6 and preserves V7 paths.
 
-Pulse-Vault derives a 64-byte key from the user password and random salt using Scrypt.
+V1–V4 are legacy formats. The Go implementation reads them where supported and migrates their contents during password rotation. V5 remains readable. See the [protocol specification](CRYPTO_PROTOCOL.md) for compatibility boundaries.
 
-- first 32 bytes: ChaCha20-Poly1305 key
-- second 32 bytes: AES-GCM key
+## Key derivation
 
-The salt is stored in `salt.bin`.
-
-### Scrypt Profiles
-
-Runtime KDF cost is selected by `PULSEVAULT_SCRYPT_PROFILE`:
+New formats derive a 64-byte key from the password and random salt with Scrypt. The first 32 bytes are used with ChaCha20-Poly1305; the second 32 bytes are used with AES-256-GCM. The salt is stored in `salt.bin`. `kdf.json` records the exact parameters, which unlock validates against resource limits before deriving the key.
 
 | Profile | N | r | p | Intended use |
 | --- | ---: | ---: | ---: | --- |
-| `fast` | 16 | 8 | 1 | CI and local test runs |
-| `standard` | 32768 | 8 | 1 | Default production setting |
-| `hardened` | 1048576 | 8 | 1 | Higher-cost unlock for sensitive vaults |
+| `standard` | 32768 | 8 | 1 | Default for normal use. |
+| `hardened` | 1048576 | 8 | 1 | Higher unlock cost on systems with enough memory. |
+| `fast` | 16 | 8 | 1 | Tests only; the CLI requires `PULSEVAULT_TEST_FAST_KDF=1`. |
 
-`PULSEVAULT_TEST_FAST_KDF=1` selects the `fast` profile for backward compatibility.
-`PULSEVAULT_SCRYPT_N` can override `N` when the active profile is `fast`.
+Files created before KDF metadata was recorded use a documented compatibility fallback. Do not lower the KDF cost on real vaults to make tests faster.
 
-`kdf.json` stores the Scrypt parameters used when the vault was created. Unlock always uses the recorded values. Vaults created before 0.0.20 may omit this file and fall back to the runtime default profile. (Note: versioning scheme reset to 0.0.x for granular early development.)
+## Metadata and file streams
 
-Deterministic KDF and stream vectors for the `fast` and `standard` profiles live in `tests/vectors/` as frozen golden fixtures. The Go test suite reads these files; they are not regenerated as part of the default maintainer workflow.
-
-## Metadata
-
-`metadata.enc` stores encrypted JSON metadata, including file names, sizes, timestamps, SHA-256 digests, and internal blob IDs.
-
-Metadata is encrypted with the same cascade construction used by legacy in-memory records:
-
-1. ChaCha20-Poly1305
-2. AES-GCM
-
-## File Entries
-
-Each file is stored as an encrypted stream under `data/<uuid>.enc`.
+Metadata is serialized as JSON and encrypted with the same two-stage authenticated construction as described in the protocol document. V7 validates every stored path on unlock and rejects absolute paths, traversal, non-portable names, and Windows device names.
 
 V5 stream layout (legacy, still readable):
 
@@ -74,29 +55,21 @@ V5 stream layout (legacy, still readable):
 magic | compression_flag | chacha_nonce | aes_nonce | repeated encrypted chunks
 ```
 
-Chunks are bound to the header + index. New writes: zstd (flag 2). Old files: XZ (flag 1). Random-looking files: no compress (flag 0). Decrypt handles all three. Lossless — a jpg is not going to shrink 50x.
-
-V6 stream layout (current writes):
+V6 stream layout (used for new writes):
 
 ```text
 PV6STRM1 | compression_flag | chacha_nonce | aes_nonce |
 repeated: record_kind | record_length | encrypted_record
 ```
 
-Record kind `0` is encrypted data and kind `1` is an encrypted terminal
-marker. The terminal marker is required, authenticated with the chunk index,
-and checked after decompression. This makes truncation at a clean chunk
-boundary fail instead of looking like a valid EOF.
+V6 record kind `0` is an encrypted data chunk; kind `1` is the required encrypted terminal record. The terminal record is authenticated with its chunk index, and readers reject a missing terminal, trailing bytes, malformed records, and authentication failures. New writes use zstd only when it reduces the data; older XZ streams remain readable.
 
-## Integrity
+## Integrity and compatibility
 
-- Metadata authentication fails unlock if metadata is corrupted or the password is wrong.
-- File stream authentication fails extraction or verification if encrypted blobs are corrupted.
-- SHA-256 digests are stored for added files and checked during verification and extraction.
+- Metadata authentication failure prevents unlock.
+- File stream authentication failure prevents extraction and verification.
+- SHA-256 digests recorded at import are checked by `verify` and extraction.
+- V5 streams are authenticated but do not have V6's terminal-record guarantee; V5 compatibility remains available for existing data.
+- Password rotation verifies each old stream while writing its replacement, then atomically replaces the container after the new ZIP is complete.
 
-## Compatibility Notes
-
-Pulse-Vault keeps read support for V1–V5, then writes new vaults and password
-rotations as V6. Existing V5 vaults remain V5 on ordinary add/delete writes so
-their historical blobs stay readable; password rotation upgrades all blobs to
-V6.
+An interrupted add, delete, or password rotation leaves the original vault file in place. Temporary operation files contain encrypted staged blobs, not plaintext. Extraction writes a temporary plaintext file in the selected output folder and publishes it only after authentication and hash checks succeed. Secure deletion of temporary or extracted plaintext from storage, swap, backups, and snapshots is outside the format's guarantees.

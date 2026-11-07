@@ -22,11 +22,17 @@ func TestGUISourceHasPrimaryAffordances(t *testing.T) {
 	}
 	code := string(appSrc)
 	needles := []string{
-		"New vault",
+		"Create vault",
 		"Open vault",
 		"Hide in picture",
 		"Add file",
+		"Add folder",
 		"Extract",
+		"Save a copy",
+		"Save all files",
+		"Change password",
+		"Lock vault",
+		"Cancel",
 		"Delete",
 		"Lock",
 		"fileList",
@@ -52,9 +58,7 @@ func TestGUISourceHasPrimaryAffordances(t *testing.T) {
 		"topBar",
 		"NewHSplit",
 		"newBrandImage",
-		"startLockPulse",
-		"NewColorRGBAAnimation",
-		"NewScroll",
+		"NewVScroll",
 		"headerWrapLayout",
 		"bindShortcuts",
 		"SetOnDropped",
@@ -64,6 +68,7 @@ func TestGUISourceHasPrimaryAffordances(t *testing.T) {
 		"fyne.Do",
 		"progress",
 		"setBusyChrome",
+		"setBusyChromeForOperation",
 		"os.Remove",
 		"version.Version",
 		"dnspulse.org",
@@ -82,17 +87,26 @@ func TestGUISourceHasPrimaryAffordances(t *testing.T) {
 	if !strings.Contains(code, `runAsync("Unlock"`) {
 		t.Error("unlock must use runAsync")
 	}
-	if !strings.Contains(code, `runAsync("Add file"`) {
-		t.Error("add must use runAsync")
+	if !strings.Contains(code, `runAsyncWithOptions("Add files"`) {
+		t.Error("add must use cancellable progress-aware runAsyncWithOptions")
 	}
-	if !strings.Contains(code, `runAsync("Extract"`) {
-		t.Error("extract must use runAsync")
+	if !strings.Contains(code, `runAsyncWithOptions("Save a copy"`) {
+		t.Error("saving a copy must use cancellable progress-aware runAsyncWithOptions")
+	}
+	if !strings.Contains(code, `runAsyncWithOptions("Save all files"`) {
+		t.Error("saving all files must use cancellable progress-aware runAsyncWithOptions")
+	}
+	if !strings.Contains(code, "runAsyncWithOptionsAndCancel(op, pendingMsg, work, true, onOK)") {
+		t.Error("progress-aware stream operations must expose the real cancellation control")
+	}
+	if !strings.Contains(code, "}, false, onOK)") || !strings.Contains(code, "setBusyChromeForOperation(true, cancellable)") {
+		t.Error("non-cancellable operations must not show the Cancel button")
 	}
 	if !strings.Contains(code, `runAsync("Hide in picture"`) {
 		t.Error("hide-in-picture must use runAsync")
 	}
-	if !strings.Contains(code, `runAsync("Delete"`) {
-		t.Error("delete must use runAsync")
+	if !strings.Contains(code, `runAsyncWithOptions("Delete"`) {
+		t.Error("delete must use cancellable progress-aware runAsyncWithOptions")
 	}
 }
 

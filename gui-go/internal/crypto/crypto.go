@@ -1,4 +1,4 @@
-// Package crypto is the internal V5/V6 engine. Apps should import gui-go/crypto, not this.
+// Package crypto is the internal V4/V5/V6 stream engine. Apps should import gui-go/crypto, not this.
 package crypto
 
 import (

@@ -34,13 +34,13 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25.13"
+          go-version: "1.27.3"
           cache-dependency-path: go.sum
 
       - name: Install Linux GUI dependencies for tests
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
+          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev wayland-protocols
 
       - name: go test (pure packages + CLI)
         run: go test ./crypto ./internal/crypto ./internal/vault ./internal/ui ./cmd/pulse-vault -count=1
@@ -93,7 +93,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25.13"
+          go-version: "1.27.3"
           cache-dependency-path: go.sum
 
       - name: Resolve version
@@ -151,14 +151,14 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25.13"
+          go-version: "1.27.3"
           cache-dependency-path: go.sum
 
       - name: Install Linux GUI deps (Fyne / OpenGL)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
+          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev wayland-protocols
 
       - name: Resolve version
         id: ver
@@ -270,7 +270,7 @@ jobs:
         run: |
           cp scripts/install.sh scripts/install.ps1 release-go/
           printf '%s\n' \
-            'Pulse-Vault by DNSPulse — https://dnspulse.org' \
+            'Pulse-Vault by DNSPulse â€” https://dnspulse.org' \
             '' \
             'Download a file below or:' \
             '' \

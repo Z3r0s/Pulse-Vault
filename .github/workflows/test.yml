@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  # Product path: Go vault/crypto/UI/CLI suite (V6 current format; V5 readable).
+  # Product path: Go vault/crypto/UI/CLI suite (V6 streams; V7 folder paths; V5 readable).
   go-parity:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -21,30 +21,33 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25.13"
+          go-version: "1.27.3"
           cache-dependency-path: go.sum
       - name: Install Linux GUI dependencies for CGO tests
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
-      - name: Go test (crypto + vault + UI + CLI)
-        env:
-          CGO_ENABLED: "0"
-        run: go test ./internal/crypto ./internal/vault ./internal/ui ./cmd/pulse-vault -count=1
-
-      - name: Packaging contract tests
+          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev wayland-protocols
+      - name: Go tests (all packages)
         working-directory: ${{ github.workspace }}
         env:
           CGO_ENABLED: "0"
-        run: go test ./packaging -count=1
+        run: go test ./... -count=1
 
-      - name: Go public API tests and vet
+      - name: Go vet
         env:
           CGO_ENABLED: "0"
         run: |
-          go test ./crypto -count=1
-          go vet ./crypto ./internal/crypto ./internal/vault ./internal/ui ./cmd/pulse-vault
+          go vet ./...
+
+      - name: Bulk CLI round-trip smoke (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: ${{ github.workspace }}
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          go build -o "$RUNNER_TEMP/pulse-vault" ./gui-go/cmd/pulse-vault
+          python3 scripts/benchmark-cli.py "$RUNNER_TEMP/pulse-vault" --files 100 --bytes-per-file 4096 --profile fast
 
       - name: Go race detector (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -59,6 +62,7 @@ jobs:
         run: |
           go test ./crypto -run=^$ -fuzz=FuzzDecryptStreamV5NeverPanics -fuzztime=30s
           go test ./crypto -run=^$ -fuzz=FuzzDecryptStreamV4NeverPanics -fuzztime=15s
+          go test ./crypto -run=^$ -fuzz=FuzzDecryptStreamV6NeverPanics -fuzztime=15s
 
   # The Python tree is retired, but it remains the protocol oracle for
   # compatibility. Keep the focused current-format matrix in CI without
@@ -69,7 +73,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25.13"
+          go-version: "1.27.3"
           cache-dependency-path: go.sum
       - uses: actions/setup-python@v5
         with:
@@ -90,12 +94,12 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25.13"
+          go-version: "1.27.3"
           cache-dependency-path: go.sum
       - name: Install Fyne/OpenGL build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
+          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev wayland-protocols
       - name: Build GUI with CGO enabled
         env:
           CGO_ENABLED: "1"
@@ -108,18 +112,18 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25.13"
+          go-version: "1.27.3"
           cache-dependency-path: go.sum
       - name: Install Linux GUI dependencies for analyzers
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
+          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev wayland-protocols
       - name: Verify module graph
         run: go mod verify
       - name: Install pinned analyzers
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@v0.6.1
-          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          go install honnef.co/go/tools/cmd/staticcheck@v0.8.2
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Run static analysis
         run: staticcheck ./...

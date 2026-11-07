@@ -9,7 +9,26 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
-_No unreleased changes yet._
+### Added
+- Folder import and full-tree restore with a V7 path-aware container marker.
+- Progress and cancellation for add, delete, extract, and password rotation; temporary-space estimates for add, delete, and password rotation.
+- Password rotation streams authenticated plaintext directly into replacement encryption without plaintext staging files.
+- Regression coverage for folder round trips, cancellation rollback, legacy stream retention, unsafe extraction paths, and tampered-stream rotation.
+- Filename and path filtering in the desktop file list, with keyboard shortcuts and clear match counts.
+- A repeatable CLI benchmark that verifies synthetic bulk-file restores and can sample process memory.
+
+### Changed
+- CLI prompts for passwords without echo in interactive terminals; command help recommends stdin or password files for automation.
+- The normal CLI exposes `standard` and `hardened` KDF profiles; the low-cost profile is restricted to tests.
+- README and format/security documentation describe the current Go application, use cases, supported formats, and security limits.
+- Updated Fyne, cryptography, compression, and terminal dependencies; expanded CI coverage and Linux GUI build prerequisites.
+- Reduced bulk-import flush overhead while retaining a sync of the completed replacement vault, and removed continuous idle UI animations.
+
+### Fixed
+- Kept the desktop workspace usable in short windows and improved primary-button text contrast.
+
+### Security
+- Updated the compression and Go network dependencies and moved CI builds to a supported Go toolchain after a vulnerability scan identified fixes newer than the existing bot proposals.
 
 ## [0.2.0] - 2026-08-15
 

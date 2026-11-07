@@ -1,118 +1,48 @@
-# Why Go (not Python, not Rust)
+# Engineering overview
 
-A product from **[DNSPulse](https://dnspulse.org)**. Source: [github.com/Z3r0s/Pulse-Vault](https://github.com/Z3r0s/Pulse-Vault).
+Pulse-Vault is a local encrypted file vault maintained by [DNSPulse](https://dnspulse.org). The current product is written in Go: one codebase contains the vault container, command-line interface, and Fyne desktop app. The earlier Python application is archived and is not used by the Go product.
 
-Pulse-Vault is a **local confidentiality tool**. The adversary we design for has the sealed container and not the password: offline ciphertext, brute-force against the KDF, tampering, and (if they get the binary) supply-chain and memory-disclosure questions.
+This page explains the implementation and its tradeoffs. It is not a claim that choosing a programming language makes the product secure; the security properties come from the protocol, its implementation, review, and the user's password and device.
 
-Language choice is not a taste poll. It is the **trusted computing base**, the **side-channel surface**, the **packaging attack surface**, and whether the UI can derive a key and stream AEAD **without blocking**.
+## What ships
 
-Python lost on all four. Rust is memory-safe and fast, but for *this* product — one static CLI, a Fyne desktop shell, Windows/Linux/macOS artifacts, people who will actually patch it — Go is the operational fit. We measured the archived Python engine against this Go engine on the same V5-compatible stream work; new Go vaults now use V6 finalized streams.
+| Area | Implementation |
+| --- | --- |
+| Desktop app | Fyne, with long-running operations off the UI thread and progress/cancel controls for archive operations. |
+| Command line | Go binary; builds without CGO. Interactive password entry is hidden. |
+| Container | ZIP with neutral member timestamps, encrypted metadata, and encrypted file blobs. Rewrites use a temporary container and replace the original after completion. |
+| Key derivation | Scrypt. The file records the parameters used, and unlock checks them against resource limits. |
+| File streams | V6 uses ChaCha20-Poly1305 followed by AES-GCM for authenticated, framed chunks and a final record. V5 and earlier supported streams remain readable. |
+| Folder paths | V7 stores validated relative paths in encrypted metadata. Its blobs use V6 streams; an upgraded V5 vault can temporarily retain individually marked V5 blobs until password rotation. |
+| Compression | zstd for data that shrinks; XZ is included for reading older streams. |
+| Public API | `gui-go/crypto` exposes the protocol helpers. `internal/vault` owns container operations. |
 
-Re-run the bench:
+The main dependencies are listed in [`go.mod`](../go.mod). The security-sensitive code is not the Fyne UI: review [the crypto package](../gui-go/crypto/), [the vault package](../gui-go/internal/vault/), and the protocol and threat-model documents.
 
-```text
-cd gui-go
-go test ./internal/vault -run TestCompareGoVsArchivedPython -v
+## Why one Go product
+
+The practical goal was to ship a desktop app and CLI that share the same file format and can be built as native binaries. Go gives this project one implementation for the container, CLI, and GUI, a straightforward cross-platform build process for the CLI, and concurrency primitives useful for keeping long operations out of the UI event loop.
+
+The GUI still has a C toolchain requirement because Fyne's desktop backend uses CGO. The CLI does not. That distinction matters when building on Windows and in CI, and is documented in [`gui-go/README.md`](../gui-go/README.md).
+
+The archived Python implementation remains useful as historical compatibility context. It should not be used to create new vaults or treated as a supported application path. The PyPI package, where available, is a launcher that downloads the Go CLI.
+
+## Review and verification
+
+Run the Go tests from the repository root:
+
+```powershell
+go test ./gui-go/internal/crypto ./gui-go/internal/vault ./gui-go/internal/ui ./gui-go/cmd/pulse-vault ./gui-go/crypto -count=1
 ```
 
-Run the bidirectional compatibility matrix as well:
+The suite covers fixed crypto vectors, stream round trips, tamper and truncation failures, legacy reads, vault rewrites, folder round trips, password rotation, and CLI flows. The Fyne desktop package needs CGO and a C compiler to build; see the GUI guide for platform requirements.
 
-```text
-python -m pytest legacy/python/tests/test_go_interop.py -q
-```
+Useful review material:
 
-Windows, 2026-08-14, best of 3, same payloads both sides.
+- [Cryptographic protocol](CRYPTO_PROTOCOL.md)
+- [Vault container format](VAULT_FORMAT.md)
+- [Threat model](THREAT_MODEL.md)
+- [Security policy](../SECURITY.md)
+- [Dependency manifest](../go.mod)
 
-## What we measured
-
-![Wall time, Python vs Go](assets/why-go-walltime.svg)
-
-High-entropy Python is **1932 ms**. Go is **6.3 ms** because we refuse to LZMA a jpeg. That is an engineering choice (entropy sniff → compress flag 0), not a claim that Go’s compressor is 300× better.
-
-| Workload | Archived Python | Go now | |
-| --- | ---: | ---: | --- |
-| Encrypt 4 MiB compressible | 34.0 ms | 2.1 ms | **16×** |
-| 4× 1 MiB encrypt (Go goroutines / Python one-at-a-time) | 39.3 ms | 3.7 ms | **10.5×** |
-| Extract 2 MiB | 26.2 ms | 4.9 ms | **5.3×** |
-| Add 2 MiB | 44.3 ms | 22.2 ms | **2×** |
-| Encrypt 4 MiB high-entropy (photo/video-like) | 1932 ms | 6.3 ms | **306×** |
-
-![Speedup multipliers](assets/why-go-speedup.svg)
-
-Add is the closest race because both sides rewrite a ZIP. Parallel encrypt is where goroutines show. Scrypt cost is the same on both (`fast` profile in the bench so the test finishes); we are not claiming a KDF win.
-
-```mermaid
-flowchart LR
-  subgraph py [Retired Python]
-    P1[Tk loop] --> P2[thread + GIL]
-    P2 --> P3[cryptography C]
-    P3 --> P4[XZ even on jpegs]
-  end
-  subgraph go [Go we ship]
-    G1[Fyne / CLI] --> G2[goroutine]
-    G2 --> G3[x/crypto]
-    G3 --> G4[zstd or skip]
-  end
-```
-
-## Security engineering, not language fandom
-
-![Trusted computing base stacks](assets/why-go-tcb.svg)
-
-| Property | Python (retired) | Rust (not chosen) | Go (what we ship) |
-| --- | --- | --- | --- |
-| Memory safety | Runtime / GIL, huge interpreter TCB | Affine types, no GC | GC + bounds checks, smaller TCB than CPython |
-| Crypto hot path | CPython + C `cryptography` + GIL | Excellent, but you own more of the stack | `x/crypto`, goroutines, one process |
-| Constant-time / nonce hygiene | Depends on bindings | Easy to get right, easy to over-build | AEAD + random nonces + chunk index in AAD |
-| Cross-compile / supply chain | venv, wheels, PyInstaller, AV false positives | `cargo` + often C deps for GUI | CLI is `CGO_ENABLED=0`. One artifact. |
-| UI during KDF / stream encrypt | Tk loop + threads. Freezes. | egui/iced/GTK bindings, more glue | Fyne + `fyne.Do`, work off the UI thread |
-| Contributor surface | Fast to sketch, slow to harden | Slow compile, steep for desktop | One language for vault, CLI, GUI |
-
-**Python:** interpreter, package index, and a freezer are extra attack surface (dependency confusion, wheel integrity, PyInstaller unpack). The GIL serializes the exact work we want concurrent (KDF + cascade + ZIP rewrite). That is why the GUI died on real vaults.
-
-**Rust:** fine for a kernel-adjacent parser. For Pulse-Vault we would still need a GUI story, a Windows/macOS/Linux release matrix, and people who will patch it. Borrow-checker tax on a ZIP-rewrite + Fyne-equivalent desktop is real. We would gain no new *cryptographic* primitive — we already use the same class of AEAD/KDF Rust would.
-
-**Go:** memory-safe enough for a userland vault, goroutines so confidentiality work does not starve the UI, `trimpath` / `-s -w` / `-buildvcs=false` so the binary does not ship your `$HOME` and VCS identity, static CLI with no libc story. That is the stack that stays auditable and shippable.
-
-## Supply chain
-
-![How a user gets a binary](assets/why-go-supply-chain.svg)
-
-A confidentiality tool should be boring to fetch.
-
-- **GitHub Release:** one file + `SHA256SUMS`. That is the source of truth.
-- **pip / snap** in this repo wrap **that same Go CLI**. They do not reimplement the vault in Python.
-- We do **not** ask anyone to `pip install` the tree under [`legacy/python/`](../legacy/python/). That tree is an archive.
-
-```mermaid
-sequenceDiagram
-  participant User
-  participant Channel as pip / snap / install script
-  participant GH as GitHub Releases
-  participant Bin as Go CLI
-  User->>Channel: install pulse-vault
-  Channel->>GH: fetch tagged linux/windows/darwin binary
-  Channel->>Channel: check SHA-256
-  Channel->>Bin: exec
-  User->>Bin: create / add / extract
-```
-
-## What we are not claiming
-
-- Go is not “more encrypted” than Rust. Same Scrypt, same ChaCha20-Poly1305, same AES-GCM.
-- 50 GB will not become 2 MB unless the data is almost empty or almost all repeats. Lossless compression has a floor.
-- GC does not make a vault immune to memory disclosure. Lock the vault. Do not screenshot the unlocked list.
-- Fyne GUI still needs CGO. The CLI does not. That split is intentional.
-
-## How this shows up in the product
-
-- New writes use V6 (`PULSEVAULT6_AUTHENTICATED_CASCADE`). V5 and old XZ streams still decrypt.
-- New writes use zstd or skip. Photos and video-like blobs skip.
-- ZIP members store the basename only. Timestamps are zeroed.
-- Hide-in-picture appends the ZIP after the cover media. The file still opens as a picture.
-
-Old Python tree: [`legacy/python/`](../legacy/python/). Do not pip-install that folder.
-
-More direction for the product: [ROADMAP.md](ROADMAP.md). How to ship pip / snap / GitHub Releases: [DISTRIBUTE.md](DISTRIBUTE.md).
-
-Back to the [README](../README.md). Site: [dnspulse.org](https://dnspulse.org).
+Performance measurements against the archived Python implementation are kept in the changelog and the compatibility benchmark test. They describe specific workloads on one machine and should not be read as a general security or performance guarantee.

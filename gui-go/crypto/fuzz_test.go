@@ -36,3 +36,20 @@ func FuzzDecryptStreamV4NeverPanics(f *testing.F) {
 		_ = pulsecrypto.DecryptStreamV4(key, bytes.NewReader(data), &plaintext)
 	})
 }
+
+func FuzzDecryptStreamV6NeverPanics(f *testing.F) {
+	key := bytes.Repeat([]byte{0x3c}, pulsecrypto.V3KeySize)
+	var seed bytes.Buffer
+	if err := pulsecrypto.EncryptStreamV6(key, bytes.NewReader([]byte("finalized stream fuzz seed")), &seed, true); err != nil {
+		f.Fatal(err)
+	}
+	f.Add(seed.Bytes())
+	f.Add([]byte("PV6STRM1"))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		if len(data) > 1<<20 {
+			return
+		}
+		var plaintext bytes.Buffer
+		_ = pulsecrypto.DecryptStreamV6(key, bytes.NewReader(data), &plaintext)
+	})
+}

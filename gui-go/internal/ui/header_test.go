@@ -38,3 +38,23 @@ func TestSplitFitMinSize(t *testing.T) {
 		t.Fatalf("min size too small: %v", ms)
 	}
 }
+
+func TestSidebarWidthAcrossDesktopSizes(t *testing.T) {
+	for _, tc := range []struct {
+		canvas float32
+		want   float32
+	}{
+		{560, 180},
+		{640, 198.4},
+		{800, 240},
+		{1120, 268.8},
+		{1366, 280},
+		{1920, 280},
+		{2560, 280},
+	} {
+		got := sidebarWidth(tc.canvas)
+		if got < tc.want-0.1 || got > tc.want+0.1 {
+			t.Errorf("sidebarWidth(%v) = %v; want %v", tc.canvas, got, tc.want)
+		}
+	}
+}
