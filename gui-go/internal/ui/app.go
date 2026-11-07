@@ -393,6 +393,16 @@ func (ui *App) onDropped(_ fyne.Position, uris []fyne.URI) {
 }
 
 func (ui *App) syncStage() {
+	// Visibility changes alter the minimum sizes of the navigation and
+	// workspace headers. Relayout their parents before drawing the new state.
+	defer func() {
+		if ui.navRail != nil {
+			ui.navRail.Refresh()
+		}
+		if ui.mainStage != nil {
+			ui.mainStage.Refresh()
+		}
+	}()
 	unlocked := ui.v != nil && ui.v.IsUnlocked()
 	ui.syncNavigation(unlocked)
 	if unlocked && len(ui.files) > 0 {

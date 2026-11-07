@@ -94,6 +94,9 @@ func TestFileSearchFiltersWithoutChangingVaultContents(t *testing.T) {
 	ui.v = v
 	ui.files = []string{"Docs/Report.txt", "photos/image.png"}
 	ui.filterFiles()
+	if ui.search.Size().Height <= 0 || ui.fileNav.Position().Y < ui.btnHide.Position().Y+ui.btnHide.Size().Height {
+		t.Fatal("revealing file controls must relayout the navigation and search field")
+	}
 	ui.selected = "Docs/Report.txt"
 	ui.search.SetText("PHOTO")
 	if len(ui.visibleFiles) != 1 || ui.visibleFiles[0] != "photos/image.png" || ui.countLabel.Text != "1 of 2 items" {
