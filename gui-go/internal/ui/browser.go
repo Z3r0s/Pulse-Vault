@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -310,16 +309,10 @@ func browseLocal(title, initial string, foldersOnly bool, parent fyne.Window, ac
 	picker.Show()
 }
 
-func showLocalFile(title string, callback func(fyne.URIReadCloser, error), parent fyne.Window) {
-	browseLocal(title, "", false, parent, func(path string) {
-		file, err := storage.Reader(storage.NewFileURI(path))
-		callback(file, err)
-	})
+func showLocalFile(title string, callback func(string), parent fyne.Window) {
+	browseLocal(title, "", false, parent, callback)
 }
 
-func showLocalFolder(title, initial string, callback func(fyne.ListableURI, error), parent fyne.Window) {
-	browseLocal(title, initial, true, parent, func(path string) {
-		folder, err := storage.ListerForURI(storage.NewFileURI(path))
-		callback(folder, err)
-	})
+func showLocalFolder(title, initial string, callback func(string), parent fyne.Window) {
+	browseLocal(title, initial, true, parent, callback)
 }

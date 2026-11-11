@@ -2,7 +2,7 @@ module github.com/Z3r0s/Pulse-Vault
 
 go 1.26.0
 
-toolchain go1.27.3
+toolchain go1.27.4
 
 require (
 	fyne.io/fyne/v2 v2.8.2

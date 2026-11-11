@@ -27,7 +27,7 @@ New vaults use the V6 authenticated stream format. Folder trees use the V7 conta
 
 Requirements:
 
-- Go 1.26 or later; the module recommends Go 1.27.3 and CI uses it. With Go's automatic toolchain selection enabled, an older installation downloads the recommended toolchain when needed.
+- Go 1.26 or later; the module recommends Go 1.27.4 and CI uses it. With Go's automatic toolchain selection enabled, an older installation downloads the recommended toolchain when needed.
 - The CLI builds without CGO.
 - The desktop app uses Fyne and needs CGO plus a C compiler. On Windows, install MSYS2 `mingw-w64-x86_64-gcc`; `build.ps1` can use `C:\msys64\mingw64\bin` when present.
 

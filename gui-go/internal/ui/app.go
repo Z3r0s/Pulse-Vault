@@ -39,6 +39,7 @@ type App struct {
 	status            *widget.Label
 	progress          *widget.ProgressBar
 	cancelJob         context.CancelFunc
+	jobDone           <-chan struct{}
 	fileList          *widget.List
 	files             []string
 	fileSummaries     map[string]vault.FileSummary
@@ -761,6 +762,8 @@ func (ui *App) runAsyncWithOptionsAndCancel(op, pendingMsg string, work func(con
 	ui.setBusyChromeForOperation(true, cancellable)
 	ui.setStatus(StatusLine(true, op, pendingMsg))
 
+	done := make(chan struct{})
+	ui.jobDone = done
 	go func() {
 		var progressMu sync.Mutex
 		lastReport := time.Time{}
@@ -796,6 +799,7 @@ func (ui *App) runAsyncWithOptionsAndCancel(op, pendingMsg string, work func(con
 			err = ctx.Err()
 		}
 		ui.onMain(func() {
+			defer close(done)
 			cancel()
 			ui.cancelJob = nil
 			if err != nil {
@@ -1014,14 +1018,8 @@ func (ui *App) chooseOutputPath(title, confirm, initialName, initialFolder strin
 	folder.SetPlaceHolder("Choose a folder")
 	folder.Validator = validateOutputFolder
 	browse := widget.NewButtonWithIcon("Browse…", theme.FolderOpenIcon(), func() {
-		showLocalFolder("Save folder", folder.Text, func(uri fyne.ListableURI, err error) {
-			if err != nil {
-				dialog.ShowError(err, ui.win)
-				return
-			}
-			if uri != nil {
-				folder.SetText(uri.Path())
-			}
+		showLocalFolder("Save folder", folder.Text, func(chosenPath string) {
+			folder.SetText(chosenPath)
 		}, ui.win)
 	})
 	items := []*widget.FormItem{
@@ -1144,16 +1142,7 @@ func (ui *App) onOpen() {
 		ui.setStatus("Busy — wait for the current operation to finish.")
 		return
 	}
-	showLocalFile("Open a vault", func(uc fyne.URIReadCloser, err error) {
-		if err != nil {
-			ui.setStatus("Open cancelled: " + err.Error())
-			return
-		}
-		if uc == nil {
-			return
-		}
-		path := uc.URI().Path()
-		_ = uc.Close()
+	showLocalFile("Open a vault", func(path string) {
 		if path == "" {
 			return
 		}
@@ -1192,16 +1181,7 @@ func (ui *App) onHide() {
 		ui.setStatus("Busy — wait for the current operation to finish.")
 		return
 	}
-	showLocalFile("Choose a picture", func(uc fyne.URIReadCloser, err error) {
-		if err != nil {
-			ui.setStatus("Hide cancelled: " + err.Error())
-			return
-		}
-		if uc == nil {
-			return
-		}
-		carrier := uc.URI().Path()
-		_ = uc.Close()
+	showLocalFile("Choose a picture", func(carrier string) {
 		if carrier == "" {
 			return
 		}
@@ -1285,12 +1265,7 @@ func (ui *App) onAdd() {
 		ui.setStatus("Busy — wait for the current operation to finish.")
 		return
 	}
-	showLocalFile("Add a file", func(uc fyne.URIReadCloser, err error) {
-		if err != nil || uc == nil {
-			return
-		}
-		path := uc.URI().Path()
-		_ = uc.Close()
+	showLocalFile("Add a file", func(path string) {
 		if path == "" {
 			return
 		}
@@ -1307,14 +1282,8 @@ func (ui *App) onAddFolder() {
 		ui.setStatus("Busy — wait for the current operation to finish.")
 		return
 	}
-	showLocalFolder("Add a folder", "", func(folder fyne.ListableURI, err error) {
-		if err != nil || folder == nil {
-			return
-		}
-		path := folder.Path()
-		if path != "" {
-			ui.startAdd([]string{path}, filepath.Base(path))
-		}
+	showLocalFolder("Add a folder", "", func(chosenPath string) {
+		ui.startAdd([]string{chosenPath}, filepath.Base(chosenPath))
 	}, ui.win)
 }
 
@@ -1390,12 +1359,8 @@ func (ui *App) onExtract() {
 				ui.setStatus("No filename given.")
 				return
 			}
-			showLocalFolder("Save file to folder", "", func(lu fyne.ListableURI, err error) {
-				if err != nil || lu == nil {
-					return
-				}
-				outDir := lu.Path()
-				ui.startExtract(n, outDir, false)
+			showLocalFolder("Save file to folder", "", func(chosenPath string) {
+				ui.startExtract(n, chosenPath, false)
 			}, ui.win)
 		},
 		ui.win,
@@ -1417,11 +1382,8 @@ func (ui *App) onExtractAll() {
 		ui.setStatus("Vault is empty.")
 		return
 	}
-	showLocalFolder("Save all files to folder", "", func(folder fyne.ListableURI, err error) {
-		if err != nil || folder == nil {
-			return
-		}
-		ui.startExtractAll(folder.Path(), false)
+	showLocalFolder("Save all files to folder", "", func(chosenPath string) {
+		ui.startExtractAll(chosenPath, false)
 	}, ui.win)
 }
 

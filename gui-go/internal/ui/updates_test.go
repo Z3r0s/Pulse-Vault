@@ -79,6 +79,11 @@ func TestStartupAndDismissDoNotContactAnyServerUntilConsent(t *testing.T) {
 	}
 	consent.Confirm()
 	select {
+	case <-ui.jobDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("update job did not finish applying its UI result")
+	}
+	select {
 	case <-service.called:
 	case <-time.After(2 * time.Second):
 		t.Fatal("Check now did not start the explicitly requested release check")

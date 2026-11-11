@@ -36,7 +36,7 @@ jobs:
 
       - uses: actions/setup-go@v7.0.0
         with:
-          go-version: "1.27.3"
+          go-version: "1.27.4"
           cache-dependency-path: go.sum
 
       - name: Prepare the docs site and local crypto demo
