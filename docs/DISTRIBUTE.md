@@ -31,7 +31,7 @@ Manual dispatch: Actions → Release Go → Run workflow (no tag = artifacts onl
 
 ## 2. You, submitting to PyPI (pip)
 
-Do this on your own machine after the GitHub Release exists. The package is [`packaging/pypi/`](../packaging/pypi/). It is a **launcher** that fetches the official Go CLI. It is not the retired Python vault.
+Do this on your own machine after the GitHub Release exists. The package is [`packaging/pypi/`](../packaging/pypi/). It is a **launcher** for the official Go CLI. Normal commands run a verified local copy without contacting GitHub; users explicitly fetch it with `pulse-vault --launcher-install` or `pulse-vault --launcher-update`. It is not the retired Python vault.
 
 ### One-time (30 minutes)
 

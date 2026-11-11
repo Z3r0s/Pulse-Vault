@@ -138,6 +138,56 @@ func TestDeleteFileRemovesBlob(t *testing.T) {
 	}
 }
 
+func TestDeleteFilesRemovesBatchAndValidatesAtomically(t *testing.T) {
+	dir := t.TempDir()
+	vp := filepath.Join(dir, "batch-delete.pulsevault")
+	pw := "BatchDeletePassword!!"
+	v := New(vp)
+	if err := v.Create(pw, "fast"); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"one.txt", "two.txt", "keep.txt"} {
+		src := filepath.Join(dir, name)
+		if err := os.WriteFile(src, []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := v.AddFile(src, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	original, err := os.ReadFile(vp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, invalid := range [][]string{{"one.txt", "missing.txt"}, {"one.txt", "one.txt"}, {}} {
+		if err := v.DeleteFiles(invalid); err == nil {
+			t.Fatalf("expected invalid batch %q to fail", invalid)
+		}
+		got, readErr := os.ReadFile(vp)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if !bytes.Equal(got, original) {
+			t.Fatalf("invalid batch %q changed the vault", invalid)
+		}
+	}
+
+	if err := v.DeleteFiles([]string{"one.txt", "two.txt"}); err != nil {
+		t.Fatal(err)
+	}
+	names, err := v.ListFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(names) != 1 || names[0] != "keep.txt" {
+		t.Fatalf("remaining names = %v, want [keep.txt]", names)
+	}
+	if _, _, _, err := v.VerifyAll(); err != nil {
+		t.Fatalf("remaining vault failed verification: %v", err)
+	}
+}
+
 func TestKDFJSONWrittenAndUsedOnUnlock(t *testing.T) {
 	dir := t.TempDir()
 	vp := filepath.Join(dir, "kdf.pulsevault")

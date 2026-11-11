@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# The Python engine is retained only as a legacy interoperability oracle.
+legacy/python/** linguist-detectable=false

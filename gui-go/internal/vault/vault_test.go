@@ -3,6 +3,7 @@ package vault
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,6 +76,35 @@ func TestCreateAddListExtractRoundTrip(t *testing.T) {
 	}
 }
 
+func TestFileSummaryRequiresUnlockedVaultAndOmitsSecrets(t *testing.T) {
+	dir := t.TempDir()
+	v := New(filepath.Join(dir, "summary.pulsevault"))
+	if err := v.Create("SummaryTestPassword!!", "fast"); err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(dir, "record.txt")
+	if err := os.WriteFile(source, []byte("summary"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.AddFile(source, false); err != nil {
+		t.Fatal(err)
+	}
+	summary, err := v.GetFileSummary("record.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.Name != "record.txt" || summary.Size != int64(len("summary")) || summary.AddedAt <= 0 || summary.UpdatedAt <= 0 {
+		t.Fatalf("unexpected file summary: %+v", summary)
+	}
+	if _, err := v.GetFileSummary("missing.txt"); !errors.Is(err, ErrVault) {
+		t.Fatalf("missing file summary error = %v, want ErrVault", err)
+	}
+	v.Lock()
+	if _, err := v.GetFileSummary("record.txt"); !errors.Is(err, ErrVault) {
+		t.Fatalf("locked file summary error = %v, want ErrVault", err)
+	}
+}
+
 func TestCarrierPrefixSurvivesRewrite(t *testing.T) {
 	dir := t.TempDir()
 	vaultPath := filepath.Join(dir, "carrier.pulsevault")
@@ -144,26 +174,22 @@ func TestCreateRefusesExisting(t *testing.T) {
 	}
 }
 
-func TestCreateClearsEmptyFileSavePlaceholder(t *testing.T) {
-	// Mirrors Fyne ShowFileSave: OS creates an empty file before Create runs.
+func TestCreateRefusesExistingEmptyFile(t *testing.T) {
 	dir := t.TempDir()
-	vaultPath := filepath.Join(dir, "from-dialog.pulsevault")
+	vaultPath := filepath.Join(dir, "empty.pulsevault")
 	if err := os.WriteFile(vaultPath, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	v := New(vaultPath)
-	if err := v.Create("PlaceholderDialogPassword!!", "fast"); err != nil {
-		t.Fatalf("Create should succeed after empty placeholder: %v", err)
-	}
-	if !v.IsUnlocked() {
-		t.Fatal("expected unlocked after create")
+	if err := v.Create("SomeLongPassword1234!", "fast"); err == nil {
+		t.Fatal("expected create to preserve any existing path")
 	}
 	st, err := os.Stat(vaultPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Size() == 0 {
-		t.Fatal("vault file should be non-empty after create")
+	if st.Size() != 0 {
+		t.Fatal("existing empty file changed after rejected create")
 	}
 }
 
@@ -181,7 +207,7 @@ func TestCreateStillRefusesNonEmptyExisting(t *testing.T) {
 
 func TestAddFileStoresBasenameOnlyAndNoHostPathInCleartext(t *testing.T) {
 	dir := t.TempDir()
-	nested := filepath.Join(dir, "Users", "jared", "Documents", "Coding Projects", "OpenSourceFileVault")
+	nested := filepath.Join(dir, "Users", "sample-user", "Documents", "Sample Project")
 	if err := os.MkdirAll(nested, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -208,14 +234,14 @@ func TestAddFileStoresBasenameOnlyAndNoHostPathInCleartext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(meta.Name, string(filepath.Separator)) || strings.Contains(meta.Name, "jared") {
+	if strings.Contains(meta.Name, string(filepath.Separator)) || strings.Contains(meta.Name, "sample-user") {
 		t.Fatalf("metadata name leaked a path: %q", meta.Name)
 	}
 	raw, err := os.ReadFile(vp)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, needle := range []string{"jared", "Coding Projects", "OpenSourceFileVault", "Users", nested} {
+	for _, needle := range []string{"sample-user", "Sample Project", "Users", nested} {
 		if bytes.Contains(raw, []byte(needle)) {
 			t.Fatalf("vault cleartext contains host path fragment %q", needle)
 		}

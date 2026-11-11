@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="description" content="Pulse-Vault engineering notes: measured performance, cryptographic protocol, and research directions.">
+    <title>Pulse-Vault field notes</title>
+    <link rel="stylesheet" href="./performance/dashboard.css?v=20261107-field-notes">
+    <style>
+      .field-shell { width: min(980px, calc(100% - 48px)); margin: 0 auto; }
+      .field-intro { padding: clamp(64px, 11vw, 132px) 0 50px; }
+      .field-intro h1 { max-width: 820px; }
+      .field-intro p:not(.eyebrow) { max-width: 730px; color: #c6d2d8; font-size: 19px; }
+      .field-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 34px 64px; padding: 26px 0; border-top: 1px solid var(--line); }
+      .field-links a { display: block; margin-bottom: 8px; color: var(--text); font-size: 21px; font-weight: 650; text-decoration: none; }
+      .field-links a:hover { color: var(--cyan-soft); }
+      .field-links p { max-width: 410px; margin: 0; color: var(--muted); font-size: 14px; }
+      .field-foot { padding: 23px 0 40px; border-top: 1px solid var(--line); color: var(--dim); font-size: 13px; }
+      @media (max-width: 600px) {
+        .field-shell { width: min(980px, calc(100% - 36px)); }
+        .field-links { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+        .field-intro p:not(.eyebrow) { font-size: 17px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="wordmark" href="https://github.com/Z3r0s/Pulse-Vault">Pulse-Vault</a>
+      <nav aria-label="Page navigation">
+        <a href="./performance/">Performance</a>
+        <a href="./crypto/">Cryptography &amp; research</a>
+        <a href="https://github.com/Z3r0s/Pulse-Vault">Source</a>
+      </nav>
+    </header>
+    <main class="field-shell">
+      <section class="field-intro">
+        <p class="eyebrow">Engineering notes</p>
+        <h1>Show the work. Explain the boundaries.</h1>
+        <p>Pulse-Vault is a local file vault built in Go. These pages open its performance measurements and cryptographic design, with the workload, protocol, trade-offs, and limits visible alongside the results.</p>
+      </section>
+      <section class="field-links" aria-label="Field notes">
+        <article>
+          <a href="./performance/">Explore performance →</a>
+          <p>Move through measured CLI workloads, inspect memory and Go allocation graphs, and compare indexed search and ZIP validation with their previous implementations.</p>
+        </article>
+        <article>
+          <a href="./crypto/">Read cryptography &amp; research →</a>
+          <p>Follow the V6 authenticated stream, run the actual Go encrypt/decrypt demo locally in your browser, and explore possible directions for the public Go crypto package.</p>
+        </article>
+        <article>
+          <a href="https://github.com/Z3r0s/Pulse-Vault/blob/main/README.md">Read the project README →</a>
+          <p>Start with setup, the desktop and CLI flows, releases, performance summaries, and the security boundaries of a local vault.</p>
+        </article>
+        <article>
+          <a href="https://github.com/Z3r0s/Pulse-Vault/blob/main/CHANGELOG.md">Read the changelog →</a>
+          <p>Review the work, fixes, dependency updates, and tests recorded for each release.</p>
+        </article>
+      </section>
+      <footer class="field-foot">Source, format documents, and issue tracking live in the public repository.</footer>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 570"
+     role="img" aria-labelledby="title desc" aria-label="V6 stream encryption time and allocated memory">
+  <title id="title">V6 stream encryption time and allocated memory</title>
+  <desc id="desc">Two panels compare median encryption latency in milliseconds and Go allocated bytes per operation for three synthetic workloads: a 4.14 KiB repeated payload, an approximately 1 MiB repeated payload, and a 10 MiB random payload. Each median is from 5 500 millisecond benchmark runs. Allocation bytes are not peak process RSS.</desc>
+  <rect width="100%" height="100%" fill="#0b1117"/>
+  <text x="48.0" y="50.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="29" font-weight="700" text-anchor="start">V6 stream encryption: time and allocations</text>
+  <text x="48.0" y="81.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="start">Encrypt-only microbenchmark · 5 × 500 ms runs · median per operation</text>
+  <text x="48.0" y="132.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="650" text-anchor="start">Encryption time</text>
+  <text x="690.0" y="132.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">lower is faster / smaller</text>
+  <text x="201.0" y="211.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="end">4.14 KiB repeated</text>
+  <rect x="214.0" y="202.0" width="8.3" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="631.0" y="214.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="start">0.25 ms</text>
+  <text x="201.0" y="285.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="end">~1 MiB repeated</text>
+  <rect x="214.0" y="276.0" width="24.3" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="631.0" y="288.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="start">0.72 ms</text>
+  <text x="201.0" y="359.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="end">10 MiB random</text>
+  <rect x="214.0" y="350.0" width="207.4" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="631.0" y="362.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="start">6.15 ms</text>
+  <line x1="214.0" y1="165.0" x2="214.0" y2="419.0" stroke="#30404b" stroke-width="1"/>
+  <text x="214.0" y="441.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">0</text>
+  <line x1="281.5" y1="165.0" x2="281.5" y2="419.0" stroke="#30404b" stroke-width="1"/>
+  <text x="281.5" y="441.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">2</text>
+  <line x1="349.0" y1="165.0" x2="349.0" y2="419.0" stroke="#30404b" stroke-width="1"/>
+  <text x="349.0" y="441.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">4</text>
+  <line x1="416.5" y1="165.0" x2="416.5" y2="419.0" stroke="#30404b" stroke-width="1"/>
+  <text x="416.5" y="441.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">6</text>
+  <line x1="484.0" y1="165.0" x2="484.0" y2="419.0" stroke="#30404b" stroke-width="1"/>
+  <text x="484.0" y="441.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">8</text>
+  <line x1="551.5" y1="165.0" x2="551.5" y2="419.0" stroke="#30404b" stroke-width="1"/>
+  <text x="551.5" y="441.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">10</text>
+  <line x1="619.0" y1="165.0" x2="619.0" y2="419.0" stroke="#30404b" stroke-width="1"/>
+  <text x="619.0" y="441.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">12</text>
+  <text x="416.5" y="467.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">Time per operation (milliseconds)</text>
+  <text x="744.0" y="132.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="650" text-anchor="start">Allocated memory</text>
+  <text x="1386.0" y="132.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">lower is faster / smaller</text>
+  <text x="897.0" y="211.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="end">4.14 KiB repeated</text>
+  <rect x="910.0" y="202.0" width="170.9" height="17.0" rx="3" fill="#77aef7"/>
+  <text x="1327.0" y="214.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="start">2.53 MB</text>
+  <text x="897.0" y="285.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="end">~1 MiB repeated</text>
+  <rect x="910.0" y="276.0" width="339.8" height="17.0" rx="3" fill="#77aef7"/>
+  <text x="1327.0" y="288.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="start">5.03 MB</text>
+  <text x="897.0" y="359.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="end">10 MiB random</text>
+  <rect x="910.0" y="350.0" width="224.9" height="17.0" rx="3" fill="#77aef7"/>
+  <text x="1327.0" y="362.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="start">3.33 MB</text>
+  <line x1="910.0" y1="165.0" x2="910.0" y2="419.0" stroke="#30404b" stroke-width="1"/>
+  <text x="910.0" y="441.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">0</text>
+  <line x1="977.5" y1="165.0" x2="977.5" y2="419.0" stroke="#30404b" stroke-width="1"/>
+  <text x="977.5" y="441.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">1</text>
+  <line x1="1045.0" y1="165.0" x2="1045.0" y2="419.0" stroke="#30404b" stroke-width="1"/>
+  <text x="1045.0" y="441.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">2</text>
+  <line x1="1112.5" y1="165.0" x2="1112.5" y2="419.0" stroke="#30404b" stroke-width="1"/>
+  <text x="1112.5" y="441.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">3</text>
+  <line x1="1180.0" y1="165.0" x2="1180.0" y2="419.0" stroke="#30404b" stroke-width="1"/>
+  <text x="1180.0" y="441.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">4</text>
+  <line x1="1247.5" y1="165.0" x2="1247.5" y2="419.0" stroke="#30404b" stroke-width="1"/>
+  <text x="1247.5" y="441.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">5</text>
+  <line x1="1315.0" y1="165.0" x2="1315.0" y2="419.0" stroke="#30404b" stroke-width="1"/>
+  <text x="1315.0" y="441.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">6</text>
+  <text x="1112.5" y="467.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">Go allocations per operation (decimal MB)</text>
+  <line x1="720.0" y1="113.0" x2="720.0" y2="486.0" stroke="#30404b" stroke-width="1"/>
+  <line x1="48.0" y1="510.0" x2="1392.0" y2="510.0" stroke="#30404b" stroke-width="1"/>
+  <text x="48.0" y="541.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">Synthetic repeated and random inputs. Bytes/op are Go heap allocations, not peak process RSS.</text>
+  <text x="1392.0" y="541.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">Compression enabled when beneficial · 1 MiB stream chunks</text>
+</svg>

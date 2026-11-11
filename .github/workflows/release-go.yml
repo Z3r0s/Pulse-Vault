@@ -18,7 +18,7 @@ on:
         default: ""
 
 permissions:
-  contents: write
+  contents: read
 
 defaults:
   run:
@@ -29,18 +29,18 @@ jobs:
     name: Test (crypto/vault/CLI)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7.0.0
         with:
-          go-version: "1.25.13"
+          go-version: "1.27.4"
           cache-dependency-path: go.sum
 
       - name: Install Linux GUI dependencies for tests
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
+          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev wayland-protocols
 
       - name: go test (pure packages + CLI)
         run: go test ./crypto ./internal/crypto ./internal/vault ./internal/ui ./cmd/pulse-vault -count=1
@@ -88,12 +88,12 @@ jobs:
             goarch: arm64
             artifact: pulse-vault-darwin-arm64
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7.0.0
         with:
-          go-version: "1.25.13"
+          go-version: "1.27.4"
           cache-dependency-path: go.sum
 
       - name: Resolve version
@@ -129,7 +129,7 @@ jobs:
           ls -la "dist/${{ matrix.artifact }}"
 
       - name: Upload CLI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: ${{ matrix.artifact }}
           path: gui-go/dist/${{ matrix.artifact }}
@@ -146,19 +146,19 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7.0.0
         with:
-          go-version: "1.25.13"
+          go-version: "1.27.4"
           cache-dependency-path: go.sum
 
       - name: Install Linux GUI deps (Fyne / OpenGL)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
+          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev wayland-protocols
 
       - name: Resolve version
         id: ver
@@ -219,7 +219,7 @@ jobs:
 
       - name: Upload GUI artifact (Windows)
         if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: ${{ steps.gui-win.outputs.name }}
           path: gui-go/dist/${{ steps.gui-win.outputs.name }}
@@ -227,7 +227,7 @@ jobs:
 
       - name: Upload GUI artifact (Unix)
         if: matrix.os != 'windows-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: ${{ steps.gui.outputs.name }}
           path: gui-go/dist/${{ steps.gui.outputs.name }}
@@ -237,11 +237,13 @@ jobs:
     name: Checksums + optional GitHub Release
     needs: [build-cli, build-gui-host]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7.0.1
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.2
         with:
           path: release-go
           merge-multiple: true
@@ -259,7 +261,7 @@ jobs:
           cat SHA256SUMS
 
       - name: Upload checksums artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: SHA256SUMS
           path: release-go/SHA256SUMS
@@ -270,7 +272,7 @@ jobs:
         run: |
           cp scripts/install.sh scripts/install.ps1 release-go/
           printf '%s\n' \
-            'Pulse-Vault by DNSPulse — https://dnspulse.org' \
+            'Pulse-Vault by DNSPulse - https://dnspulse.org' \
             '' \
             'Download a file below or:' \
             '' \
@@ -288,7 +290,7 @@ jobs:
 
       - name: Attach assets to GitHub Release (tags only)
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3.0.4
         with:
           files: release-go/*
           body_path: release-notes.md

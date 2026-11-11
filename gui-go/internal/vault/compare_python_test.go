@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	crypto "github.com/Z3r0s/Pulse-Vault/gui-go/crypto"
+	crypto "github.com/Z3r0s/Pulse-Vault/gui-go/internal/crypto"
 )
 
 // compareOps is the shared work list for Go vs archived-Python timings.

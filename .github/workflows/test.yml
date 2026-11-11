@@ -5,9 +5,13 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  # Product path: Go vault/crypto/UI/CLI suite (V6 current format; V5 readable).
+  # Product path: Go vault/crypto/UI/CLI suite (V6 streams; V7 folder paths; V5 readable).
   go-parity:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -16,41 +20,92 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     defaults:
       run:
+        shell: bash
         working-directory: gui-go
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
-          go-version: "1.25.13"
+          go-version: "1.27.4"
           cache-dependency-path: go.sum
       - name: Install Linux GUI dependencies for CGO tests
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
-      - name: Go test (crypto + vault + UI + CLI)
-        env:
-          CGO_ENABLED: "0"
-        run: go test ./internal/crypto ./internal/vault ./internal/ui ./cmd/pulse-vault -count=1
-
-      - name: Packaging contract tests
+          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev wayland-protocols
+      - name: Go tests (all packages)
         working-directory: ${{ github.workspace }}
         env:
           CGO_ENABLED: "0"
-        run: go test ./packaging -count=1
+        run: go test ./... -count=1
 
-      - name: Go public API tests and vet
+      - name: Build browser crypto demo (WebAssembly)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: ${{ github.workspace }}
+        env:
+          GOOS: js
+          GOARCH: wasm
+          CGO_ENABLED: "0"
+        run: |
+          go build -trimpath -o "$RUNNER_TEMP/pulse-vault-crypto-demo.wasm" ./gui-go/cmd/cryptodemo
+          test -s "$RUNNER_TEMP/pulse-vault-crypto-demo.wasm"
+          test -f "$(go env GOROOT)/lib/wasm/wasm_exec.js"
+
+      - name: Exercise browser crypto demo encrypt/decrypt flow
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: ${{ github.workspace }}
+        run: node scripts/test-crypto-wasm-demo.cjs "$RUNNER_TEMP/pulse-vault-crypto-demo.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
+
+      - name: GUI file-search allocation benchmark
         env:
           CGO_ENABLED: "0"
         run: |
-          go test ./crypto -count=1
-          go vet ./crypto ./internal/crypto ./internal/vault ./internal/ui ./cmd/pulse-vault
+          set -o pipefail
+          go test ./internal/ui -run=^$ -bench=BenchmarkFileNameFilter -benchtime=200ms -count=3 -benchmem | sed -E -e '/^(goos|goarch|pkg|cpu):/d' -e 's/-[0-9]+([[:space:]]+)/\1/'
+
+      - name: Virtualized GUI row-update benchmark
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          set -o pipefail
+          go test ./internal/ui -run=^$ -bench=BenchmarkUpdateFileListRow -benchtime=1s -count=5 -benchmem | sed -E -e '/^(goos|goarch|pkg|cpu):/d' -e 's/-[0-9]+([[:space:]]+)/\1/'
+
+      - name: V6 stream allocation benchmark
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          set -o pipefail
+          go test ./internal/crypto -run=^$ -bench=BenchmarkEncryptStreamV6 -benchtime=500ms -count=5 -benchmem | sed -E -e '/^(goos|goarch|pkg|cpu):/d' -e 's/-[0-9]+([[:space:]]+)/\1/'
+
+      - name: Bulk-add path-conflict benchmark
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          set -o pipefail
+          go test ./internal/vault -run=^$ -bench=BenchmarkAddPathConflictValidation -benchtime=200ms -count=3 -benchmem | sed -E -e '/^(goos|goarch|pkg|cpu):/d' -e 's/-[0-9]+([[:space:]]+)/\1/'
+
+      - name: Go vet
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          go vet ./...
+
+      - name: Real CLI bulk workloads (standard password profile)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: ${{ github.workspace }}
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          python3 scripts/test_benchmark_cli.py
+          go build -o "$RUNNER_TEMP/pulse-vault" ./gui-go/cmd/pulse-vault
+          python3 scripts/benchmark-cli.py "$RUNNER_TEMP/pulse-vault" --files 1000 --bytes-per-file 4096 --content repeated --profile standard --runs 3 --require-memory-sampling
+          python3 scripts/benchmark-cli.py "$RUNNER_TEMP/pulse-vault" --files 8 --bytes-per-file 10485760 --content random --profile standard --runs 3 --require-memory-sampling
 
       - name: Go race detector (Linux)
         if: matrix.os == 'ubuntu-latest'
         env:
           CGO_ENABLED: "1"
-        run: go test -race ./crypto ./internal/crypto ./internal/vault ./cmd/pulse-vault -count=1
+        run: go test -race ./crypto ./internal/crypto ./internal/ui ./internal/vault ./cmd/pulse-vault -count=1
 
       - name: Go fuzz smoke (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -59,6 +114,7 @@ jobs:
         run: |
           go test ./crypto -run=^$ -fuzz=FuzzDecryptStreamV5NeverPanics -fuzztime=30s
           go test ./crypto -run=^$ -fuzz=FuzzDecryptStreamV4NeverPanics -fuzztime=15s
+          go test ./crypto -run=^$ -fuzz=FuzzDecryptStreamV6NeverPanics -fuzztime=15s
 
   # The Python tree is retired, but it remains the protocol oracle for
   # compatibility. Keep the focused current-format matrix in CI without
@@ -66,12 +122,12 @@ jobs:
   go-python-interop:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
-          go-version: "1.25.13"
+          go-version: "1.27.4"
           cache-dependency-path: go.sum
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.12"
       - name: Install interop test dependencies
@@ -87,15 +143,15 @@ jobs:
   go-gui-cgo-smoke:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
-          go-version: "1.25.13"
+          go-version: "1.27.4"
           cache-dependency-path: go.sum
       - name: Install Fyne/OpenGL build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
+          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev wayland-protocols
       - name: Build GUI with CGO enabled
         env:
           CGO_ENABLED: "1"
@@ -105,21 +161,21 @@ jobs:
     name: Go quality and vulnerability scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
-          go-version: "1.25.13"
+          go-version: "1.27.4"
           cache-dependency-path: go.sum
       - name: Install Linux GUI dependencies for analyzers
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
+          sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev wayland-protocols
       - name: Verify module graph
         run: go mod verify
       - name: Install pinned analyzers
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@v0.6.1
-          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          go install honnef.co/go/tools/cmd/staticcheck@v0.8.2
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Run static analysis
         run: staticcheck ./...
@@ -133,7 +189,7 @@ jobs:
   validate-packaging:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7.0.1
 
       - name: Install desktop + AppStream validators
         run: |
@@ -145,7 +201,7 @@ jobs:
         run: desktop-file-validate packaging/linux/pulse-vault.desktop
 
       - name: PyPI launcher tests
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.12"
 
@@ -168,3 +224,195 @@ jobs:
           META_LINE=$(grep -o 'release version="[^"]*"' packaging/linux/io.github.z3r0s.PulseVault.metainfo.xml | head -1) || true
           echo "Metainfo latest release attr: ${META_LINE:-none found}"
           echo "Reminder: keep metainfo releases in sync with CHANGELOG.md (see CONTRIBUTING.md)"
+
+  docs-performance:
+    name: Validate performance documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Check generated benchmark charts
+        run: python scripts/render-performance-charts.py --check
+      - name: Validate benchmark data, stage controls, and documentation links
+        run: |
+          python - <<'PY'
+          import json
+          import re
+          import urllib.parse
+          from html.parser import HTMLParser
+          from pathlib import Path
+
+          data = json.loads(Path("docs/performance/benchmarks.json").read_text(encoding="utf-8"))
+          environment = data["environment"]
+          private_fields = {
+              "host", "hostname", "os", "operatingsystem", "system", "platform",
+              "cpu", "processor", "hardware", "machine", "architecture", "arch",
+              "device", "deviceid", "user", "username", "goversion", "golangversion",
+              "goos", "goarch", "runtimeversion",
+          }
+          normalized_fields = {
+              re.sub(r"[^a-z0-9]", "", str(field).casefold()) for field in environment
+          }
+          leaked_fields = sorted(normalized_fields & private_fields)
+          assert not leaked_fields, f"benchmark data contains identifying fields: {leaked_fields}"
+          stages = data["cli"]["stages"]
+          assert [stage["name"] for stage in stages][-2:] == ["Delete batch", "Verify after delete"]
+          performance_notes = Path("docs/PERFORMANCE.md").read_text(encoding="utf-8")
+          workloads = data["cli"]["workloads"]
+          for workload_key, workload in workloads.items():
+              for stage in stages:
+                  if stage["name"] == "Incremental add":
+                      operation = "Add to populated vault"
+                  elif stage["name"] == "Delete batch":
+                      operation = f"Delete {workload['deletedFiles']} entries"
+                  elif stage["name"] == "Verify after delete":
+                      operation = f"Verify remaining {workload['files'] - workload['deletedFiles']}"
+                  else:
+                      operation = stage["name"]
+                  row = (
+                      f"| {workload['label']} | {operation} | "
+                      f"{stage['seconds'][workload_key]:.3f} s | "
+                      f"{stage['rssMB'][workload_key]:.1f} MB |"
+                  )
+                  assert row in performance_notes, f"performance table differs from benchmark data: {row}"
+          previous = {
+              stage["name"]: stage["beforeSeconds"]
+              for stage in data["bulkArchiveLookup"]["stages"]
+          }
+          current = {stage["name"]: stage["seconds"]["repeated"] for stage in stages}
+          current_rss = {stage["name"]: stage["rssMB"]["repeated"] for stage in stages}
+          verify_speedup = f"{previous['Verify'] / current['Verify']:.2f}× faster"
+          extract_saving = f"{(1 - current['Extract all'] / previous['Extract all']) * 100:.1f}% less time"
+          after_delete_speedup = f"{previous['Verify after delete'] / current['Verify after delete']:.2f}× faster"
+          changelog_extract_saving = (
+              f"{(1 - current['Extract all'] / previous['Extract all']) * 100:.1f}% less extract-all time"
+          )
+          extract_rss_saving = (
+              f"{data['bulkArchiveLookup']['extractRssMBBefore'] - current_rss['Extract all']:.1f} MB lower"
+          )
+          for claim in (verify_speedup, extract_saving, extract_rss_saving):
+              assert claim in performance_notes, f"performance comparison differs from benchmark data: {claim}"
+          assert after_delete_speedup in performance_notes
+          readme = Path("README.md").read_text(encoding="utf-8")
+          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          assert verify_speedup in readme and extract_saving in readme
+          assert verify_speedup in changelog and changelog_extract_saving in changelog and extract_rss_saving in changelog
+          assert len(data["crypto"]["v6Stream"]) == 3
+          gui_row = data["guiRowUpdate"]
+          assert gui_row["runs"] == 5 and gui_row["benchmarkDurationMs"] == 1000
+          gui_row_claim = (
+              f"{gui_row['medianNsPerOp'] / 1000:.3f} µs/op, {gui_row['bytesPerOp']} B/op, "
+              f"and {gui_row['allocationsPerOp']} allocations"
+          )
+          assert gui_row_claim in performance_notes, "GUI row benchmark differs from performance notes"
+          assert gui_row_claim in readme, "GUI row benchmark differs from README"
+          assert len(data["bulkArchiveLookup"]["stages"]) == 3
+          zip_validation = data["zipValidation"]["results"]
+          assert len(zip_validation) == 2
+          assert all(row["before"]["allocationsPerOp"] > row["after"]["allocationsPerOp"] for row in zip_validation)
+          crypto_source = Path("docs/crypto/crypto.js").read_text(encoding="utf-8")
+          validation_cases = re.search(r"const validationCases = \[(.*?)\];", crypto_source, re.S)
+          assert validation_cases, "crypto research slider data is missing"
+          cases = re.findall(
+              r"\{\s*entries:\s*(\d+),\s*beforeUs:\s*([\d.]+),\s*afterUs:\s*([\d.]+),"
+              r"\s*beforeBytes:\s*(\d+),\s*afterBytes:\s*(\d+),\s*beforeAllocs:\s*(\d+),\s*afterAllocs:\s*(\d+)\s*\}",
+              validation_cases.group(1),
+          )
+          assert len(cases) == len(zip_validation), "crypto research slider case count differs from benchmark data"
+          for case, row in zip(cases, zip_validation):
+              entries, before_us, after_us, before_bytes, after_bytes, before_allocs, after_allocs = case
+              assert int(entries) == row["entries"]
+              assert float(before_us) == round(row["before"]["nsPerOp"] / 1000, 1)
+              assert float(after_us) == round(row["after"]["nsPerOp"] / 1000, 1)
+              assert int(before_bytes) == row["before"]["bytesPerOp"]
+              assert int(after_bytes) == row["after"]["bytesPerOp"]
+              assert int(before_allocs) == row["before"]["allocationsPerOp"]
+              assert int(after_allocs) == row["after"]["allocationsPerOp"]
+          page = Path("docs/performance/index.html").read_text(encoding="utf-8")
+          assert 'type="range"' in page and 'name="workload"' in page
+          assert 'id="search-chart"' in page and 'id="conflict-chart"' in page and 'id="crypto-chart"' in page
+          assert 'id="gui-row-update-time"' in page and 'id="gui-row-update-scope"' in page
+          assert 'id="archive-lookup-chart"' in page and 'id="archive-lookup-table"' in page
+          assert 'id="zip-validation-chart"' in page and 'id="zip-validation-table"' in page
+          max_value = re.search(r'id="stage-slider"[^>]*max="(\d+)"', page)
+          assert max_value and int(max_value.group(1)) == len(stages) - 1
+          assert "docs/CLI_GUIDE.md" in page and "CHANGELOG.md" in page
+          css = Path("docs/performance/dashboard.css").read_text(encoding="utf-8")
+          assert "@media (max-width: 1080px)" in css
+          assert ".crypto-metric-grid { grid-template-columns: minmax(0, 1fr);" in css
+          assert "dashboard.css?v=20261108-row-update" in page
+          assert "benchmarks.json?v=20261108-row-update" in Path("docs/performance/dashboard.js").read_text(encoding="utf-8")
+          assert ".site-header nav { order: 2; width: 100%; flex-wrap: wrap;" in css
+          assert ".site-header nav a { flex: 0 0 auto;" in css
+          assert "performance-bulk-archive.svg" in Path("docs/PERFORMANCE.md").read_text(encoding="utf-8")
+          assert "performance-zip-validation.svg" in Path("docs/PERFORMANCE.md").read_text(encoding="utf-8")
+          class LocalHTMLLinks(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.ids = set()
+                  self.links = []
+
+              def handle_starttag(self, tag, attrs):
+                  attributes = dict(attrs)
+                  if attributes.get("id"):
+                      self.ids.add(attributes["id"])
+                  for key in ("href", "src"):
+                      if attributes.get(key):
+                          self.links.append(attributes[key])
+
+          docs_root = Path("docs").resolve()
+          html_pages = {}
+          for html_page in docs_root.rglob("*.html"):
+              parser = LocalHTMLLinks()
+              parser.feed(html_page.read_text(encoding="utf-8"))
+              html_pages[html_page.resolve()] = parser
+          broken_html_links = []
+          for html_page, parser in html_pages.items():
+              for target in parser.links:
+                  parsed = urllib.parse.urlsplit(target)
+                  if parsed.scheme or parsed.netloc:
+                      continue
+                  path = urllib.parse.unquote(parsed.path)
+                  linked_page = (
+                      docs_root / path.lstrip("/\\")
+                      if path.startswith("/")
+                      else html_page.parent / path
+                  ).resolve()
+                  if path.endswith("/") or linked_page.is_dir():
+                      linked_page = linked_page / "index.html"
+                  if not linked_page.exists():
+                      broken_html_links.append(f"{html_page.relative_to(docs_root)}: {target}")
+                  elif parsed.fragment and linked_page in html_pages:
+                      if urllib.parse.unquote(parsed.fragment) not in html_pages[linked_page].ids:
+                          broken_html_links.append(f"{html_page.relative_to(docs_root)}: {target} (missing fragment)")
+          assert not broken_html_links, "broken local HTML links:\n" + "\n".join(broken_html_links)
+          markdown_link = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
+          missing_links = []
+          markdown_files = [path for path in Path(".").rglob("*.md") if not {".git", ".pytest_cache", "node_modules"}.intersection(path.parts)]
+          for markdown in markdown_files:
+              source = markdown.read_text(encoding="utf-8", errors="replace")
+              source = re.sub(r"(?ms)^```.*?^```\s*$", "", source)
+              source = re.sub(r"(?ms)^~~~.*?^~~~\s*$", "", source)
+              for match in markdown_link.finditer(source):
+                  target = match.group(1).strip()
+                  if target.startswith("<") and ">" in target:
+                      target = target[1:target.index(">")]
+                  else:
+                      target = target.split()[0]
+                  parsed = urllib.parse.urlsplit(target)
+                  if parsed.scheme or target.startswith("//") or not parsed.path:
+                      continue
+                  relative = Path(urllib.parse.unquote(parsed.path))
+                  candidate = (Path(".") / str(relative).lstrip("/\\") if relative.is_absolute() else markdown.parent / relative).resolve()
+                  if not candidate.exists():
+                      missing_links.append(f"{markdown.as_posix()}: {target}")
+          assert not missing_links, "broken local Markdown links:\n" + "\n".join(missing_links)
+          print(f"Validated {len(stages)} benchmark stages, synchronized crypto slider, responsive charts, links, and privacy fields")
+          PY
+      - name: Check explorer JavaScript syntax
+        run: |
+          node --check docs/performance/dashboard.js
+          node --check docs/crypto/crypto.js
+          node --check docs/crypto/worker.js

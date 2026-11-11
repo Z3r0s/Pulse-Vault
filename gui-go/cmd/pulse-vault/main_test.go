@@ -24,10 +24,26 @@ var tinyPNG = []byte{
 
 func runCLI(t *testing.T, args ...string) (string, error) {
 	t.Helper()
-	cmd := exec.Command("go", append([]string{"run", "."}, args...)...)
-	cmd.Dir = "."
+	cmd := testCLICommand(args...)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
+}
+
+func testCLICommand(args ...string) *exec.Cmd {
+	cmd := exec.Command("go", append([]string{"run", "."}, args...)...)
+	cmd.Dir = "."
+	cmd.Env = withFastTestKDF(os.Environ())
+	return cmd
+}
+
+func withFastTestKDF(env []string) []string {
+	filtered := make([]string, 0, len(env)+1)
+	for _, item := range env {
+		if !strings.HasPrefix(strings.ToUpper(item), "PULSEVAULT_TEST_FAST_KDF=") {
+			filtered = append(filtered, item)
+		}
+	}
+	return append(filtered, "PULSEVAULT_TEST_FAST_KDF=1")
 }
 
 // TestCLIRoundTrip drives the real pulse-vault entrypoint binary path via `go run`.
@@ -41,8 +57,7 @@ func TestCLIRoundTrip(t *testing.T) {
 	}
 	pw := "CLIRoundTripPassword!!"
 	run := func(args ...string) (string, error) {
-		cmd := exec.Command("go", append([]string{"run", "."}, args...)...)
-		cmd.Dir = "." // package dir
+		cmd := testCLICommand(args...)
 		out, err := cmd.CombinedOutput()
 		return string(out), err
 	}
@@ -80,8 +95,7 @@ func TestCLIWrongPassword(t *testing.T) {
 	dir := t.TempDir()
 	vault := filepath.Join(dir, "bad.pulsevault")
 	run := func(args ...string) (string, error) {
-		cmd := exec.Command("go", append([]string{"run", "."}, args...)...)
-		cmd.Dir = "."
+		cmd := testCLICommand(args...)
 		out, err := cmd.CombinedOutput()
 		return string(out), err
 	}
@@ -98,9 +112,46 @@ func TestCLIWrongPassword(t *testing.T) {
 	}
 }
 
+func TestCLIBatchDelete(t *testing.T) {
+	dir := t.TempDir()
+	vaultPath := filepath.Join(dir, "batch-delete.pulsevault")
+	password := "BatchDeleteCLIPassword!!"
+	run := func(args ...string) (string, error) {
+		return runCLI(t, args...)
+	}
+	if out, err := run("create", vaultPath, "--password", password, "--profile", "fast"); err != nil {
+		t.Fatalf("create: %v\n%s", err, out)
+	}
+	source := filepath.Join(dir, "source")
+	if err := os.Mkdir(source, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"one.txt", "two.txt", "keep.txt"} {
+		if err := os.WriteFile(filepath.Join(source, name), []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out, err := run("add", vaultPath, "--password", password, source); err != nil {
+		t.Fatalf("add: %v\n%s", err, out)
+	}
+	out, err := run("delete", vaultPath, "--password", password, "one.txt", "two.txt")
+	if err != nil {
+		t.Fatalf("batch delete: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "Deleted 2 files in one vault rewrite") {
+		t.Fatalf("batch delete summary missing: %s", out)
+	}
+	out, err = run("list", vaultPath, "--password", password)
+	if err != nil {
+		t.Fatalf("list after delete: %v\n%s", err, out)
+	}
+	if strings.Contains(out, "one.txt") || strings.Contains(out, "two.txt") || !strings.Contains(out, "keep.txt") {
+		t.Fatalf("unexpected inventory after batch delete: %s", out)
+	}
+}
+
 func TestCLIVersionBanner(t *testing.T) {
-	cmd := exec.Command("go", "run", ".", "version")
-	cmd.Dir = "."
+	cmd := testCLICommand("version")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatal(err, string(out))
@@ -112,14 +163,15 @@ func TestCLIVersionBanner(t *testing.T) {
 	if !strings.Contains(s, "version:") {
 		t.Fatalf("missing version line: %s", out)
 	}
-	if !strings.Contains(s, "V6") {
-		t.Fatalf("missing V6 format mention: %s", out)
+	for _, marker := range []string{"V6 streams", "V7 paths"} {
+		if !strings.Contains(s, marker) {
+			t.Fatalf("missing format marker %q: %s", marker, out)
+		}
 	}
 }
 
 func TestCLIHelpAndUnknown(t *testing.T) {
-	cmd := exec.Command("go", "run", ".", "help")
-	cmd.Dir = "."
+	cmd := testCLICommand("help")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("help: %v\n%s", err, out)
@@ -128,8 +180,7 @@ func TestCLIHelpAndUnknown(t *testing.T) {
 		t.Fatalf("help missing commands: %s", out)
 	}
 
-	cmd = exec.Command("go", "run", ".", "not-a-command")
-	cmd.Dir = "."
+	cmd = testCLICommand("not-a-command")
 	out, err = cmd.CombinedOutput()
 	if err == nil {
 		t.Fatalf("expected non-zero exit for unknown command, got: %s", out)
@@ -143,8 +194,7 @@ func TestCLIInfo(t *testing.T) {
 	dir := t.TempDir()
 	vault := filepath.Join(dir, "info.pulsevault")
 	run := func(args ...string) (string, error) {
-		cmd := exec.Command("go", append([]string{"run", "."}, args...)...)
-		cmd.Dir = "."
+		cmd := testCLICommand(args...)
 		out, err := cmd.CombinedOutput()
 		return string(out), err
 	}
@@ -174,8 +224,7 @@ func TestCLIVerifyAndChangePassword(t *testing.T) {
 	}
 	oldPW, newPW := "CLIOldPassword!!!!!", "CLINewPassword!!!!!"
 	run := func(args ...string) (string, error) {
-		cmd := exec.Command("go", append([]string{"run", "."}, args...)...)
-		cmd.Dir = "."
+		cmd := testCLICommand(args...)
 		out, err := cmd.CombinedOutput()
 		return string(out), err
 	}
@@ -192,8 +241,12 @@ func TestCLIVerifyAndChangePassword(t *testing.T) {
 	if !strings.Contains(out, "Verify OK") {
 		t.Fatalf("verify output: %s", out)
 	}
-	if out, err := run("change-password", vault, "--password", oldPW, "--new-password", newPW); err != nil {
+	out, err = run("change-password", vault, "--password", oldPW, "--new-password", newPW, "--profile", "standard")
+	if err != nil {
 		t.Fatalf("chpw: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "kdf") || !strings.Contains(out, "standard") {
+		t.Fatalf("profile-upgrade result missing from output: %s", out)
 	}
 	if out, err := run("list", vault, "--password", newPW); err != nil {
 		t.Fatalf("list new: %v\n%s", err, out)
@@ -213,8 +266,7 @@ func TestCLIPasswordStdinAndExtractNoOverwrite(t *testing.T) {
 	}
 	pw := "PasswordFromPipe!!"
 	run := func(stdin string, args ...string) (string, error) {
-		cmd := exec.Command("go", append([]string{"run", "."}, args...)...)
-		cmd.Dir = "."
+		cmd := testCLICommand(args...)
 		cmd.Stdin = strings.NewReader(stdin)
 		out, err := cmd.CombinedOutput()
 		return string(out), err
@@ -391,7 +443,7 @@ func TestCLIHelpMentionsOpenAndDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("help: %v\n%s", err, out)
 	}
-	for _, n := range []string{"open", "delete", "create", "extract", "--carrier"} {
+	for _, n := range []string{"open", "delete", "create", "extract", "--carrier", "V6 streams", "V7 paths", "Upgrade legacy streams to V6"} {
 		if !strings.Contains(out, n) {
 			t.Fatalf("help missing %q: %s", n, out)
 		}
@@ -426,5 +478,67 @@ func TestCLIWeakPasswordWarning(t *testing.T) {
 	}
 	if strings.Contains(out, "bbbbbbbbbbbbbb") {
 		t.Fatalf("change-password warning must not echo the password: %s", out)
+	}
+}
+
+func TestCLIAddFolderAndExtractAll(t *testing.T) {
+	dir := t.TempDir()
+	vaultPath := filepath.Join(dir, "folder.pulsevault")
+	input := filepath.Join(dir, "project")
+	if err := os.MkdirAll(filepath.Join(input, "src", "nested"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	want := []byte("CLI folder bytes\x00\xff")
+	if err := os.WriteFile(filepath.Join(input, "src", "nested", "main.dat"), want, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	pw := "CLIFolderPassword!!"
+	if out, err := runCLI(t, "create", vaultPath, "--password", pw, "--profile", "fast"); err != nil {
+		t.Fatalf("create: %v\n%s", err, out)
+	}
+	if out, err := runCLI(t, "add", vaultPath, "--password", pw, input); err != nil {
+		t.Fatalf("add folder: %v\n%s", err, out)
+	}
+	list, err := runCLI(t, "list", vaultPath, "--password", pw)
+	if err != nil {
+		t.Fatalf("list: %v\n%s", err, list)
+	}
+	if !strings.Contains(list, "src/nested/main.dat") {
+		t.Fatalf("folder path missing from inventory: %s", list)
+	}
+	output := filepath.Join(dir, "restored")
+	if out, err := runCLI(t, "extract-all", vaultPath, "--password", pw, output); err != nil {
+		t.Fatalf("extract all: %v\n%s", err, out)
+	}
+	got, err := os.ReadFile(filepath.Join(output, "src", "nested", "main.dat"))
+	if err != nil || !bytes.Equal(got, want) {
+		t.Fatalf("extracted folder payload mismatch: %v", err)
+	}
+}
+
+func TestCLIFastProfileIsNotAvailableInNormalUse(t *testing.T) {
+	dir := t.TempDir()
+	cmd := exec.Command("go", "run", ".", "create", filepath.Join(dir, "fast.pulsevault"), "--password", "TestOnlyFastPassword!!", "--profile", "fast")
+	cmd.Dir = "."
+	filtered := make([]string, 0, len(os.Environ()))
+	for _, item := range os.Environ() {
+		if !strings.HasPrefix(strings.ToUpper(item), "PULSEVAULT_TEST_FAST_KDF=") {
+			filtered = append(filtered, item)
+		}
+	}
+	cmd.Env = filtered
+	out, err := cmd.CombinedOutput()
+	if err == nil || !strings.Contains(strings.ToLower(string(out)), "test-only") {
+		t.Fatalf("fast profile should be hidden from normal use: err=%v output=%s", err, out)
+	}
+}
+
+func TestCLIHelpUsesSafePasswordGuidance(t *testing.T) {
+	out, err := runCLI(t, "help")
+	if err != nil {
+		t.Fatalf("help: %v\n%s", err, out)
+	}
+	if strings.Contains(out, "--password <pw>") || !strings.Contains(out, "--password-stdin") || !strings.Contains(out, "process listings") {
+		t.Fatalf("help should avoid sample secrets and explain safe password input: %s", out)
 	}
 }

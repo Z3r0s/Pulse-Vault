@@ -9,7 +9,7 @@ A **[DNSPulse](https://dnspulse.org)** product. How to install: **[INSTALL.md](.
 | Windows, want the window | [Releases](https://github.com/Z3r0s/Pulse-Vault/releases) → `pulse-vault-gui-windows-amd64.exe` |
 | Windows, want the CLI | `irm https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.ps1 \| iex` |
 | Linux / macOS CLI | `curl -fsSL https://raw.githubusercontent.com/Z3r0s/Pulse-Vault/main/scripts/install.sh \| sh` |
-| pip | `pip install pulse-vault` (Go launcher; needs a `v*` tag) |
+| pip | `pip install pulse-vault`, then explicitly run `pulse-vault --launcher-install` (Go launcher; needs a `v*` tag) |
 | This git clone | `.\cli.ps1` / `./cli.sh` (CLI, no env vars) or `scripts\install.cmd` |
 
 ## GitHub Release assets
@@ -26,7 +26,11 @@ Via [`.github/workflows/release-go.yml`](../.github/workflows/release-go.yml):
 | `SHA256SUMS` | Checksums (install scripts verify these) |
 | `install.sh` / `install.ps1` | Same installers, attached to the tag |
 
-If Releases says “No releases found”, no `v*` tag has been pushed. Use a clone + `--from-source`, or see [DISTRIBUTE.md](DISTRIBUTE.md).
+Git tags and published release assets are separate steps. If the latest release does not contain a binary for your platform, use a clone and build from source, or see [DISTRIBUTE.md](DISTRIBUTE.md).
+
+## Optional desktop update checks
+
+The desktop app asks at launch whether you want to check for a newer stable release. Choosing **Not now** makes no network request; you can also use **Check updates** in the header later. If you opt in, GitHub sees the connection's source IP and request time. A VPN or `HTTPS_PROXY` configured before the app starts can route the request differently. The release download is a separate choice; requesting it also reveals the selected platform asset to GitHub. Pulse-Vault checks it against `SHA256SUMS` from that same release before saving it to your chosen folder. It does not install updates automatically; this checksum is not an independent publisher signature.
 
 ## Build it yourself
 
@@ -38,9 +42,9 @@ If Releases says “No releases found”, no `v*` tag has been pushed. Use a clo
 
 ```bash
 ./cli.sh --build
-# or: go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@v0.2.0
+# or: go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@latest
 ```
 
-`pip install pulse-vault` wraps the Go CLI. Do not install [legacy/python/](../legacy/python/).
+`pip install pulse-vault` installs a wrapper that runs a verified local Go CLI without a GitHub request during normal use. `pulse-vault --launcher-install` and `pulse-vault --launcher-update` are explicit GitHub download actions. Do not install [legacy/python/](../legacy/python/).
 
 Site: [dnspulse.org](https://dnspulse.org).

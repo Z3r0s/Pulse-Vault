@@ -3,23 +3,11 @@
 # local scratch only (docs/ROADMAP.md is the real one)
 /ROADMAP.md
 
-# editors / agents (can have notes, paths, tokens)
-.grok/
-.claude/
-.chatgpt/
-.continue/
-.cursor/
-.windsurf/
-.aider*
-.codex/
-.cursorrules
-.idea/
-.vscode/
-.vs/
-.history/
-.agent/
-.gemini/
-.anthropic/
+# Local dotfiles and tool state can contain personal settings, notes, or credentials.
+/.??*
+!/.github/
+!/.gitattributes
+!/.gitignore
 *.swp
 *.swo
 *~
@@ -109,6 +97,9 @@ pip-delete-this-directory.txt
 pip-wheel-metadata/
 __pypackages__/
 terminals/
+/output/playwright/
+/docs/crypto/pulse-vault-crypto.wasm
+/docs/crypto/wasm_exec.js
 
 # OS generated files
 .DS_Store

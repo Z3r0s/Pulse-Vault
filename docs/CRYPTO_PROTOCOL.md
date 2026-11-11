@@ -8,23 +8,28 @@ identifiers.
 
 ## Primitive and key layout
 
-V3–V6 derive a 64-byte key with Scrypt. The first 32 bytes are the
+V3–V7 derive a 64-byte key with Scrypt. The first 32 bytes are the
 ChaCha20-Poly1305 key and the second 32 bytes are the AES-256-GCM key.
 
-The built-in profiles are:
+The built-in production profiles are:
 
 | Profile | N | r | p |
 | --- | ---: | ---: | ---: |
-| fast | 16 | 8 | 1 |
 | standard | 32768 | 8 | 1 |
 | hardened | 1048576 | 8 | 1 |
+
+The low-cost `fast` tuple (`N=16, r=8, p=1`) exists only for disposable tests
+inside the repository. Normal vault creation and unlock do not accept it, and
+the public Go crypto package lists only production profiles. Vault readers
+require the persisted Scrypt parameters to match a supported profile instead
+of trusting the visible profile label.
 
 V1/V2 compatibility uses PBKDF2-HMAC-SHA256, 600,000 iterations, and a
 32-byte AES-256-GCM key.
 
 ## Metadata cascade
 
-V3–V6 metadata is encoded as UTF-8 JSON, then encrypted as:
+V3–V7 metadata is encoded as UTF-8 JSON, then encrypted as:
 
 1. ChaCha20-Poly1305 with a random 12-byte nonce.
 2. AES-256-GCM over the resulting ciphertext with a random 12-byte nonce.
@@ -105,7 +110,8 @@ legacy Python vaults and is not emitted by the current Go writer.
 
 - Existing format identifiers must not be silently redefined.
 - New framing or primitive choices require a new format identifier.
-- V1/V2 are read-only compatibility formats and should be migrated to V6.
+- V7 is a container/path marker; its new file streams use V6 framing. Per-file stream markers allow V7 containers to retain V5 blobs during a path-format upgrade.
+- V1/V2 are read-only compatibility formats and should be migrated to V6. V3/V4 streams are rewritten as V6 on migration.
 - Cross-language vectors must be updated before changing any byte layout.
 - Passwords, keys, and plaintext must not be logged by library consumers.
 

@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -66,19 +67,62 @@ func StatusLine(busy bool, op, message string) string {
 	return fmt.Sprintf("%s… %s", op, message)
 }
 
-// PrepareCreatePath normalizes a file-save path and lists empty placeholders to remove
-// before vault.Create (Fyne ShowFileSave creates the path first).
-func PrepareCreatePath(path string) (final string, remove []string) {
+// PrepareCreatePath adds the native vault extension when the user omitted it.
+func PrepareCreatePath(path string) string {
 	if path == "" {
-		return "", nil
+		return ""
 	}
-	remove = []string{path}
-	final = path
 	if !strings.HasSuffix(strings.ToLower(path), ".pulsevault") {
-		final = path + ".pulsevault"
-		remove = append(remove, final)
+		return path + ".pulsevault"
 	}
-	return final, remove
+	return path
+}
+
+// ensureDestinationAbsent prevents accidental replacement of an existing file.
+func ensureDestinationAbsent(path string) error {
+	_, err := os.Lstat(path)
+	if err == nil {
+		return fmt.Errorf("a file already exists at %q; choose another name or move the existing file first", path)
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
+}
+
+func validateOutputName(name string) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("enter a file name")
+	}
+	if name != strings.TrimSpace(name) || name == "." || name == ".." {
+		return errors.New("remove leading or trailing spaces and choose a valid file name")
+	}
+	if strings.ContainsAny(name, `/\\<>:"|?*`) || strings.HasSuffix(name, ".") {
+		return errors.New("use a file name without path separators or reserved characters")
+	}
+	base := strings.ToUpper(strings.SplitN(name, ".", 2)[0])
+	switch base {
+	case "CON", "PRN", "AUX", "NUL":
+		return errors.New("choose a different name; this name is reserved by Windows")
+	}
+	if len(base) == 4 && (strings.HasPrefix(base, "COM") || strings.HasPrefix(base, "LPT")) && base[3] >= '1' && base[3] <= '9' {
+		return errors.New("choose a different name; this name is reserved by Windows")
+	}
+	return nil
+}
+
+func validateOutputFolder(path string) error {
+	if strings.TrimSpace(path) == "" {
+		return errors.New("choose a folder")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("cannot access folder: %w", err)
+	}
+	if !info.IsDir() {
+		return errors.New("choose an existing folder")
+	}
+	return nil
 }
 
 // mediaExts are carrier-friendly extensions for hide-in-picture destinations.
@@ -100,26 +144,21 @@ func IsMediaPath(path string) bool {
 	return ok
 }
 
-// PrepareHidePath normalizes a hide-in-picture save path so the dest keeps a
-// media extension (or .pulsevault if the user chose a vault name). Empty
-// file-save placeholders (dest, and final if different) are listed for removal.
-func PrepareHidePath(dest, carrier string) (final string, remove []string) {
+// PrepareHidePath keeps a carrier-friendly extension on a hide-in-picture
+// destination, inheriting the selected carrier extension when needed.
+func PrepareHidePath(dest, carrier string) string {
 	if dest == "" {
-		return "", nil
+		return ""
 	}
-	remove = []string{dest}
-	final = dest
+	final := dest
 	lower := strings.ToLower(dest)
 	if IsMediaPath(dest) || strings.HasSuffix(lower, ".pulsevault") {
-		return final, remove
+		return final
 	}
 	ext := filepath.Ext(carrier)
 	if ext == "" {
-		return final, remove
+		return final
 	}
 	final = dest + ext
-	if final != dest {
-		remove = append(remove, final)
-	}
-	return final, remove
+	return final
 }

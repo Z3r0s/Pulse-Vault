@@ -9,14 +9,13 @@ App is Go, under [`gui-go/`](gui-go/). Install notes: [INSTALL.md](INSTALL.md).
 ## Development Setup
 
 ```bash
-cd gui-go
-go test ./internal/crypto ./internal/vault ./internal/ui ./cmd/pulse-vault ./crypto -count=1
-# from repo root:
-go test ./packaging -count=1
+CGO_ENABLED=0 go test ./... -count=1
 PYTHONPATH=packaging/pypi/src python -m unittest discover -s packaging/pypi/tests -v
 ```
 
-That's what CI runs. No gcc needed. How to tag / pip / snap: [docs/DISTRIBUTE.md](docs/DISTRIBUTE.md).
+Run these commands from the repository root. The headless Go tests do not need gcc. CI also runs the Go/Python interoperability matrix, race and fuzz smoke tests, static analysis, vulnerability scanning, a native GUI build, and Linux packaging checks. How to tag / pip / snap: [docs/DISTRIBUTE.md](docs/DISTRIBUTE.md).
+
+In PowerShell, set the environment variables with `$env:CGO_ENABLED='0'` and `$env:PYTHONPATH='packaging/pypi/src'`, then run the same `go test` and `python -m unittest` commands without the inline assignments.
 
 Don't set `CGO_ENABLED=1` and then `go test ./...` unless `gcc` is on PATH — Fyne will try to compile the GUI package and die with `cgo: C compiler "gcc" not found`. Windows: `.\test.ps1` (skips GUI if no gcc) or `.\build.ps1` for the actual window.
 

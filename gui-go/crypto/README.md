@@ -5,11 +5,12 @@ Pulse-Vault's authenticated encryption formats.
 
 It provides:
 
-- Scrypt key derivation for V3–V6 vaults (passwords — not SHA-256).
+- Scrypt key derivation for V3–V7 vaults (passwords — not SHA-256).
 - PBKDF2-SHA256 and AES-GCM compatibility for V1/V2 vaults.
 - SHA-256 file-content fingerprints (`FileDigestHex`) for extract/verify only.
 - ChaCha20-Poly1305 + AES-GCM cascade encryption for metadata.
-- V6 finalized stream encrypt/decrypt (zstd; V5/XZ remains readable)
+- V6 finalized stream encrypt/decrypt (zstd; V5/XZ remains readable).
+- V7 path containers use the same V6 file-stream framing.
 - V4 stream decrypt (old vaults)
 - Constants, limits, profiles, errors
 
@@ -55,9 +56,9 @@ func main() {
 
 ## Compatibility
 
-The package is tested against the Python Pulse-Vault implementation and the
-repository's V1–V5 fixtures. V1/V2 are read-only compatibility formats and
-should be migrated to V6 before modification.
+The package is tested against frozen protocol vectors and legacy fixtures.
+V1/V2 are read-only compatibility formats. New file streams use V6 framing;
+V7 is a path-aware container marker. V5 streams remain readable.
 
 The stream and metadata layouts are protocol formats. Changes require new
 format identifiers and cross-language vectors; do not silently change the
@@ -65,11 +66,12 @@ existing wire format.
 
 ## Operational safety
 
-`DecryptStreamV5` and `DecryptStreamV4` write plaintext as authenticated chunks
-become available. If a later chunk is truncated or fails authentication, the
-destination may already contain earlier plaintext. Applications that require
-all-or-nothing extraction should decrypt into a private temporary file and
-rename it only after the function returns successfully.
+`DecryptStreamV4`, `DecryptStreamV5`, and `DecryptStreamV6` write plaintext as
+authenticated chunks become available. If a later chunk or the V6 terminal
+record fails, the destination may already contain earlier plaintext.
+Applications that require all-or-nothing extraction should decrypt into a
+private temporary file and rename it only after the function returns
+successfully. The Pulse-Vault app uses that pattern for extraction.
 
 The exported `Profiles` map is a convenience for selecting the built-in KDF
 parameters. Treat it as read-only and validate any user-selected parameters

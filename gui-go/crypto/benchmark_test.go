@@ -11,7 +11,8 @@ import (
 func benchmarkKey(b *testing.B) []byte {
 	b.Helper()
 	salt := bytes.Repeat([]byte{0x42}, pulsecrypto.SaltSize)
-	profile := pulsecrypto.Profiles["fast"]
+	// Benchmarks intentionally use a test-only low-cost KDF configuration.
+	profile := pulsecrypto.Profile{N: 16, R: 8, P: 1}
 	key, err := pulsecrypto.DeriveKeyScrypt("benchmark-password", salt, profile.N, profile.R, profile.P)
 	if err != nil {
 		b.Fatal(err)
@@ -21,7 +22,7 @@ func benchmarkKey(b *testing.B) []byte {
 
 func BenchmarkDeriveKeyScryptFast(b *testing.B) {
 	salt := bytes.Repeat([]byte{0x42}, pulsecrypto.SaltSize)
-	profile := pulsecrypto.Profiles["fast"]
+	profile := pulsecrypto.Profile{N: 16, R: 8, P: 1}
 	b.ReportMetric(float64(profile.N), "scrypt_N")
 	b.ReportMetric(float64(profile.R), "scrypt_R")
 	b.ReportMetric(float64(profile.P), "scrypt_P")

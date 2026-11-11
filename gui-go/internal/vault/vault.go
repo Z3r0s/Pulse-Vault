@@ -4,6 +4,7 @@ package vault
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"encoding/base64"
@@ -13,12 +14,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
-	crypto "github.com/Z3r0s/Pulse-Vault/gui-go/crypto"
+	crypto "github.com/Z3r0s/Pulse-Vault/gui-go/internal/crypto"
 )
 
 const (
@@ -28,6 +30,7 @@ const (
 	FormatV4 = "PULSEVAULT4_CASCADE"
 	FormatV5 = "PULSEVAULT5_COMPRESSED_CASCADE"
 	FormatV6 = "PULSEVAULT6_AUTHENTICATED_CASCADE"
+	FormatV7 = "PULSEVAULT7_PATHS_AUTHENTICATED_CASCADE"
 
 	MaxZipEntries   = 20_000
 	MaxFormatSize   = 128
@@ -58,7 +61,99 @@ type FileMeta struct {
 	UpdatedAt  int64  `json:"updated_at"`
 	Type       string `json:"type"`
 	InternalID string `json:"internal_id"`
-	Content    string `json:"content,omitempty"`
+	// StreamFormat permits a path-capable V7 container to retain authenticated
+	// V5 blobs when a legacy vault is upgraded without rotating its password.
+	StreamFormat string `json:"stream_format,omitempty"`
+	Content      string `json:"content,omitempty"`
+}
+
+// FileSummary contains the non-secret details shown for one unlocked entry.
+// It deliberately omits hashes, internal blob IDs, and content fields.
+type FileSummary struct {
+	Name      string
+	Size      int64
+	AddedAt   int64
+	UpdatedAt int64
+}
+
+// OperationUpdate is progress for a long-running vault operation.
+type OperationUpdate struct {
+	Phase string
+	Done  int64
+	Total int64
+}
+
+// OperationOptions allows callers to cancel work and report byte progress.
+type OperationOptions struct {
+	Context  context.Context
+	Progress func(OperationUpdate)
+}
+
+func (o OperationOptions) context() context.Context {
+	if o.Context == nil {
+		return context.Background()
+	}
+	return o.Context
+}
+
+func (o OperationOptions) report(phase string, done, total int64) {
+	if o.Progress != nil {
+		o.Progress(OperationUpdate{Phase: phase, Done: done, Total: total})
+	}
+}
+
+type operationReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (r operationReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.r.Read(p)
+}
+
+type operationWriter struct {
+	ctx context.Context
+	w   io.Writer
+}
+
+func (w operationWriter) Write(p []byte) (int, error) {
+	if err := w.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return w.w.Write(p)
+}
+
+func copyOperation(ctx context.Context, dst io.Writer, src io.Reader, progress func(int64)) (int64, error) {
+	buf := make([]byte, 128*1024)
+	var total int64
+	for {
+		if err := ctx.Err(); err != nil {
+			return total, err
+		}
+		n, readErr := src.Read(buf)
+		if n > 0 {
+			written, writeErr := dst.Write(buf[:n])
+			total += int64(written)
+			if progress != nil {
+				progress(total)
+			}
+			if writeErr != nil {
+				return total, writeErr
+			}
+			if written != n {
+				return total, io.ErrShortWrite
+			}
+		}
+		if readErr == io.EOF {
+			return total, nil
+		}
+		if readErr != nil {
+			return total, readErr
+		}
+	}
 }
 
 // Metadata is the encrypted JSON document.
@@ -144,7 +239,7 @@ func (v *Vault) Create(password, profile string) error {
 	return v.create(password, profile, "")
 }
 
-// CreateWithCarrier writes a new V5 vault after a carrier image/video so the
+// CreateWithCarrier writes a new V6 vault after a carrier image/video so the
 // result still opens as that picture while holding an encrypted vault.
 func (v *Vault) CreateWithCarrier(password, profile, carrierPath string) error {
 	carrierPath = strings.TrimSpace(carrierPath)
@@ -170,14 +265,9 @@ func (v *Vault) create(password, profile, carrierPath string) error {
 		if st.IsDir() {
 			return fmt.Errorf("%w: destination path is a directory", ErrVault)
 		}
-		// File-save dialogs often create a zero-byte placeholder; treat that as free.
-		// Embedding into the carrier itself (hide-in-picture) is also allowed.
+		// Only an explicit in-place carrier operation may replace an existing file.
 		embedInPlace := carrierPath != "" && samePath(v.Path, carrierPath)
-		if st.Size() == 0 && !st.IsDir() {
-			if remErr := os.Remove(v.Path); remErr != nil {
-				return fmt.Errorf("%w: could not clear empty placeholder at path: %v", ErrVault, remErr)
-			}
-		} else if !embedInPlace {
+		if !embedInPlace {
 			return fmt.Errorf("%w: a vault already exists at that location", ErrVault)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -221,7 +311,7 @@ func (v *Vault) CarrierPrefix() int64 {
 }
 
 // Unlock opens an existing vault. V1/V2 use the legacy PBKDF2/AES format;
-// V3-V6 use the Scrypt cascade formats shared with the Python reference.
+// V3-V7 use the Scrypt cascade formats. V7 adds path-aware metadata.
 func (v *Vault) Unlock(password string) error {
 	if password == "" {
 		return fmt.Errorf("%w: password cannot be empty", ErrVault)
@@ -239,14 +329,32 @@ func (v *Vault) Unlock(password string) error {
 	}
 	var header [len(FormatV1)]byte
 	_, _ = io.ReadFull(probe, header[:])
-	_ = probe.Close()
 	if string(header[:]) == FormatV1 {
-		raw, err := os.ReadFile(v.Path)
+		const maxV1Size = int64(MaxMetadataSize + len(FormatV1) + crypto.SaltSize + crypto.NonceSize)
+		info, err := probe.Stat()
+		if err != nil {
+			_ = probe.Close()
+			return err
+		}
+		if info.Size() < int64(len(FormatV1)+crypto.SaltSize+crypto.NonceSize) || info.Size() > maxV1Size {
+			_ = probe.Close()
+			return fmt.Errorf("%w: legacy vault is truncated or too large", ErrVault)
+		}
+		if _, err := probe.Seek(0, io.SeekStart); err != nil {
+			_ = probe.Close()
+			return err
+		}
+		raw, err := io.ReadAll(io.LimitReader(probe, maxV1Size+1))
+		closeErr := probe.Close()
 		if err != nil {
 			return err
 		}
+		if closeErr != nil {
+			return closeErr
+		}
 		return v.unlockV1(password, raw)
 	}
+	_ = probe.Close()
 	zr, err := zip.OpenReader(v.Path)
 	if err != nil {
 		return fmt.Errorf("%w: invalid vault format (not a zip). Open a .pulsevault or a picture/video that contains a hidden vault: %v", ErrVault, err)
@@ -268,12 +376,12 @@ func (v *Vault) Unlock(password string) error {
 			return err
 		}
 		format = string(formatBytes)
-		if format != FormatV3 && format != FormatV4 && format != FormatV5 && format != FormatV6 {
+		if format != FormatV3 && format != FormatV4 && format != FormatV5 && format != FormatV6 && format != FormatV7 {
 			return fmt.Errorf("%w: unsupported vault format", ErrVault)
 		}
 	}
 	kdfEntry, hasKDF := names["kdf.json"]
-	if (format == FormatV5 || format == FormatV6) && !hasKDF {
+	if (format == FormatV5 || format == FormatV6 || format == FormatV7) && !hasKDF {
 		return fmt.Errorf("%w: invalid vault KDF record", ErrVault)
 	}
 	var rec KDFRecord
@@ -286,16 +394,11 @@ func (v *Vault) Unlock(password string) error {
 			if err := json.Unmarshal(kdfBytes, &rec); err != nil {
 				return fmt.Errorf("%w: invalid vault KDF record", ErrVault)
 			}
-			if rec.Algorithm != "scrypt" {
+			profile, err := validateKDFRecord(rec)
+			if err != nil {
 				return fmt.Errorf("%w: invalid vault KDF record", ErrVault)
 			}
-			if err := crypto.ValidateScryptParams(rec.N, rec.R, rec.P); err != nil {
-				return fmt.Errorf("%w: invalid vault KDF record", ErrVault)
-			}
-			v.Profile = rec.Profile
-			if v.Profile == "" {
-				v.Profile = "standard"
-			}
+			v.Profile = profile
 			v.KdfN, v.KdfR, v.KdfP = rec.N, rec.R, rec.P
 		} else if err := v.setKDF(legacyScryptProfile()); err != nil {
 			return err
@@ -357,6 +460,29 @@ func (v *Vault) Unlock(password string) error {
 	if meta.Files == nil {
 		meta.Files = map[string]FileMeta{}
 	}
+	if (format == FormatV7) != (meta.Version == 7) {
+		return fmt.Errorf("%w: V7 marker does not match authenticated metadata version", ErrVault)
+	}
+	if format == FormatV7 {
+		pathNames := make([]string, 0, len(meta.Files))
+		for name := range meta.Files {
+			pathNames = append(pathNames, name)
+		}
+		if err := validateVaultPathSet(pathNames); err != nil {
+			return fmt.Errorf("%w: invalid V7 paths: %v", ErrVault, err)
+		}
+		for _, file := range meta.Files {
+			if file.Size < 0 || (file.Content != "" && file.InternalID != "") {
+				return fmt.Errorf("%w: invalid V7 file metadata", ErrVault)
+			}
+			if file.InternalID != "" && file.StreamFormat != FormatV5 && file.StreamFormat != FormatV6 {
+				return fmt.Errorf("%w: invalid V7 stream marker", ErrVault)
+			}
+			if file.InternalID == "" && file.Content == "" {
+				return fmt.Errorf("%w: missing V7 file content reference", ErrVault)
+			}
+		}
+	}
 	v.salt = salt
 	v.key = key
 	v.meta = meta
@@ -372,6 +498,9 @@ func (v *Vault) Unlock(password string) error {
 // remain interoperable; production defaults to standard.
 func legacyScryptProfile() string {
 	profile := strings.ToLower(strings.TrimSpace(os.Getenv("PULSEVAULT_SCRYPT_PROFILE")))
+	if profile == "fast" && os.Getenv("PULSEVAULT_TEST_FAST_KDF") != "1" {
+		return "standard"
+	}
 	if _, ok := crypto.Profiles[profile]; ok {
 		return profile
 	}
@@ -379,6 +508,31 @@ func legacyScryptProfile() string {
 		return "fast"
 	}
 	return "standard"
+}
+
+// validateKDFRecord accepts only profiles this application creates. The
+// encrypted KDF record is attacker-controlled until metadata authentication
+// succeeds, so low custom parameters must not be presented as a normal profile.
+func validateKDFRecord(record KDFRecord) (string, error) {
+	if record.Algorithm != "scrypt" {
+		return "", fmt.Errorf("unsupported KDF algorithm")
+	}
+	if err := crypto.ValidateScryptParams(record.N, record.R, record.P); err != nil {
+		return "", err
+	}
+	for name, profile := range crypto.Profiles {
+		if record.N != profile.N || record.R != profile.R || record.P != profile.P {
+			continue
+		}
+		if name == "fast" && os.Getenv("PULSEVAULT_TEST_FAST_KDF") != "1" {
+			return "", fmt.Errorf("test-only KDF profile")
+		}
+		if record.Profile != "" && record.Profile != name {
+			return "", fmt.Errorf("KDF profile label does not match its parameters")
+		}
+		return name, nil
+	}
+	return "", fmt.Errorf("unsupported scrypt profile")
 }
 
 func (v *Vault) unlockV1(password string, raw []byte) error {
@@ -448,96 +602,354 @@ func (v *Vault) ListFiles() ([]string, error) {
 	return names, nil
 }
 
+// GetFileSummary returns display-safe details for one entry in an unlocked vault.
+func (v *Vault) GetFileSummary(name string) (FileSummary, error) {
+	if !v.IsUnlocked() {
+		return FileSummary{}, fmt.Errorf("%w: vault is locked", ErrVault)
+	}
+	meta, ok := v.meta.Files[name]
+	if !ok {
+		return FileSummary{}, fmt.Errorf("%w: file not found in vault", ErrVault)
+	}
+	return FileSummary{
+		Name:      name,
+		Size:      meta.Size,
+		AddedAt:   meta.AddedAt,
+		UpdatedAt: meta.UpdatedAt,
+	}, nil
+}
+
 // AddFile encrypts path into the vault under its base name.
 func (v *Vault) AddFile(path string, overwrite bool) error {
+	return v.AddPathsWithOptions([]string{path}, overwrite, OperationOptions{})
+}
+
+// AddDirectory recursively adds regular files while preserving their paths
+// relative to the selected directory. Symbolic links are rejected.
+func (v *Vault) AddDirectory(path string, overwrite bool) error {
+	return v.AddPathsWithOptions([]string{path}, overwrite, OperationOptions{})
+}
+
+// AddPaths adds files and directories in one archive rewrite. Files are stored
+// by base name; directory contents retain their relative paths in V7 metadata.
+func (v *Vault) AddPaths(paths []string, overwrite bool) error {
+	return v.AddPathsWithOptions(paths, overwrite, OperationOptions{})
+}
+
+// EstimateAddTemporaryBytes estimates peak scratch space for staging added
+// streams and rebuilding the container. The estimate errs on the high side.
+func (v *Vault) EstimateAddTemporaryBytes(paths []string) (int64, error) {
+	_, _, inputBytes, err := collectAddInputs(paths, v.Path)
+	if err != nil {
+		return 0, err
+	}
+	info, err := os.Stat(v.Path)
+	if err != nil {
+		return 0, err
+	}
+	if inputBytes > (int64(^uint64(0)>>1)-info.Size())/2 {
+		return 0, fmt.Errorf("%w: estimated temporary space overflows", ErrVault)
+	}
+	return info.Size() + 2*inputBytes, nil
+}
+
+// EstimatePasswordRotationTemporaryBytes estimates peak scratch space for the
+// encrypted replacement streams plus the rebuilt container.
+func (v *Vault) EstimatePasswordRotationTemporaryBytes() (int64, error) {
+	info, err := os.Stat(v.Path)
+	if err != nil {
+		return 0, err
+	}
+	var contentBytes int64
+	for _, meta := range v.meta.Files {
+		if meta.Size < 0 || contentBytes > int64(^uint64(0)>>1)-meta.Size {
+			return 0, fmt.Errorf("%w: estimated temporary space overflows", ErrVault)
+		}
+		contentBytes += meta.Size
+	}
+	if contentBytes > (int64(^uint64(0)>>1)-info.Size())/2 {
+		return 0, fmt.Errorf("%w: estimated temporary space overflows", ErrVault)
+	}
+	return info.Size() + 2*contentBytes, nil
+}
+
+// EstimateDeleteTemporaryBytes returns a conservative estimate for the
+// replacement container created by deleting an entry.
+func (v *Vault) EstimateDeleteTemporaryBytes() (int64, error) {
+	info, err := os.Stat(v.Path)
+	if err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
+}
+
+type addInput struct {
+	path string
+	name string
+	info os.FileInfo
+}
+
+func collectAddInputs(paths []string, vaultPath string) ([]addInput, bool, int64, error) {
+	var inputs []addInput
+	pathAware := false
+	var total int64
+	appendFile := func(source, name string, info os.FileInfo) error {
+		if info.Size() < 0 || info.Size() > MaxDataBlobSize {
+			return fmt.Errorf("%w: file is too large", ErrVault)
+		}
+		if total > int64(^uint64(0)>>1)-info.Size() {
+			return fmt.Errorf("%w: selected files are too large", ErrVault)
+		}
+		inputs = append(inputs, addInput{path: source, name: name, info: info})
+		total += info.Size()
+		return nil
+	}
+	for _, source := range paths {
+		if strings.TrimSpace(source) == "" {
+			return nil, false, 0, fmt.Errorf("%w: selected path is empty", ErrVault)
+		}
+		lst, err := os.Lstat(source)
+		if err != nil {
+			return nil, false, 0, fmt.Errorf("%w: selected path is unavailable: %v", ErrVault, err)
+		}
+		if lst.Mode()&os.ModeSymlink != 0 {
+			return nil, false, 0, fmt.Errorf("%w: refusing to add a symbolic link", ErrVault)
+		}
+		if lst.IsDir() {
+			pathAware = true
+			root, err := filepath.Abs(source)
+			if err != nil {
+				return nil, false, 0, err
+			}
+			err = filepath.WalkDir(root, func(current string, entry os.DirEntry, walkErr error) error {
+				if walkErr != nil {
+					return walkErr
+				}
+				if current == root {
+					return nil
+				}
+				if entry.Type()&os.ModeSymlink != 0 {
+					return fmt.Errorf("%w: refusing to add symbolic link %q", ErrVault, current)
+				}
+				if entry.IsDir() {
+					return nil
+				}
+				info, err := entry.Info()
+				if err != nil {
+					return err
+				}
+				if !info.Mode().IsRegular() {
+					return fmt.Errorf("%w: selected path is not a regular file", ErrVault)
+				}
+				rel, err := filepath.Rel(root, current)
+				if err != nil {
+					return err
+				}
+				name, err := safeVaultPath(filepath.ToSlash(rel))
+				if err != nil {
+					return err
+				}
+				if samePath(current, vaultPath) {
+					return fmt.Errorf("%w: cannot add the vault file into itself", ErrVault)
+				}
+				return appendFile(current, name, info)
+			})
+			if err != nil {
+				return nil, false, 0, err
+			}
+			continue
+		}
+		if !lst.Mode().IsRegular() {
+			return nil, false, 0, fmt.Errorf("%w: selected path is not a regular file", ErrVault)
+		}
+		if samePath(source, vaultPath) {
+			return nil, false, 0, fmt.Errorf("%w: cannot add the vault file into itself", ErrVault)
+		}
+		name, err := safeFilename(filepath.Base(source))
+		if err != nil {
+			return nil, false, 0, err
+		}
+		info, err := os.Stat(source)
+		if err != nil {
+			return nil, false, 0, err
+		}
+		if err := appendFile(source, name, info); err != nil {
+			return nil, false, 0, err
+		}
+	}
+	if len(inputs) == 0 {
+		return nil, false, 0, fmt.Errorf("%w: no regular files found in selection", ErrVault)
+	}
+	if len(inputs) > MaxZipEntries-4 {
+		return nil, false, 0, fmt.Errorf("%w: too many files selected", ErrVault)
+	}
+	return inputs, pathAware, total, nil
+}
+
+// AddPathsWithOptions is AddPaths with cancellation and progress reporting.
+func (v *Vault) AddPathsWithOptions(paths []string, overwrite bool, options OperationOptions) error {
 	if !v.IsUnlocked() {
 		return fmt.Errorf("%w: vault is locked", ErrVault)
 	}
 	if v.Format == FormatV1 || v.Format == FormatV2 {
 		return fmt.Errorf("%w: migrate this legacy vault with change-password before adding files", ErrVault)
 	}
-	if lst, err := os.Lstat(path); err != nil {
-		return fmt.Errorf("%w: selected path is not a file", ErrVault)
-	} else if lst.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("%w: refusing to add a symbolic link", ErrVault)
-	} else if !lst.Mode().IsRegular() {
-		return fmt.Errorf("%w: selected path is not a file", ErrVault)
+	if v.Format != FormatV5 && v.Format != FormatV6 && v.Format != FormatV7 {
+		return fmt.Errorf("%w: migrate this legacy vault with change-password before adding files", ErrVault)
 	}
-	info, err := os.Stat(path)
-	if err != nil || info.IsDir() {
-		return fmt.Errorf("%w: selected path is not a file", ErrVault)
+	ctx := options.context()
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	if samePath(path, v.Path) {
-		return fmt.Errorf("%w: cannot add the vault file into itself", ErrVault)
-	}
-	name, err := safeFilename(filepath.Base(path))
+	inputs, pathAware, total, err := collectAddInputs(paths, v.Path)
 	if err != nil {
 		return err
 	}
-	if _, exists := v.meta.Files[name]; exists && !overwrite {
-		return fmt.Errorf("%w: %q already exists in the vault", ErrVault, name)
+	if len(inputs)+len(v.meta.Files) > MaxZipEntries-4 {
+		return fmt.Errorf("%w: vault would contain too many files", ErrVault)
 	}
-
-	src, err := os.Open(path)
-	if err != nil {
-		return err
+	seen := make(map[string]string, len(inputs))
+	combined := make(map[string]struct{}, len(v.meta.Files)+len(inputs))
+	existingFolded, ambiguousExisting := indexExistingPaths(v.meta.Files)
+	for name := range v.meta.Files {
+		combined[name] = struct{}{}
 	}
-	defer src.Close()
-	blobFile, err := os.CreateTemp(filepath.Dir(v.Path), ".pulsevault-blob-*.tmp")
-	if err != nil {
-		return err
+	for _, input := range inputs {
+		folded := caseFoldKey(input.name)
+		if prior, ok := seen[folded]; ok {
+			return fmt.Errorf("%w: selected paths %q and %q conflict", ErrVault, input.name, prior)
+		}
+		seen[folded] = input.name
+		combined[input.name] = struct{}{}
+		if existing, conflict := existingPathConflict(folded, input.name, existingFolded, ambiguousExisting); conflict {
+			return fmt.Errorf("%w: %q conflicts with existing %q on case-insensitive filesystems", ErrVault, input.name, existing)
+		}
+		if _, exists := v.meta.Files[input.name]; exists && !overwrite {
+			return fmt.Errorf("%w: %q already exists in the vault", ErrVault, input.name)
+		}
 	}
-	blobPath := blobFile.Name()
-	defer os.Remove(blobPath)
-	internalID, err := newID()
-	if err != nil {
-		_ = blobFile.Close()
-		return err
+	for name := range combined {
+		parts := strings.Split(name, "/")
+		for i := 1; i < len(parts); i++ {
+			if _, exists := combined[strings.Join(parts[:i], "/")]; exists {
+				return fmt.Errorf("%w: %q conflicts with a file used as a folder", ErrVault, name)
+			}
+		}
 	}
-	h := crypto.NewFileDigest()
-	counting := &hashingReader{r: src, h: h}
-	var encryptStream func([]byte, io.Reader, io.Writer, bool) error = crypto.EncryptStreamV6
-	if v.Format == FormatV5 {
-		// Existing V5 vaults remain V5 until an explicit password migration.
-		encryptStream = crypto.EncryptStreamV5
-	}
-	if err := encryptStream(v.key, counting, blobFile, true); err != nil {
-		_ = blobFile.Close()
-		return err
-	}
-	if err := blobFile.Sync(); err != nil {
-		_ = blobFile.Close()
-		return err
-	}
-	if err := blobFile.Close(); err != nil {
-		return err
-	}
-	if counting.size != info.Size() {
-		return fmt.Errorf("%w: file changed during encryption", ErrVault)
+	if pathAware || v.Format == FormatV7 {
+		pathNames := make([]string, 0, len(combined))
+		for name := range combined {
+			pathNames = append(pathNames, name)
+		}
+		if err := validateVaultPathSet(pathNames); err != nil {
+			return err
+		}
 	}
 	oldMeta := cloneMetadata(v.meta)
 	oldFormat := v.Format
-	now := nowUnix()
-	v.meta.Files[name] = FileMeta{
-		Name:       name,
-		Size:       counting.size,
-		SHA256:     hex.EncodeToString(h.Sum(nil)),
-		AddedAt:    now,
-		UpdatedAt:  now,
-		Type:       "file",
-		InternalID: internalID,
+	if pathAware && v.Format != FormatV7 {
+		for name, meta := range v.meta.Files {
+			if meta.InternalID != "" && meta.StreamFormat == "" {
+				meta.StreamFormat = v.Format
+				v.meta.Files[name] = meta
+			}
+		}
+		v.Format = FormatV7
 	}
-	v.meta.UpdatedAt = now
-	if v.Format == FormatV6 {
+	if v.Format != FormatV5 && v.Format != FormatV6 && v.Format != FormatV7 {
+		return fmt.Errorf("%w: unsupported vault format for adding files", ErrVault)
+	}
+	dir := filepath.Dir(v.Path)
+	staged := make(map[string]string, len(inputs))
+	var stagedPaths []string
+	defer func() {
+		for _, path := range stagedPaths {
+			_ = os.Remove(path)
+		}
+	}()
+	var done int64
+	for _, input := range inputs {
+		if err := ctx.Err(); err != nil {
+			v.meta = oldMeta
+			v.Format = oldFormat
+			return err
+		}
+		src, err := os.Open(input.path)
+		if err != nil {
+			v.meta = oldMeta
+			v.Format = oldFormat
+			return err
+		}
+		blobFile, err := os.CreateTemp(dir, ".pulsevault-blob-*.tmp")
+		if err != nil {
+			_ = src.Close()
+			v.meta = oldMeta
+			v.Format = oldFormat
+			return err
+		}
+		blobPath := blobFile.Name()
+		stagedPaths = append(stagedPaths, blobPath)
+		internalID, err := newID()
+		if err != nil {
+			_ = src.Close()
+			_ = blobFile.Close()
+			v.meta = oldMeta
+			v.Format = oldFormat
+			return err
+		}
+		h := crypto.NewFileDigest()
+		counting := &hashingReader{r: operationReader{ctx: ctx, r: src}, h: h}
+		var encryptStream func([]byte, io.Reader, io.Writer, bool) error = crypto.EncryptStreamV6
+		streamFormat := FormatV6
+		if v.Format == FormatV5 {
+			encryptStream = crypto.EncryptStreamV5
+			streamFormat = FormatV5
+		}
+		options.report("Encrypting files", done, total)
+		progressReader := &progressHashingReader{inner: counting, size: input.info.Size(), progress: func(n int64) { options.report("Encrypting files", done+n, total) }}
+		err = encryptStream(v.key, progressReader, blobFile, true)
+		closeSrcErr := src.Close()
+		if err == nil {
+			err = closeSrcErr
+		}
+		// This encrypted staging file is consumed by the final vault rewrite,
+		// which syncs its completed replacement before publishing it. Syncing
+		// each disposable blob separately adds a disk flush per input file.
+		closeBlobErr := blobFile.Close()
+		if err == nil {
+			err = closeBlobErr
+		}
+		if err != nil {
+			v.meta = oldMeta
+			v.Format = oldFormat
+			return err
+		}
+		if counting.size != input.info.Size() {
+			v.meta = oldMeta
+			v.Format = oldFormat
+			return fmt.Errorf("%w: file changed during encryption", ErrVault)
+		}
+		now := nowUnix()
+		if v.Format != FormatV7 {
+			streamFormat = ""
+		}
+		v.meta.Files[input.name] = FileMeta{
+			Name: input.name, Size: counting.size, SHA256: hex.EncodeToString(h.Sum(nil)),
+			AddedAt: now, UpdatedAt: now, Type: "file", InternalID: internalID,
+			StreamFormat: streamFormat,
+		}
+		staged[fmt.Sprintf("data/%s.enc", internalID)] = blobPath
+		done += counting.size
+	}
+	v.meta.UpdatedAt = nowUnix()
+	if v.Format == FormatV7 {
+		v.meta.Version = 7
+	} else if v.Format == FormatV6 {
 		v.meta.Version = 6
 	} else {
 		v.meta.Version = 5
 	}
-
-	blobs := map[string][]byte{}
-	blobFiles := map[string]string{fmt.Sprintf("data/%s.enc", internalID): blobPath}
-	// Preserve existing blobs except replaced name's old id.
-	if err := v.writeVaultWithFiles(blobs, blobFiles); err != nil {
+	if err := v.writeVaultWithFilesOptions(nil, staged, options); err != nil {
 		v.meta = oldMeta
 		v.Format = oldFormat
 		return err
@@ -547,6 +959,15 @@ func (v *Vault) AddFile(path string, overwrite bool) error {
 
 // ExtractFile decrypts filename into outputDir and verifies SHA-256 when recorded.
 func (v *Vault) ExtractFile(filename, outputDir string, overwrite bool) (string, error) {
+	return v.ExtractFileWithOptions(filename, outputDir, overwrite, OperationOptions{})
+}
+
+// ExtractFileWithOptions decrypts one file with progress and cancellation.
+func (v *Vault) ExtractFileWithOptions(filename, outputDir string, overwrite bool, options OperationOptions) (string, error) {
+	return v.extractFileWithOptions(filename, outputDir, overwrite, options, nil, nil)
+}
+
+func (v *Vault) extractFileWithOptions(filename, outputDir string, overwrite bool, options OperationOptions, root *os.Root, src *zip.File) (string, error) {
 	if !v.IsUnlocked() {
 		return "", fmt.Errorf("%w: vault is locked", ErrVault)
 	}
@@ -554,15 +975,33 @@ func (v *Vault) ExtractFile(filename, outputDir string, overwrite bool) (string,
 	if !ok {
 		return "", fmt.Errorf("%w: file not found in vault", ErrVault)
 	}
-	safe, err := safeFilename(filename)
+	var safe string
+	var err error
+	if v.Format == FormatV7 {
+		safe, err = safeVaultPath(filename)
+	} else {
+		safe, err = safeFilename(filename)
+	}
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+	if root == nil {
+		if err := os.MkdirAll(outputDir, 0o755); err != nil {
+			return "", err
+		}
+		var err error
+		root, err = os.OpenRoot(outputDir)
+		if err != nil {
+			return "", err
+		}
+		defer root.Close()
+	}
+	rel := filepath.FromSlash(safe)
+	if err := ensureSafeOutputParents(root, rel); err != nil {
 		return "", err
 	}
-	outPath := filepath.Join(outputDir, safe)
-	if info, err := os.Lstat(outPath); err == nil {
+	outPath := filepath.Join(outputDir, rel)
+	if info, err := root.Lstat(rel); err == nil {
 		if info.Mode()&os.ModeSymlink != 0 || info.IsDir() {
 			return "", fmt.Errorf("%w: refusing to overwrite non-regular output path", ErrVault)
 		}
@@ -573,46 +1012,221 @@ func (v *Vault) ExtractFile(filename, outputDir string, overwrite bool) (string,
 		return "", err
 	}
 
-	tmp := outPath + ".part"
-	if info, err := os.Lstat(tmp); err == nil {
-		if info.Mode()&os.ModeSymlink != 0 || info.IsDir() {
-			return "", fmt.Errorf("%w: refusing to use unsafe temporary output path", ErrVault)
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", err
-	}
-	file, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	tmpBase, err := newID()
 	if err != nil {
 		return "", err
 	}
+	tmpRel := filepath.Join(filepath.Dir(rel), "."+filepath.Base(rel)+"."+tmpBase+".part")
+	file, err := root.OpenFile(tmpRel, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return "", err
+	}
+	defer root.Remove(tmpRel)
 	h := crypto.NewFileDigest()
-	if err := v.decryptFileTo(meta, io.MultiWriter(file, h)); err != nil {
+	ctx := options.context()
+	dst := io.MultiWriter(operationWriter{ctx: ctx, w: file}, h)
+	if meta.Size > 0 {
+		options.report("Extracting "+filename, 0, meta.Size)
+	}
+	if err := v.decryptFileToWithSource(meta, &progressWriter{w: dst, total: meta.Size, progress: func(n int64) {
+		options.report("Extracting "+filename, n, meta.Size)
+	}}, src); err != nil {
 		_ = file.Close()
-		_ = os.Remove(tmp)
+		return "", err
+	}
+	if err := ctx.Err(); err != nil {
+		_ = file.Close()
 		return "", err
 	}
 	if meta.SHA256 != "" && meta.SHA256 != "pending" && meta.SHA256 != "skipped_large_file" {
 		if hex.EncodeToString(h.Sum(nil)) != meta.SHA256 {
 			_ = file.Close()
-			_ = os.Remove(tmp)
 			return "", fmt.Errorf("%w: extracted file hash mismatch", ErrVault)
 		}
 	}
 	if err := file.Close(); err != nil {
-		_ = os.Remove(tmp)
 		return "", err
 	}
-	var renameErr error
+	var replaceErr error
 	if overwrite {
-		renameErr = replaceFile(tmp, outPath)
+		if info, statErr := root.Lstat(rel); statErr == nil {
+			if info.Mode()&os.ModeSymlink != 0 || info.IsDir() {
+				return "", fmt.Errorf("%w: refusing to overwrite non-regular output path", ErrVault)
+			}
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return "", statErr
+		}
+		// Keep the previously extracted file intact if publishing the verified
+		// replacement fails. replaceFile provides same-directory atomic replace.
+		replaceErr = replaceFile(filepath.Join(outputDir, tmpRel), outPath)
 	} else {
-		renameErr = os.Rename(tmp, outPath)
+		// The output appears only after authentication and hash verification.
+		// Publish it with a same-root operation after a final destination check.
+		if _, statErr := root.Lstat(rel); statErr == nil {
+			return "", fmt.Errorf("%w: %q already exists in the output folder", ErrVault, safe)
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return "", statErr
+		}
+		replaceErr = renameExtractedFile(root, tmpRel, rel)
+		if errors.Is(replaceErr, os.ErrExist) {
+			return "", fmt.Errorf("%w: %q already exists in the output folder", ErrVault, safe)
+		}
 	}
-	if renameErr != nil {
-		_ = os.Remove(tmp)
-		return "", renameErr
+	if replaceErr != nil {
+		return "", replaceErr
+	}
+	if err := root.Remove(tmpRel); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", err
 	}
 	return outPath, nil
+}
+
+func ensureSafeOutputParents(root *os.Root, rel string) error {
+	parent := filepath.Dir(rel)
+	if parent == "." || parent == "" {
+		return nil
+	}
+	current := ""
+	for _, part := range strings.Split(parent, string(filepath.Separator)) {
+		current = filepath.Join(current, part)
+		info, err := root.Lstat(current)
+		if err == nil {
+			if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+				return fmt.Errorf("%w: refusing to extract through an unsafe output directory", ErrVault)
+			}
+			continue
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		if err := root.Mkdir(current, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
+			return err
+		}
+		info, err = root.Lstat(current)
+		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%w: refusing to extract through an unsafe output directory", ErrVault)
+		}
+	}
+	return nil
+}
+
+func (v *Vault) openZipIndex(names []string) (*zip.ReadCloser, map[string]*zip.File, error) {
+	needsZip := false
+	for _, name := range names {
+		if v.meta.Files[name].Content == "" {
+			needsZip = true
+			break
+		}
+	}
+	if !needsZip {
+		return nil, nil, nil
+	}
+	zr, err := zip.OpenReader(v.Path)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := validateZip(zr.File); err != nil {
+		_ = zr.Close()
+		return nil, nil, err
+	}
+	files := make(map[string]*zip.File, len(names))
+	for _, file := range zr.File {
+		if !strings.HasPrefix(file.Name, "data/") || !strings.HasSuffix(file.Name, ".enc") {
+			continue
+		}
+		id := strings.TrimSuffix(strings.TrimPrefix(file.Name, "data/"), ".enc")
+		if id != "" {
+			files[id] = file
+		}
+	}
+	return zr, files, nil
+}
+
+// ExtractAll preflights all destination names before writing any plaintext.
+func (v *Vault) ExtractAll(outputDir string, overwrite bool) ([]string, error) {
+	return v.ExtractAllWithOptions(outputDir, overwrite, OperationOptions{})
+}
+
+// ExtractAllWithOptions decrypts every entry with progress and cancellation.
+func (v *Vault) ExtractAllWithOptions(outputDir string, overwrite bool, options OperationOptions) ([]string, error) {
+	names, err := v.ListFiles()
+	if err != nil {
+		return nil, err
+	}
+	if len(names) == 0 {
+		return nil, fmt.Errorf("%w: vault is empty", ErrVault)
+	}
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return nil, err
+	}
+	root, err := os.OpenRoot(outputDir)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	for _, name := range names {
+		if err := options.context().Err(); err != nil {
+			return nil, err
+		}
+		rel, err := safeVaultPath(name)
+		if v.Format != FormatV7 {
+			rel, err = safeFilename(name)
+		}
+		if err != nil {
+			return nil, err
+		}
+		rel = filepath.FromSlash(rel)
+		if err := ensureSafeOutputParents(root, rel); err != nil {
+			return nil, err
+		}
+		if info, err := root.Lstat(rel); err == nil {
+			if info.Mode()&os.ModeSymlink != 0 || info.IsDir() {
+				return nil, fmt.Errorf("%w: refusing to overwrite non-regular output path", ErrVault)
+			}
+			if !overwrite {
+				return nil, fmt.Errorf("%w: %q already exists in the output folder", ErrVault, name)
+			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+	}
+	zr, zipFiles, err := v.openZipIndex(names)
+	if err != nil {
+		return nil, err
+	}
+	if zr != nil {
+		defer zr.Close()
+	}
+	total := int64(0)
+	for _, meta := range v.meta.Files {
+		if meta.Size > 0 && total <= int64(^uint64(0)>>1)-meta.Size {
+			total += meta.Size
+		}
+	}
+	var done int64
+	outPaths := make([]string, 0, len(names))
+	for _, name := range names {
+		if err := options.context().Err(); err != nil {
+			return outPaths, err
+		}
+		meta := v.meta.Files[name]
+		var src *zip.File
+		if meta.Content == "" {
+			src = zipFiles[meta.InternalID]
+		}
+		p, err := v.extractFileWithOptions(name, outputDir, overwrite, OperationOptions{
+			Context: options.context(),
+			Progress: func(update OperationUpdate) {
+				options.report("Extracting files", done+update.Done, total)
+			},
+		}, root, src)
+		if err != nil {
+			return outPaths, err
+		}
+		done += meta.Size
+		outPaths = append(outPaths, p)
+	}
+	return outPaths, nil
 }
 
 // VerifyResult is the outcome of integrity-checking one vault entry.
@@ -625,6 +1239,10 @@ type VerifyResult struct {
 
 // VerifyFile decrypts an entry and checks size / SHA-256 against metadata.
 func (v *Vault) VerifyFile(filename string) (VerifyResult, error) {
+	return v.verifyFileWithSource(filename, nil)
+}
+
+func (v *Vault) verifyFileWithSource(filename string, src *zip.File) (VerifyResult, error) {
 	if !v.IsUnlocked() {
 		return VerifyResult{}, fmt.Errorf("%w: vault is locked", ErrVault)
 	}
@@ -634,7 +1252,7 @@ func (v *Vault) VerifyFile(filename string) (VerifyResult, error) {
 	}
 	digest := crypto.NewFileDigest()
 	counting := &countingWriter{w: digest}
-	if err := v.decryptFileTo(meta, counting); err != nil {
+	if err := v.decryptFileToWithSource(meta, counting, src); err != nil {
 		return VerifyResult{}, err
 	}
 	actual := hex.EncodeToString(digest.Sum(nil))
@@ -659,8 +1277,20 @@ func (v *Vault) VerifyAll() (fileCount int, bytesChecked int64, hashCheckedCount
 	if err != nil {
 		return 0, 0, 0, err
 	}
+	zr, zipFiles, err := v.openZipIndex(names)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	if zr != nil {
+		defer zr.Close()
+	}
 	for _, name := range names {
-		res, verr := v.VerifyFile(name)
+		meta := v.meta.Files[name]
+		var src *zip.File
+		if meta.Content == "" {
+			src = zipFiles[meta.InternalID]
+		}
+		res, verr := v.verifyFileWithSource(name, src)
 		if verr != nil {
 			return fileCount, bytesChecked, hashCheckedCount, verr
 		}
@@ -675,19 +1305,51 @@ func (v *Vault) VerifyAll() (fileCount int, bytesChecked int64, hashCheckedCount
 
 // DeleteFile removes an entry and rewrites the vault without its blob.
 func (v *Vault) DeleteFile(filename string) error {
+	return v.DeleteFileWithOptions(filename, OperationOptions{})
+}
+
+// DeleteFileWithOptions removes an entry while reporting archive rewrite
+// progress and honoring cancellation before replacing the original vault.
+func (v *Vault) DeleteFileWithOptions(filename string, options OperationOptions) error {
+	return v.DeleteFilesWithOptions([]string{filename}, options)
+}
+
+// DeleteFiles removes a set of entries with one archive rewrite.
+func (v *Vault) DeleteFiles(filenames []string) error {
+	return v.DeleteFilesWithOptions(filenames, OperationOptions{})
+}
+
+// DeleteFilesWithOptions removes a set of entries in one archive rewrite while
+// reporting progress and honoring cancellation before replacing the original.
+func (v *Vault) DeleteFilesWithOptions(filenames []string, options OperationOptions) error {
 	if !v.IsUnlocked() {
 		return fmt.Errorf("%w: vault is locked", ErrVault)
+	}
+	if err := options.context().Err(); err != nil {
+		return err
 	}
 	if v.Format == FormatV1 || v.Format == FormatV2 {
 		return fmt.Errorf("%w: migrate this legacy vault with change-password before modifying it", ErrVault)
 	}
-	if _, ok := v.meta.Files[filename]; !ok {
-		return fmt.Errorf("%w: file not found in vault", ErrVault)
+	if len(filenames) == 0 {
+		return fmt.Errorf("%w: at least one file name is required", ErrVault)
+	}
+	seen := make(map[string]struct{}, len(filenames))
+	for _, filename := range filenames {
+		if _, duplicate := seen[filename]; duplicate {
+			return fmt.Errorf("%w: duplicate file name %q", ErrVault, filename)
+		}
+		seen[filename] = struct{}{}
+		if _, ok := v.meta.Files[filename]; !ok {
+			return fmt.Errorf("%w: file not found in vault: %s", ErrVault, filename)
+		}
 	}
 	oldMeta := cloneMetadata(v.meta)
-	delete(v.meta.Files, filename)
+	for _, filename := range filenames {
+		delete(v.meta.Files, filename)
+	}
 	v.meta.UpdatedAt = nowUnix()
-	if err := v.writeVault(nil); err != nil {
+	if err := v.writeVaultWithFilesOptions(nil, nil, options); err != nil {
 		v.meta = oldMeta
 		return err
 	}
@@ -697,11 +1359,35 @@ func (v *Vault) DeleteFile(filename string) error {
 // ChangePassword re-encrypts every blob and metadata under a new salt+key.
 // KDF profile (n,r,p) is preserved.
 func (v *Vault) ChangePassword(oldPassword, newPassword string) error {
+	return v.ChangePasswordWithOptions(oldPassword, newPassword, OperationOptions{})
+}
+
+// ChangePasswordWithOptions re-encrypts every blob without writing plaintext
+// staging files. It keeps the current KDF profile. Cancellation is observed
+// while each stream is transformed.
+func (v *Vault) ChangePasswordWithOptions(oldPassword, newPassword string, options OperationOptions) error {
+	return v.ChangePasswordWithProfileAndOptions(oldPassword, newPassword, "", options)
+}
+
+// ChangePasswordWithProfile re-encrypts every blob under a new password and
+// the selected supported Scrypt profile. It can upgrade a standard vault to
+// hardened without exporting its plaintext files.
+func (v *Vault) ChangePasswordWithProfile(oldPassword, newPassword, profile string) error {
+	return v.ChangePasswordWithProfileAndOptions(oldPassword, newPassword, profile, OperationOptions{})
+}
+
+// ChangePasswordWithProfileAndOptions re-encrypts every blob without writing
+// plaintext staging files. An empty profile preserves the existing KDF settings.
+func (v *Vault) ChangePasswordWithProfileAndOptions(oldPassword, newPassword, profile string, options OperationOptions) error {
 	if !v.IsUnlocked() {
 		return fmt.Errorf("%w: vault is locked", ErrVault)
 	}
 	if newPassword == "" {
 		return fmt.Errorf("%w: password cannot be empty", ErrVault)
+	}
+	ctx := options.context()
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	var candidate []byte
 	var err error
@@ -716,6 +1402,9 @@ func (v *Vault) ChangePassword(oldPassword, newPassword string) error {
 	if !hmac.Equal(candidate, v.key) {
 		return fmt.Errorf("%w: current password is incorrect", ErrVault)
 	}
+	if profile != "" && profile != "standard" && profile != "hardened" {
+		return fmt.Errorf("%w: choose the standard or hardened KDF profile", ErrVault)
+	}
 
 	oldFormat, oldProfile, oldN, oldR, oldP := v.Format, v.Profile, v.KdfN, v.KdfR, v.KdfP
 	wasLegacy := oldFormat == FormatV1 || oldFormat == FormatV2
@@ -727,7 +1416,11 @@ func (v *Vault) ChangePassword(oldPassword, newPassword string) error {
 			v.Format, v.Profile, v.KdfN, v.KdfR, v.KdfP = oldFormat, oldProfile, oldN, oldR, oldP
 		}
 	}()
-	if v.Format == FormatV1 || v.Format == FormatV2 {
+	if profile != "" {
+		if err := v.setKDF(profile); err != nil {
+			return err
+		}
+	} else if v.Format == FormatV1 || v.Format == FormatV2 {
 		if err := v.setKDF("standard"); err != nil {
 			return err
 		}
@@ -741,57 +1434,68 @@ func (v *Vault) ChangePassword(oldPassword, newPassword string) error {
 		return err
 	}
 
-	// Decrypt and re-encrypt one staged blob at a time. This keeps password
-	// rotation bounded by the stream buffers instead of total vault size.
+	// Pipe authenticated plaintext directly into the new encryptor. A crash or
+	// cancellation therefore cannot leave a plaintext file beside the vault.
 	newBlobs := map[string][]byte{}
 	newBlobFiles := map[string]string{}
 	var stagedFiles []string
 	defer func() {
 		for _, path := range stagedFiles {
-			removePrivateTemp(path)
+			_ = os.Remove(path)
 		}
 	}()
 	dir := filepath.Dir(v.Path)
-	for _, meta := range v.meta.Files {
+	names, err := v.ListFiles()
+	if err != nil {
+		return err
+	}
+	for fileIndex, name := range names {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		meta := v.meta.Files[name]
 		if meta.InternalID == "" {
 			continue
 		}
-		plainFile, err := os.CreateTemp(dir, ".pulsevault-plain-*.tmp")
-		if err != nil {
-			return err
-		}
-		plainPath := plainFile.Name()
-		stagedFiles = append(stagedFiles, plainPath)
-		if err := v.decryptFileTo(meta, plainFile); err != nil {
-			_ = plainFile.Close()
-			return err
-		}
-		if err := plainFile.Sync(); err != nil {
-			_ = plainFile.Close()
-			return err
-		}
-		if err := plainFile.Close(); err != nil {
-			return err
-		}
-		plainSource, err := os.Open(plainPath)
-		if err != nil {
-			return err
-		}
 		encFile, err := os.CreateTemp(dir, ".pulsevault-blob-*.tmp")
 		if err != nil {
-			_ = plainSource.Close()
 			return err
 		}
 		encPath := encFile.Name()
 		stagedFiles = append(stagedFiles, encPath)
-		if err := crypto.EncryptStreamV6(newKey, plainSource, encFile, true); err != nil {
-			_ = plainSource.Close()
-			_ = encFile.Close()
-			return err
+		pipeReader, pipeWriter := io.Pipe()
+		encryptResult := make(chan error, 1)
+		go func() {
+			err := crypto.EncryptStreamV6(newKey, operationReader{ctx: ctx, r: pipeReader}, encFile, true)
+			_ = pipeReader.CloseWithError(err)
+			encryptResult <- err
+		}()
+		options.report(fmt.Sprintf("Re-encrypting %s (%d/%d)", name, fileIndex+1, len(names)), 0, meta.Size)
+		var processed int64
+		plainWriter := &progressWriter{
+			w: operationWriter{ctx: ctx, w: pipeWriter}, total: meta.Size,
+			progress: func(n int64) {
+				processed = n
+				options.report(fmt.Sprintf("Re-encrypting %s (%d/%d)", name, fileIndex+1, len(names)), n, meta.Size)
+			},
 		}
-		if err := plainSource.Close(); err != nil {
+		decryptErr := v.decryptFileTo(meta, plainWriter)
+		_ = pipeWriter.CloseWithError(decryptErr)
+		encryptErr := <-encryptResult
+		if decryptErr != nil {
 			_ = encFile.Close()
-			return err
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return decryptErr
+		}
+		if encryptErr != nil {
+			_ = encFile.Close()
+			return encryptErr
+		}
+		if processed != meta.Size {
+			_ = encFile.Close()
+			return fmt.Errorf("%w: file size changed during password rotation", ErrVault)
 		}
 		if err := encFile.Sync(); err != nil {
 			_ = encFile.Close()
@@ -800,15 +1504,25 @@ func (v *Vault) ChangePassword(oldPassword, newPassword string) error {
 		if err := encFile.Close(); err != nil {
 			return err
 		}
+		if v.Format == FormatV7 {
+			meta.StreamFormat = FormatV6
+		} else {
+			meta.StreamFormat = ""
+		}
+		v.meta.Files[name] = meta
 		newBlobFiles[fmt.Sprintf("data/%s.enc", meta.InternalID)] = encPath
 	}
 
 	oldKey, oldSalt := v.key, v.salt
 	v.key = newKey
 	v.salt = newSalt
-	v.Format = FormatV6
+	if oldFormat == FormatV7 {
+		v.Format = FormatV7
+	} else {
+		v.Format = FormatV6
+	}
 	v.legacySource = wasLegacy
-	if err := v.writeVaultWithFiles(newBlobs, newBlobFiles); err != nil {
+	if err := v.writeVaultWithFilesOptions(newBlobs, newBlobFiles, options); err != nil {
 		v.key = oldKey
 		v.salt = oldSalt
 		v.legacySource = false
@@ -866,6 +1580,10 @@ func PeekKDFProfile(path string) (KDFRecord, error) {
 }
 
 func (v *Vault) decryptFileTo(meta FileMeta, dst io.Writer) error {
+	return v.decryptFileToWithSource(meta, dst, nil)
+}
+
+func (v *Vault) decryptFileToWithSource(meta FileMeta, dst io.Writer, src *zip.File) error {
 	if meta.Content != "" {
 		plain, err := base64.StdEncoding.DecodeString(meta.Content)
 		if err != nil {
@@ -877,20 +1595,20 @@ func (v *Vault) decryptFileTo(meta FileMeta, dst io.Writer) error {
 	if meta.InternalID == "" {
 		return fmt.Errorf("%w: file metadata missing content reference", ErrVault)
 	}
-	zr, err := zip.OpenReader(v.Path)
-	if err != nil {
-		return err
-	}
-	defer zr.Close()
-	want := fmt.Sprintf("data/%s.enc", meta.InternalID)
-	var src *zip.File
-	for _, f := range zr.File {
-		if f.Name == want {
-			src = f
-			break
+	if src == nil {
+		zr, err := zip.OpenReader(v.Path)
+		if err != nil {
+			return err
+		}
+		defer zr.Close()
+		for _, file := range zr.File {
+			if isDataEntryForID(file.Name, meta.InternalID) {
+				src = file
+				break
+			}
 		}
 	}
-	if src == nil {
+	if src == nil || !isDataEntryForID(src.Name, meta.InternalID) {
 		return fmt.Errorf("%w: internal data file missing from vault", ErrVault)
 	}
 	rc, err := src.Open()
@@ -900,7 +1618,14 @@ func (v *Vault) decryptFileTo(meta FileMeta, dst io.Writer) error {
 	defer rc.Close()
 	limited := io.LimitReader(rc, int64(MaxDataBlobSize)+1)
 	var decryptErr error
-	switch v.Format {
+	streamFormat := meta.StreamFormat
+	if streamFormat == "" {
+		streamFormat = v.Format
+	}
+	if streamFormat == FormatV7 {
+		streamFormat = FormatV6
+	}
+	switch streamFormat {
 	case FormatV2:
 		data, readErr := io.ReadAll(limited)
 		if readErr != nil {
@@ -937,9 +1662,22 @@ func (v *Vault) decryptFileTo(meta FileMeta, dst io.Writer) error {
 		return fmt.Errorf("%w: unsupported stream format", ErrVault)
 	}
 	if decryptErr != nil {
+		if errors.Is(decryptErr, context.Canceled) || errors.Is(decryptErr, context.DeadlineExceeded) {
+			return decryptErr
+		}
 		return fmt.Errorf("%w: failed to decrypt file", ErrVault)
 	}
 	return nil
+}
+
+func isDataEntryForID(name, id string) bool {
+	const prefix = "data/"
+	const suffix = ".enc"
+	if id == "" || len(name) <= len(prefix)+len(suffix) ||
+		!strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
+		return false
+	}
+	return name[len(prefix):len(name)-len(suffix)] == id
 }
 
 func (v *Vault) writeVault(newBlobs map[string][]byte) error {
@@ -950,6 +1688,14 @@ func (v *Vault) writeVault(newBlobs map[string][]byte) error {
 // new container. File-backed blobs keep AddFile and ChangePassword bounded by
 // the stream buffers instead of the total plaintext size.
 func (v *Vault) writeVaultWithFiles(newBlobs map[string][]byte, newBlobFiles map[string]string) error {
+	return v.writeVaultWithFilesOptions(newBlobs, newBlobFiles, OperationOptions{})
+}
+
+func (v *Vault) writeVaultWithFilesOptions(newBlobs map[string][]byte, newBlobFiles map[string]string, options OperationOptions) error {
+	ctx := options.context()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if v.key == nil || v.salt == nil {
 		return fmt.Errorf("%w: vault is locked", ErrVault)
 	}
@@ -1043,11 +1789,30 @@ func (v *Vault) writeVaultWithFiles(newBlobs map[string][]byte, newBlobFiles map
 			oldByName[f.Name] = f
 		}
 	}
+	var rewriteTotal int64
+	for name := range referenced {
+		if data, ok := memBlobs[name]; ok {
+			rewriteTotal += int64(len(data))
+			continue
+		}
+		if path, ok := fileBlobs[name]; ok {
+			if info, err := os.Stat(path); err == nil && info.Size() > 0 {
+				rewriteTotal += info.Size()
+			}
+			continue
+		}
+		if f := oldByName[name]; f != nil && f.UncompressedSize64 <= uint64(^uint64(0)>>1) {
+			rewriteTotal += int64(f.UncompressedSize64)
+		}
+	}
+	var rewriteDone int64
 
 	v.meta.UpdatedAt = nowUnix()
 	v.meta.Version = 5
 	if v.Format == FormatV6 {
 		v.meta.Version = 6
+	} else if v.Format == FormatV7 {
+		v.meta.Version = 7
 	}
 	metaPlain, err := json.Marshal(v.meta)
 	if err != nil {
@@ -1088,7 +1853,7 @@ func (v *Vault) writeVaultWithFiles(newBlobs map[string][]byte, newBlobFiles map
 			_ = os.Remove(tmpName)
 			return err
 		}
-		copied, copyErr := io.CopyN(tmp, carrier, carrierPrefixSize)
+		copied, copyErr := copyOperation(ctx, tmp, io.LimitReader(carrier, carrierPrefixSize), nil)
 		closeErr := carrier.Close()
 		if copyErr != nil {
 			_ = tmp.Close()
@@ -1128,7 +1893,10 @@ func (v *Vault) writeVaultWithFiles(newBlobs map[string][]byte, newBlobFiles map
 		if err != nil {
 			return err
 		}
-		n, copyErr := io.Copy(w, io.LimitReader(rc, int64(MaxDataBlobSize)+1))
+		n, copyErr := copyOperation(ctx, w, io.LimitReader(rc, int64(MaxDataBlobSize)+1), func(n int64) {
+			options.report("Rebuilding vault", rewriteDone+n, rewriteTotal)
+		})
+		rewriteDone += n
 		closeErr := rc.Close()
 		if copyErr != nil {
 			return copyErr
@@ -1154,7 +1922,10 @@ func (v *Vault) writeVaultWithFiles(newBlobs map[string][]byte, newBlobFiles map
 		if err != nil {
 			return err
 		}
-		n, copyErr := io.Copy(w, io.LimitReader(r, int64(MaxDataBlobSize)+1))
+		n, copyErr := copyOperation(ctx, w, io.LimitReader(r, int64(MaxDataBlobSize)+1), func(n int64) {
+			options.report("Rebuilding vault", rewriteDone+n, rewriteTotal)
+		})
+		rewriteDone += n
 		closeErr := r.Close()
 		if copyErr != nil {
 			return copyErr
@@ -1173,7 +1944,7 @@ func (v *Vault) writeVaultWithFiles(newBlobs map[string][]byte, newBlobFiles map
 	if err := write("salt.bin", v.salt); err != nil {
 		return failWrite(err)
 	}
-	if v.Format != FormatV5 && v.Format != FormatV6 {
+	if v.Format != FormatV5 && v.Format != FormatV6 && v.Format != FormatV7 {
 		return failWrite(fmt.Errorf("%w: unsupported writable vault format", ErrVault))
 	}
 	if err := write("format.txt", []byte(v.Format)); err != nil {
@@ -1203,6 +1974,8 @@ func (v *Vault) writeVaultWithFiles(newBlobs map[string][]byte, newBlobFiles map
 			if err := write(n, data); err != nil {
 				return failWrite(err)
 			}
+			rewriteDone += int64(len(data))
+			options.report("Rebuilding vault", rewriteDone, rewriteTotal)
 			continue
 		}
 		if path, ok := fileBlobs[n]; ok {
@@ -1241,6 +2014,15 @@ func (v *Vault) writeVaultWithFiles(newBlobs map[string][]byte, newBlobFiles map
 			return err
 		}
 	}
+	if err := ctx.Err(); err != nil {
+		_ = os.Remove(tmpName)
+		return err
+	}
+	options.report("Finalizing vault", 0, 0)
+	if err := ctx.Err(); err != nil {
+		_ = os.Remove(tmpName)
+		return err
+	}
 	if err := replaceFile(tmpName, v.Path); err != nil {
 		_ = os.Remove(tmpName)
 		return err
@@ -1269,6 +2051,11 @@ func (v *Vault) materializeLegacyContent(existing map[string][]byte) error {
 		}
 		existing[fmt.Sprintf("data/%s.enc", id)] = enc.Bytes()
 		meta.InternalID = id
+		if v.Format == FormatV7 {
+			meta.StreamFormat = FormatV6
+		} else {
+			meta.StreamFormat = ""
+		}
 		meta.Content = ""
 		v.meta.Files[name] = meta
 	}
@@ -1291,10 +2078,15 @@ func validateZip(files []*zip.File) error {
 		if f.Name == "" || strings.HasPrefix(f.Name, "/") || strings.HasPrefix(f.Name, "\\") || strings.Contains(f.Name, "\\") {
 			return fmt.Errorf("%w: invalid ZIP entry path", ErrVault)
 		}
-		for _, part := range strings.Split(f.Name, "/") {
+		for path := f.Name; ; {
+			part, remainder, hasMore := strings.Cut(path, "/")
 			if part == ".." {
 				return fmt.Errorf("%w: invalid ZIP entry path", ErrVault)
 			}
+			if !hasMore {
+				break
+			}
+			path = remainder
 		}
 		max := uint64(MaxDataBlobSize)
 		switch f.Name {
@@ -1351,33 +2143,6 @@ func newID() (string, error) {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
 }
 
-// removePrivateTemp makes a best effort to clear staged plaintext before
-// removing it. This is not a guarantee against forensic recovery on SSDs, but
-// it avoids leaving an ordinary readable plaintext temp behind after a failed
-// password rotation.
-func removePrivateTemp(path string) {
-	file, err := os.OpenFile(path, os.O_WRONLY, 0)
-	if err == nil {
-		if info, statErr := file.Stat(); statErr == nil && info.Size() > 0 {
-			zeros := make([]byte, 64*1024)
-			remaining := info.Size()
-			for remaining > 0 {
-				block := int64(len(zeros))
-				if block > remaining {
-					block = remaining
-				}
-				if _, writeErr := file.Write(zeros[:block]); writeErr != nil {
-					break
-				}
-				remaining -= block
-			}
-			_ = file.Sync()
-		}
-		_ = file.Close()
-	}
-	_ = os.Remove(path)
-}
-
 type countingWriter struct {
 	w io.Writer
 	n int64
@@ -1393,6 +2158,40 @@ type hashingReader struct {
 	r    io.Reader
 	h    io.Writer
 	size int64
+}
+
+type progressHashingReader struct {
+	inner    io.Reader
+	size     int64
+	progress func(int64)
+	n        int64
+}
+
+func (r *progressHashingReader) Size() int64 { return r.size }
+
+func (r *progressHashingReader) Read(p []byte) (int, error) {
+	n, err := r.inner.Read(p)
+	r.n += int64(n)
+	if n > 0 && r.progress != nil {
+		r.progress(r.n)
+	}
+	return n, err
+}
+
+type progressWriter struct {
+	w        io.Writer
+	total    int64
+	progress func(int64)
+	n        int64
+}
+
+func (w *progressWriter) Write(p []byte) (int, error) {
+	n, err := w.w.Write(p)
+	w.n += int64(n)
+	if n > 0 && w.progress != nil {
+		w.progress(w.n)
+	}
+	return n, err
 }
 
 func (r *hashingReader) Read(p []byte) (int, error) {
@@ -1430,4 +2229,52 @@ func safeFilename(name string) (string, error) {
 		return "", fmt.Errorf("%w: invalid filename", ErrVault)
 	}
 	return name, nil
+}
+
+// safeVaultPath accepts portable relative paths with forward slashes and
+// rejects traversal, rooted paths, platform-specific components, and aliases.
+func safeVaultPath(name string) (string, error) {
+	if name == "" || strings.Contains(name, "\\") || strings.HasPrefix(name, "/") || path.IsAbs(name) || path.Clean(name) != name {
+		return "", fmt.Errorf("%w: invalid vault path", ErrVault)
+	}
+	parts := strings.Split(name, "/")
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return "", fmt.Errorf("%w: invalid vault path", ErrVault)
+		}
+		safe, err := safeFilename(part)
+		if err != nil || safe != part {
+			return "", fmt.Errorf("%w: file path contains a non-portable name", ErrVault)
+		}
+		device := strings.ToUpper(strings.SplitN(part, ".", 2)[0])
+		switch device {
+		case "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9":
+			return "", fmt.Errorf("%w: file path contains a reserved device name", ErrVault)
+		}
+	}
+	return name, nil
+}
+
+func validateVaultPathSet(names []string) error {
+	folded := make(map[string]string, len(names))
+	for _, name := range names {
+		if _, err := safeVaultPath(name); err != nil {
+			return fmt.Errorf("%q is not a portable relative path", name)
+		}
+		key := caseFoldKey(name)
+		if previous, exists := folded[key]; exists && previous != name {
+			return fmt.Errorf("%q conflicts with %q on case-insensitive filesystems", name, previous)
+		}
+		folded[key] = name
+	}
+	for _, name := range names {
+		parts := strings.Split(name, "/")
+		for i := 1; i < len(parts); i++ {
+			prefix := caseFoldKey(strings.Join(parts[:i], "/"))
+			if previous, exists := folded[prefix]; exists {
+				return fmt.Errorf("%q conflicts with %q used as a file", name, previous)
+			}
+		}
+	}
+	return nil
 }

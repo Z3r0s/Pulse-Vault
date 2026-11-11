@@ -279,17 +279,55 @@ def ensure_binary(*, force: bool = False) -> Path:
     return install_from_release(rel, dest, force=force)
 
 
+def cached_binary() -> Path:
+    """Return a verified local CLI without contacting a server."""
+    override = os.environ.get(CACHE_ENV, "").strip()
+    if override:
+        path = Path(override)
+        if not path.is_file():
+            raise LauncherError(f"{CACHE_ENV}={override} is not a file")
+        return path
+
+    dest = cache_dir() / asset_name()
+    if not dest.is_file() or dest.stat().st_size <= 0:
+        raise LauncherError(
+            "No local Go CLI is installed. Run `pulse-vault --launcher-install` "
+            "to explicitly download it from GitHub."
+        )
+    meta = read_meta(dest)
+    expected = str(meta.get("sha256") or "").lower()
+    if len(expected) != 64 or any(char not in "0123456789abcdef" for char in expected):
+        raise LauncherError(
+            "The cached Go CLI has no valid checksum record. Run "
+            "`pulse-vault --launcher-update` to explicitly replace it."
+        )
+    if sha256_file(dest) != expected:
+        raise LauncherError(
+            "The cached Go CLI failed its checksum. Run "
+            "`pulse-vault --launcher-update` to explicitly replace it."
+        )
+    want = os.environ.get(VERSION_ENV, "").strip()
+    if want and meta.get("tag") not in tag_candidates(want):
+        raise LauncherError(
+            f"The cached Go CLI does not match {VERSION_ENV}={want!r}. Run "
+            "`pulse-vault --launcher-install` to explicitly fetch that version."
+        )
+    return dest
+
+
 def launcher_help() -> str:
     return f"""Pulse-Vault pip launcher {__version__}  ({HOMEPAGE})
 
-This command is a small Python wrapper. It downloads the official Go CLI
-from GitHub Releases, checks SHA256SUMS, then runs that binary.
+This command is a small Python wrapper. Normal use is offline: it runs a
+previously downloaded Go CLI only after validating its cached SHA-256 record.
+It contacts GitHub only when you explicitly request an install or update.
 
-  pulse-vault ...                  run the Go CLI
+  pulse-vault ...                  run the cached Go CLI (no network request)
   pulse-vault --launcher-version   wrapper version
   pulse-vault --launcher-which     path of the cached Go binary
   pulse-vault --launcher-info      tag, hash, asset name
-  pulse-vault --launcher-update    re-download the latest CLI
+  pulse-vault --launcher-install   explicitly download the CLI if needed
+  pulse-vault --launcher-update    explicitly re-download the latest CLI
   pulse-vault --launcher-help      this text
 
 Env:
@@ -317,12 +355,17 @@ def dispatch_launcher(cmd: str) -> int:
         sys.stdout.write(f"pulse-vault pip launcher {__version__} ({HOMEPAGE})\n")
         return 0
     try:
+        if cmd == "--launcher-install":
+            path = ensure_binary()
+            sys.stdout.write(f"installed {path}\n")
+            print_info(path)
+            return 0
         if cmd == "--launcher-update":
             path = ensure_binary(force=True)
             sys.stdout.write(f"updated {path}\n")
             print_info(path)
             return 0
-        path = ensure_binary()
+        path = cached_binary()
         if cmd == "--launcher-which":
             sys.stdout.write(f"{path}\n")
             return 0
@@ -352,7 +395,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         return dispatch_launcher(args[0])
     try:
-        binary = ensure_binary()
+        binary = cached_binary()
     except LauncherError as exc:
         sys.stderr.write(f"pulse-vault: {exc}\n")
         sys.stderr.write(f"Site: {HOMEPAGE}\n")

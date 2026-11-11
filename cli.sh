@@ -5,7 +5,7 @@
 #
 #   ./cli.sh
 #   ./cli.sh version
-#   ./cli.sh create ./demo.pulsevault --password 'choose-a-strong-password'
+#   ./cli.sh create ./demo.pulsevault  # prompts for a password
 #   ./cli.sh --build
 set -eu
 
@@ -30,7 +30,7 @@ build_cli() {
     exit 2
   fi
   echo "Building pulse-vault ..."
-  (cd "$ROOT" && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o "$OUT" ./gui-go/cmd/pulse-vault)
+  (cd "$ROOT" && CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags "-s -w" -o "$OUT" ./gui-go/cmd/pulse-vault)
 }
 
 if [ "$FORCE" -eq 1 ] || [ ! -x "$OUT" ]; then

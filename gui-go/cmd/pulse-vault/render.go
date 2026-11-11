@@ -17,7 +17,7 @@ func printBanner() {
 	ver := version.Version
 	lines := []string{
 		bold(fg("PULSE-VAULT")) + muted("   v"+ver),
-		muted("offline sealed storage  ·  V6 finalized cascade"),
+		muted("offline sealed storage  ·  V6 streams  ·  V7 paths"),
 	}
 	fmt.Fprintln(out(), box("⬡  "+productName, lines, 56))
 }
@@ -39,13 +39,14 @@ func printHelp() {
 		{"create", "Seal a new vault (or hide one inside a picture)"},
 		{"open", "Interactive vault console"},
 		{"list", "Inventory of sealed files"},
-		{"add", "Encrypt a file into the vault"},
+		{"add", "Encrypt files or a folder tree into the vault"},
 		{"extract", "Decrypt a file out to disk"},
-		{"delete", "Remove a sealed file"},
+		{"extract-all", "Restore every sealed file"},
+		{"delete", "Remove one or more sealed files in one rewrite"},
 		{"verify", "Integrity-check every entry"},
 		{"info", "Inspect the container (no password)"},
 		{"change-password", "Rotate the key (full re-encrypt)"},
-		{"migrate", "Upgrade a legacy vault to V6"},
+		{"migrate", "Upgrade legacy streams to V6"},
 		{"version", "Print product version"},
 		{"help", "This screen"},
 	}
@@ -55,16 +56,17 @@ func printHelp() {
 	fmt.Fprintln(out())
 	fmt.Fprintln(out(), "  "+bold(cyan("USAGE")))
 	usages := []string{
-		"create  <vault> --password <pw> [--profile standard|fast|hardened] [--carrier <image>]",
-		"open    <vault> --password <pw>",
-		"list    <vault> --password <pw>",
-		"add     <vault> --password <pw> <file> [--overwrite]",
-		"extract <vault> --password <pw> <name> <outdir> [--overwrite]",
-		"delete  <vault> --password <pw> <name>",
-		"verify  <vault> --password <pw>",
-		"change-password <vault> --password <old> --new-password <new>",
-		"migrate <vault> --password <legacy-password>",
-		"info    <vault> [--password <pw>]",
+		"create  <vault> [--profile standard|hardened] [--carrier <image>]",
+		"open    <vault>",
+		"list    <vault>",
+		"add     <vault> <file-or-folder> [more paths ...] [--overwrite]",
+		"extract <vault> <name> <outdir> [--overwrite]",
+		"extract-all <vault> <outdir> [--overwrite]",
+		"delete  <vault> <name> [more names ...]",
+		"verify  <vault>",
+		"change-password <vault> [--profile standard|hardened]",
+		"migrate <vault>",
+		"info    <vault>",
 	}
 	for _, u := range usages {
 		fmt.Fprintf(out(), "    %s %s\n", muted("pulse-vault"), fg(u))
@@ -72,7 +74,9 @@ func printHelp() {
 	fmt.Fprintln(out())
 	fmt.Fprintln(out(), "  "+muted("create destination may be a .pulsevault file or an image/video path (e.g. hidden.png)."))
 	fmt.Fprintln(out(), "  "+muted("--carrier prepends that picture/video so the vault is hidden inside the file."))
-	fmt.Fprintln(out(), "  "+muted("Use --password-prompt, --password-stdin, or --password-file to avoid exposing passwords in process listings."))
+	fmt.Fprintln(out(), "  "+muted("Interactive terminals prompt for passwords without echo. Scripts can use --password-stdin or --password-file."))
+	fmt.Fprintln(out(), "  "+muted("--password <value> remains available for compatibility but may expose secrets in process listings."))
+	fmt.Fprintln(out(), "  "+muted("The fast KDF profile is test-only; it requires PULSEVAULT_TEST_FAST_KDF=1."))
 	fmt.Fprintln(out(), "  "+muted("--plain or NO_COLOR disables color. Primary product is this Go binary (and the desktop GUI)."))
 }
 
@@ -81,7 +85,7 @@ func printVersion() {
 	fmt.Fprintln(out())
 	fmt.Fprintln(out(), productName)
 	fmt.Fprintf(out(), "version: %s\n", version.Version)
-	fmt.Fprintln(out(), "Go native CLI — V6 encrypted vault (V5 readable)")
+	fmt.Fprintln(out(), "Go native CLI — V6 streams, V7 paths, legacy read support")
 }
 
 func printCreated(path, profile string, hidden bool, elapsed time.Duration) {
@@ -151,11 +155,14 @@ func printList(v *vault.Vault) error {
 	return nil
 }
 
-func printAdded(name string, size int64, elapsed time.Duration) {
+func printAdded(count int, elapsed time.Duration) {
+	name := fmt.Sprintf("%d selected paths", count)
+	if count == 1 {
+		name = "1 selected path"
+	}
 	printSlimHead("add")
 	fmt.Fprintln(out(), box("add", []string{
 		markOK() + "  " + bold("sealed  ") + fg(name),
-		kv("size", humanSize(size)),
 		kv("elapsed", elapsed.Round(time.Millisecond).String()),
 	}, 56))
 	fmt.Fprintf(out(), "Added %s\n", name)
@@ -179,6 +186,19 @@ func printDeleted(name string) {
 	fmt.Fprintf(out(), "Deleted %s\n", name)
 }
 
+func printDeletedBatch(count int) {
+	printSlimHead("delete")
+	label := "files"
+	if count == 1 {
+		label = "file"
+	}
+	fmt.Fprintln(out(), box("delete", []string{
+		markOK() + "  " + bold("removed  ") + fg(fmt.Sprintf("%d %s", count, label)),
+		muted("all entries removed in one vault rewrite"),
+	}, 56))
+	fmt.Fprintf(out(), "Deleted %d %s in one vault rewrite\n", count, label)
+}
+
 func printVerified(fc int, bc int64, hc int) {
 	printSlimHead("verify")
 	fmt.Fprintln(out(), box("verify", []string{
@@ -190,22 +210,27 @@ func printVerified(fc int, bc int64, hc int) {
 	fmt.Fprintf(out(), "Verify OK: %d files, %d bytes checked, %d full hash-verified.\n", fc, bc, hc)
 }
 
-func printPasswordChanged() {
+func printPasswordChanged(profile string) {
 	printSlimHead("change-password")
-	fmt.Fprintln(out(), box("key rotate", []string{
+	lines := []string{
 		markOK() + "  " + bold("password rotated"),
 		muted("full re-encrypt with a new salt + key"),
-	}, 52))
+	}
+	if profile != "" {
+		lines = append(lines, kv("kdf", profile))
+	}
+	fmt.Fprintln(out(), box("key rotate", lines, 52))
 	fmt.Fprintln(out(), "Password rotated successfully (full re-encrypt with new key).")
 }
 
-func printMigrated() {
+func printMigrated(format string) {
 	printSlimHead("migrate")
 	fmt.Fprintln(out(), box("migrate", []string{
-		markOK() + "  " + bold("now V6"),
+		markOK() + "  " + bold("migration complete"),
+		kv("format", format),
 		muted("legacy container rewritten in place"),
 	}, 52))
-	fmt.Fprintln(out(), "Legacy vault migrated to the current V6 format.")
+	fmt.Fprintf(out(), "Vault streams migrated to the current format (%s).\n", format)
 }
 
 func printInfo(path string, size int64, rec vault.KDFRecord, recOK bool, recErr error, prefix int64, prefixErr error, unlocked *vault.Vault) {
@@ -216,10 +241,18 @@ func printInfo(path string, size int64, rec vault.KDFRecord, recOK bool, recErr 
 	}
 	if recOK {
 		lines = append(lines, kv("kdf", fmt.Sprintf("%s profile=%s n=%d r=%d p=%d", rec.Algorithm, rec.Profile, rec.N, rec.R, rec.P)))
-		lines = append(lines, kv("format", "V6 (or V5; unlock for exact format)"))
+		if unlocked != nil {
+			lines = append(lines, kv("format", unlocked.Format))
+		} else {
+			lines = append(lines, kv("format", "V5/V6/V7 or legacy (unlock for exact format)"))
+		}
 	} else {
 		lines = append(lines, kv("kdf", fmt.Sprintf("(unavailable: %v)", recErr)))
-		lines = append(lines, kv("format", "legacy or V5/V6 (unlock required for exact format)"))
+		if unlocked != nil {
+			lines = append(lines, kv("format", unlocked.Format))
+		} else {
+			lines = append(lines, kv("format", "legacy or V5/V6/V7 (unlock required for exact format)"))
+		}
 	}
 	if prefixErr != nil {
 		lines = append(lines, kv("carrier", fmt.Sprintf("(unavailable: %v)", prefixErr)))
@@ -239,7 +272,7 @@ func printInfo(path string, size int64, rec vault.KDFRecord, recOK bool, recErr 
 		}
 		lines = append(lines, kv("state", state))
 	} else {
-		lines = append(lines, kv("state", markLock()+" locked  (pass --password to peek inside)"))
+		lines = append(lines, kv("state", markLock()+" locked  (unlock to view file details)"))
 	}
 	fmt.Fprintln(out(), box("container", lines, 72))
 	// Keep machine-friendly keys for existing tests / scripts.
@@ -247,10 +280,18 @@ func printInfo(path string, size int64, rec vault.KDFRecord, recOK bool, recErr 
 	fmt.Fprintf(out(), "  size: %d bytes\n", size)
 	if recOK {
 		fmt.Printf("  kdf: %s profile=%s n=%d r=%d p=%d\n", rec.Algorithm, rec.Profile, rec.N, rec.R, rec.P)
-		fmt.Println("  format: V6 (or V5; unlock for exact format)")
+		if unlocked != nil {
+			fmt.Printf("  format: %s\n", unlocked.Format)
+		} else {
+			fmt.Println("  format: V5/V6/V7 or legacy (unlock for exact format)")
+		}
 	} else {
 		fmt.Printf("  kdf: (unavailable: %v)\n", recErr)
-		fmt.Println("  format: legacy or V5/V6 (unlock required for exact format)")
+		if unlocked != nil {
+			fmt.Printf("  format: %s\n", unlocked.Format)
+		} else {
+			fmt.Println("  format: legacy or V5/V6/V7 (unlock required for exact format)")
+		}
 	}
 	if prefixErr != nil {
 		fmt.Printf("  carrier: (unavailable: %v)\n", prefixErr)
