@@ -2,7 +2,18 @@
 
 A **[DNSPulse](https://dnspulse.org)** product. How to install: **[INSTALL.md](../INSTALL.md)**. How we publish: [DISTRIBUTE.md](DISTRIBUTE.md).
 
-## Fastest
+## Choose a download
+
+Open the [latest GitHub release](https://github.com/Z3r0s/Pulse-Vault/releases/latest) and expand **Assets**. Choose the desktop app or CLI for your operating system and processor.
+
+| Platform | Desktop app | CLI |
+| --- | --- | --- |
+| Windows x64 | `pulse-vault-gui-windows-amd64.exe` | `pulse-vault-windows-amd64.exe` |
+| Windows ARM64 | See the source build guide | `pulse-vault-windows-arm64.exe` |
+| Linux x64 / ARM64 | Choose the GUI asset if the release includes one for your architecture | `pulse-vault-linux-amd64` / `pulse-vault-linux-arm64` |
+| macOS Intel / Apple silicon | Choose the GUI asset if the release includes one for your architecture | `pulse-vault-darwin-amd64` / `pulse-vault-darwin-arm64` |
+
+## Install from a terminal
 
 | You | Do this |
 | --- | --- |
