@@ -7,7 +7,7 @@
 
 **Keep a private copy of important files on your own computer or removable drive.** Pulse-Vault stores them in one password-protected file that works offline. It has a desktop app and a command-line tool, built in Go.
 
-[Start in two minutes](docs/TWO_MINUTE_GUIDE.md) · [CLI guide](docs/CLI_GUIDE.md) · [Download](https://github.com/Z3r0s/Pulse-Vault/releases) · [Install guide](INSTALL.md) · [GitHub Issues](https://github.com/Z3r0s/Pulse-Vault/issues) · [Report a security issue](SECURITY.md)
+**[Download the latest release](https://github.com/Z3r0s/Pulse-Vault/releases/latest)** · [Choose your platform](docs/DOWNLOADS.md) · [Start in two minutes](docs/TWO_MINUTE_GUIDE.md) · [CLI guide](docs/CLI_GUIDE.md) · [Project site](https://z3r0s.github.io/Pulse-Vault/)
 
 | Explore Pulse-Vault | What you can see |
 | --- | --- |
