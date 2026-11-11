@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 530"
+     role="img" aria-labelledby="title desc" aria-label="ZIP entry validation time and allocations before and after path-scan optimization">
+  <title id="title">ZIP entry validation time and allocations before and after path-scan optimization</title>
+  <desc id="desc">Direct validateZip Go microbenchmarks over synthetic stored ZIP entries, excluding archive opening and disk I/O. Medians from 3 1000 millisecond runs. At 1,000 entries, median time changed from 71.4 to 49.4 microseconds; allocations per operation changed from 1005 to 5. At 10,000 entries, median time changed from 806.8 to 582.6 microseconds; allocations per operation changed from 10033 to 33.</desc>
+  <rect width="100%" height="100%" fill="#0b1117"/>
+  <text x="48.0" y="52.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" text-anchor="start">ZIP entry validation: time and allocation cost</text>
+  <text x="48.0" y="84.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="400" text-anchor="start">Go microbenchmark · 3 × 1000 ms runs · median per operation</text>
+  <text x="345.0" y="122.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">Time per validation · common 0–900 µs scale</text>
+  <text x="1010.0" y="122.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">Allocation change</text>
+  <line x1="345.0" y1="143.0" x2="345.0" y2="420.0" stroke="#30404b" stroke-width="1"/>
+  <text x="345.0" y="137.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">0</text>
+  <line x1="448.3" y1="143.0" x2="448.3" y2="420.0" stroke="#30404b" stroke-width="1"/>
+  <text x="448.3" y="137.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">150</text>
+  <line x1="551.7" y1="143.0" x2="551.7" y2="420.0" stroke="#30404b" stroke-width="1"/>
+  <text x="551.7" y="137.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">300</text>
+  <line x1="655.0" y1="143.0" x2="655.0" y2="420.0" stroke="#30404b" stroke-width="1"/>
+  <text x="655.0" y="137.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">450</text>
+  <line x1="758.3" y1="143.0" x2="758.3" y2="420.0" stroke="#30404b" stroke-width="1"/>
+  <text x="758.3" y="137.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">600</text>
+  <line x1="861.7" y1="143.0" x2="861.7" y2="420.0" stroke="#30404b" stroke-width="1"/>
+  <text x="861.7" y="137.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">750</text>
+  <line x1="965.0" y1="143.0" x2="965.0" y2="420.0" stroke="#30404b" stroke-width="1"/>
+  <text x="965.0" y="137.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">900</text>
+  <text x="48.0" y="205.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="650" text-anchor="start">1,000 entries</text>
+  <text x="329.0" y="197.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="end">Before</text>
+  <rect x="345.0" y="183.0" width="49.2" height="17.0" rx="3" fill="#a7b3bc"/>
+  <text x="403.2" y="197.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="start">71.4 µs</text>
+  <text x="329.0" y="235.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="end">After</text>
+  <rect x="345.0" y="221.0" width="34.0" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="388.0" y="235.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="start">49.4 µs</text>
+  <text x="1010.0" y="200.0" fill="#22d3d5" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" text-anchor="start">1.45× faster</text>
+  <text x="1010.0" y="227.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">1,005 → 5 allocations/op</text>
+  <text x="1010.0" y="250.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start">86,608 → 54,608 bytes/op</text>
+  <text x="48.0" y="344.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="650" text-anchor="start">10,000 entries</text>
+  <text x="329.0" y="336.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="end">Before</text>
+  <rect x="345.0" y="322.0" width="555.8" height="17.0" rx="3" fill="#a7b3bc"/>
+  <text x="909.8" y="336.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="start">806.8 µs</text>
+  <text x="329.0" y="374.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="end">After</text>
+  <rect x="345.0" y="360.0" width="401.4" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="755.4" y="374.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="start">582.6 µs</text>
+  <text x="1010.0" y="339.0" fill="#22d3d5" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" text-anchor="start">1.38× faster</text>
+  <text x="1010.0" y="366.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">10,033 → 33 allocations/op</text>
+  <text x="1010.0" y="389.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start">756,866 → 436,865 bytes/op</text>
+  <line x1="48.0" y1="450.0" x2="1392.0" y2="450.0" stroke="#30404b" stroke-width="1"/>
+  <text x="48.0" y="485.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">Validation only; excludes ZIP opening and disk I/O. Path checks now scan segments without allocating a split slice per entry.</text>
+</svg>

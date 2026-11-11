@@ -15,7 +15,7 @@ This page explains the implementation and its tradeoffs. It is not a claim that 
 | File streams | V6 uses ChaCha20-Poly1305 followed by AES-GCM for authenticated, framed chunks and a final record. V5 and earlier supported streams remain readable. |
 | Folder paths | V7 stores validated relative paths in encrypted metadata. Its blobs use V6 streams; an upgraded V5 vault can temporarily retain individually marked V5 blobs until password rotation. |
 | Compression | zstd for data that shrinks; XZ is included for reading older streams. |
-| Public API | `gui-go/crypto` exposes the protocol helpers. `internal/vault` owns container operations. |
+| Public API | `gui-go/crypto` exposes the project's Go crypto API and stream format. `internal/vault` owns container operations; cryptographic primitives come from Go's standard library and maintained `golang.org/x/crypto` implementations. |
 
 The main dependencies are listed in [`go.mod`](../go.mod). The security-sensitive code is not the Fyne UI: review [the crypto package](../gui-go/crypto/), [the vault package](../gui-go/internal/vault/), and the protocol and threat-model documents.
 
@@ -26,6 +26,10 @@ The practical goal was to ship a desktop app and CLI that share the same file fo
 The GUI still has a C toolchain requirement because Fyne's desktop backend uses CGO. The CLI does not. That distinction matters when building on Windows and in CI, and is documented in [`gui-go/README.md`](../gui-go/README.md).
 
 The archived Python implementation remains useful as historical compatibility context. It should not be used to create new vaults or treated as a supported application path. The PyPI package, where available, is a launcher that downloads the Go CLI.
+
+## Current workload measurements
+
+The older Go/Python charts in this document use a narrow compatibility workload. For current CLI timing, sampled memory, filename filtering, and bulk-add path checks, see the [interactive performance explorer](https://z3r0s.github.io/Pulse-Vault/) and its [reproducible benchmark notes](PERFORMANCE.md). Its charts show the exact input workload and use separate time scales where needed.
 
 ## Review and verification
 

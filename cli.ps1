@@ -46,7 +46,7 @@ function Build-Cli {
             }
             Pop-Location
         }
-        & go build -trimpath -ldflags "-s -w" -o $Out ./gui-go/cmd/pulse-vault
+        & go build -trimpath -buildvcs=false -ldflags "-s -w" -o $Out ./gui-go/cmd/pulse-vault
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     } finally {
         Pop-Location

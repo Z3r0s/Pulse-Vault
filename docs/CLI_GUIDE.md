@@ -33,15 +33,17 @@ pulse-vault delete private-records.pulsevault "insurance.pdf"
 
 `extract` writes a readable copy to the chosen directory. `delete` removes an entry from the vault, not the original file on disk. Both commands ask for the password in an interactive terminal. To replace an existing entry when adding, or an existing output when extracting, use `--overwrite` deliberately after checking the destination.
 
+To remove several entries, pass each stored path after the vault name, for example `pulse-vault delete private-records.pulsevault "old/insurance.pdf" "old/receipt.pdf"`. The command checks every name before changing anything, then rewrites the vault once for the whole batch. If a name is missing or repeated, the batch is rejected without changing the vault. The original files on disk remain untouched.
+
 ## Keep a vault current
 
 ```text
 pulse-vault add private-records.pulsevault ./new-document.pdf
 pulse-vault verify private-records.pulsevault
-pulse-vault change-password private-records.pulsevault
+pulse-vault change-password private-records.pulsevault --profile hardened
 ```
 
-Password change asks for the current and new passwords and re-encrypts the vault. Have enough free disk space for a temporary replacement of the container. After adding, deleting, or changing the password, copy the updated `.pulsevault` file to your backup location again. An older backup may lack recent files and may still require the old password.
+Password change asks for the current and new passwords and re-encrypts the vault. It keeps the existing KDF profile unless you choose `--profile standard` or `--profile hardened`; choosing `hardened` raises the cost of offline guesses while using about 1 GiB during key derivation. A new vault can also use `create <vault> --profile hardened`. Have enough free disk space for a temporary replacement of the container. After adding, deleting, or changing the password, copy the updated `.pulsevault` file to your backup location again. An older backup may lack recent files and may still require the old password.
 
 `pulse-vault info private-records.pulsevault` shows container information without unlocking. It does **not** verify every file. Use `verify` for that.
 
@@ -75,10 +77,12 @@ Protect any password file with your operating system's file permissions and do n
 | `verify <vault>` | Check all encrypted streams and stored hashes. |
 | `extract <vault> <name> <outdir>` | Restore one entry. |
 | `extract-all <vault> <outdir>` | Restore all entries. |
-| `delete <vault> <name>` | Remove one entry from the vault. |
-| `change-password <vault>` | Re-encrypt with a new password. |
+| `delete <vault> <name> [more names ...]` | Remove one or more entries with one vault rewrite. |
+| `change-password <vault> [--profile standard|hardened]` | Re-encrypt with a new password; preserve or deliberately change its KDF profile. |
 | `info <vault>` | Show container details; exact format and file details require a password. |
 | `open <vault>` | Start an interactive vault console. |
 | `migrate <vault>` | Rewrite a supported legacy vault into the current format. Back it up first. |
 
 For command syntax and the main flags, run `pulse-vault help`. The [vault format](VAULT_FORMAT.md) and [threat model](THREAT_MODEL.md) explain compatibility and the limits of integrity checks.
+
+For measured create, incremental add, verify, extract, batch delete, and bulk path-check workloads, see the [performance explorer](https://z3r0s.github.io/Pulse-Vault/) and [benchmark method](PERFORMANCE.md).

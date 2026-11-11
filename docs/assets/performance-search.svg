@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 820"
+     role="img" aria-labelledby="title desc" aria-label="Path search time and allocation costs">
+  <title id="title">Path search time and allocation costs</title>
+  <desc id="desc">Grouped bars compare legacy case-insensitive filtering, repeat queries reusing the case-folded index, and the one-time index build at 10,000 and 100,000 paths. The table reports elapsed milliseconds, allocated bytes, and allocations per operation. The chart covers filtering code only, not Fyne rendering.</desc>
+  <rect width="100%" height="100%" fill="#0b1117"/>
+  <text x="48.0" y="51.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" text-anchor="start">Search time and index construction</text>
+  <text x="48.0" y="82.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="400" text-anchor="start">Case-insensitive path filtering · elapsed milliseconds · lower is faster</text>
+  <line x1="157.0" y1="442.0" x2="1348.0" y2="442.0" stroke="#30404b" stroke-width="1"/>
+  <text x="139.0" y="447.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">0</text>
+  <line x1="157.0" y1="396.7" x2="1348.0" y2="396.7" stroke="#30404b" stroke-width="1"/>
+  <text x="139.0" y="401.7" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">5</text>
+  <line x1="157.0" y1="351.3" x2="1348.0" y2="351.3" stroke="#30404b" stroke-width="1"/>
+  <text x="139.0" y="356.3" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">10</text>
+  <line x1="157.0" y1="306.0" x2="1348.0" y2="306.0" stroke="#30404b" stroke-width="1"/>
+  <text x="139.0" y="311.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">15</text>
+  <line x1="157.0" y1="260.7" x2="1348.0" y2="260.7" stroke="#30404b" stroke-width="1"/>
+  <text x="139.0" y="265.7" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">20</text>
+  <line x1="157.0" y1="215.3" x2="1348.0" y2="215.3" stroke="#30404b" stroke-width="1"/>
+  <text x="139.0" y="220.3" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">25</text>
+  <line x1="157.0" y1="170.0" x2="1348.0" y2="170.0" stroke="#30404b" stroke-width="1"/>
+  <text x="139.0" y="175.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">30</text>
+  <text x="48.0" y="285.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start">Time (ms)</text>
+  <rect x="311.0" y="429.9" width="78.0" height="12.1" rx="3" fill="#a7b3bc"/>
+  <text x="350.0" y="420.9" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="650" text-anchor="middle">1.33 ms</text>
+  <rect x="416.0" y="439.7" width="78.0" height="2.3" rx="3" fill="#22d3d5"/>
+  <text x="455.0" y="430.7" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="650" text-anchor="middle">0.26 ms</text>
+  <rect x="521.0" y="428.9" width="78.0" height="13.1" rx="3" fill="#77aef7"/>
+  <text x="560.0" y="419.9" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="650" text-anchor="middle">1.44 ms</text>
+  <text x="455.0" y="474.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="650" text-anchor="middle">10k paths</text>
+  <rect x="866.0" y="318.3" width="78.0" height="123.7" rx="3" fill="#a7b3bc"/>
+  <text x="905.0" y="309.3" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="650" text-anchor="middle">13.65 ms</text>
+  <rect x="971.0" y="418.0" width="78.0" height="24.0" rx="3" fill="#22d3d5"/>
+  <text x="1010.0" y="409.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="650" text-anchor="middle">2.65 ms</text>
+  <rect x="1076.0" y="326.8" width="78.0" height="115.2" rx="3" fill="#77aef7"/>
+  <text x="1115.0" y="317.8" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="650" text-anchor="middle">12.71 ms</text>
+  <text x="1010.0" y="474.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="650" text-anchor="middle">100k paths</text>
+  <rect x="347.0" y="497.0" width="17.0" height="13.0" rx="2" fill="#a7b3bc"/>
+  <text x="374.0" y="510.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">Legacy filter</text>
+  <rect x="550.0" y="497.0" width="17.0" height="13.0" rx="2" fill="#22d3d5"/>
+  <text x="577.0" y="510.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">Indexed repeat</text>
+  <rect x="805.0" y="497.0" width="17.0" height="13.0" rx="2" fill="#77aef7"/>
+  <text x="832.0" y="510.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">One-time index build</text>
+  <line x1="48.0" y1="535.0" x2="1392.0" y2="535.0" stroke="#30404b" stroke-width="1"/>
+  <text x="48.0" y="555.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="650" text-anchor="start">Allocation cost per operation</text>
+  <text x="48.0" y="591.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="650" text-anchor="start">Path count</text>
+  <text x="245.0" y="591.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="650" text-anchor="start">Method</text>
+  <text x="553.0" y="591.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="650" text-anchor="start">Time</text>
+  <text x="854.0" y="591.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="650" text-anchor="start">Bytes/op</text>
+  <text x="1132.0" y="591.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="650" text-anchor="start">Allocs/op</text>
+  <line x1="48.0" y1="607.0" x2="1392.0" y2="607.0" stroke="#30404b" stroke-width="1"/>
+  <text x="48.0" y="624.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">10,000</text>
+  <text x="245.0" y="624.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">Legacy filter</text>
+  <text x="553.0" y="624.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">1.33 ms</text>
+  <text x="854.0" y="624.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">803,841</text>
+  <text x="1132.0" y="624.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">10,001</text>
+  <line x1="48.0" y1="636.0" x2="1392.0" y2="636.0" stroke="#30404b" stroke-width="1"/>
+  <text x="48.0" y="653.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">10,000</text>
+  <text x="245.0" y="653.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">Indexed repeat</text>
+  <text x="553.0" y="653.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">0.26 ms</text>
+  <text x="854.0" y="653.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">0</text>
+  <text x="1132.0" y="653.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">0</text>
+  <line x1="48.0" y1="665.0" x2="1392.0" y2="665.0" stroke="#30404b" stroke-width="1"/>
+  <text x="48.0" y="682.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">10,000</text>
+  <text x="245.0" y="682.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">One-time index build</text>
+  <text x="553.0" y="682.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">1.44 ms</text>
+  <text x="854.0" y="682.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">967,680</text>
+  <text x="1132.0" y="682.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">10,002</text>
+  <line x1="48.0" y1="694.0" x2="1392.0" y2="694.0" stroke="#30404b" stroke-width="1"/>
+  <text x="48.0" y="711.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">100,000</text>
+  <text x="245.0" y="711.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">Legacy filter</text>
+  <text x="553.0" y="711.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">13.65 ms</text>
+  <text x="854.0" y="711.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">8,005,632</text>
+  <text x="1132.0" y="711.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">100,001</text>
+  <line x1="48.0" y1="723.0" x2="1392.0" y2="723.0" stroke="#30404b" stroke-width="1"/>
+  <text x="48.0" y="740.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">100,000</text>
+  <text x="245.0" y="740.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">Indexed repeat</text>
+  <text x="553.0" y="740.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">2.65 ms</text>
+  <text x="854.0" y="740.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">0</text>
+  <text x="1132.0" y="740.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">0</text>
+  <line x1="48.0" y1="752.0" x2="1392.0" y2="752.0" stroke="#30404b" stroke-width="1"/>
+  <text x="48.0" y="769.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">100,000</text>
+  <text x="245.0" y="769.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">One-time index build</text>
+  <text x="553.0" y="769.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">12.71 ms</text>
+  <text x="854.0" y="769.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">9,611,264</text>
+  <text x="1132.0" y="769.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">100,002</text>
+  <line x1="48.0" y1="781.0" x2="1392.0" y2="781.0" stroke="#30404b" stroke-width="1"/>
+</svg>

@@ -11,13 +11,18 @@ identifiers.
 V3–V7 derive a 64-byte key with Scrypt. The first 32 bytes are the
 ChaCha20-Poly1305 key and the second 32 bytes are the AES-256-GCM key.
 
-The built-in profiles are:
+The built-in production profiles are:
 
 | Profile | N | r | p |
 | --- | ---: | ---: | ---: |
-| fast (tests only) | 16 | 8 | 1 |
 | standard | 32768 | 8 | 1 |
 | hardened | 1048576 | 8 | 1 |
+
+The low-cost `fast` tuple (`N=16, r=8, p=1`) exists only for disposable tests
+inside the repository. Normal vault creation and unlock do not accept it, and
+the public Go crypto package lists only production profiles. Vault readers
+require the persisted Scrypt parameters to match a supported profile instead
+of trusting the visible profile label.
 
 V1/V2 compatibility uses PBKDF2-HMAC-SHA256, 600,000 iterations, and a
 32-byte AES-256-GCM key.

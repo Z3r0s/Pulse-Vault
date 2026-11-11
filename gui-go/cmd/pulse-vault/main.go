@@ -176,6 +176,27 @@ func flagProfile(args []string) (profile string, rest []string) {
 	return profile, rest
 }
 
+func flagProfileOverride(args []string) (profile string, rest []string, err error) {
+	rest = make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--profile" {
+			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "--") {
+				return "", nil, fmt.Errorf("--profile requires standard or hardened")
+			}
+			profile = args[i+1]
+			i++
+			continue
+		}
+		if strings.HasPrefix(a, "--profile=") {
+			profile = strings.TrimPrefix(a, "--profile=")
+			continue
+		}
+		rest = append(rest, a)
+	}
+	return profile, rest, nil
+}
+
 func flagCarrier(args []string) (carrier string, rest []string, err error) {
 	rest = make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
@@ -429,6 +450,13 @@ func cmdVerify(args []string) error {
 }
 
 func cmdChangePassword(args []string) error {
+	profile, args, err := flagProfileOverride(args)
+	if err != nil {
+		return err
+	}
+	if profile != "" && profile != "standard" && profile != "hardened" {
+		return fmt.Errorf("unknown KDF profile %q; choose standard or hardened", profile)
+	}
 	newPW, args, err := flagNewPassword(args)
 	if err != nil {
 		return err
@@ -438,7 +466,7 @@ func cmdChangePassword(args []string) error {
 		return err
 	}
 	if len(args) < 1 {
-		return fmt.Errorf("usage: change-password <vault>")
+		return fmt.Errorf("usage: change-password <vault> [--profile standard|hardened]")
 	}
 	oldPW, err = passwordOrPrompt(oldPW, "current password: ")
 	if err != nil {
@@ -454,10 +482,10 @@ func cmdChangePassword(args []string) error {
 		return err
 	}
 	defer v.Lock()
-	if err := v.ChangePassword(oldPW, newPW); err != nil {
+	if err := v.ChangePasswordWithProfile(oldPW, newPW, profile); err != nil {
 		return err
 	}
-	printPasswordChanged()
+	printPasswordChanged(v.Profile)
 	return nil
 }
 
@@ -519,7 +547,7 @@ func cmdDelete(args []string) error {
 		return err
 	}
 	if len(args) < 2 {
-		return fmt.Errorf("usage: delete <vault> <name>")
+		return fmt.Errorf("usage: delete <vault> <name> [more names ...]")
 	}
 	pw, err = passwordOrPrompt(pw, "password: ")
 	if err != nil {
@@ -530,10 +558,15 @@ func cmdDelete(args []string) error {
 		return err
 	}
 	defer v.Lock()
-	if err := v.DeleteFile(args[1]); err != nil {
+	names := args[1:]
+	if err := v.DeleteFiles(names); err != nil {
 		return err
 	}
-	printDeleted(args[1])
+	if len(names) == 1 {
+		printDeleted(names[0])
+	} else {
+		printDeletedBatch(len(names))
+	}
 	return nil
 }
 

@@ -7,8 +7,29 @@ import (
 	"strings"
 	"testing"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
 )
+
+func TestStageContentLayoutCollapsesVaultPathInShortWindows(t *testing.T) {
+	path := widget.NewLabel("Example.pulsevault")
+	header := container.NewVBox(widget.NewLabel("Secure files"), path)
+	content := container.NewVBox(widget.NewLabel("File list"))
+	layout := &stageContentLayout{pathLabel: path, compactHeight: compactPathCollapseHeight}
+	objects := []fyne.CanvasObject{header, content}
+
+	layout.Layout(objects, fyne.NewSize(640, 350))
+	if path.Visible() {
+		t.Fatal("vault path should collapse in a short window")
+	}
+
+	layout.Layout(objects, fyne.NewSize(1120, 600))
+	if !path.Visible() {
+		t.Fatal("vault path should return when the stage has room")
+	}
+}
 
 func TestGUISourceHasPrimaryAffordances(t *testing.T) {
 	_, thisFile, _, ok := runtime.Caller(0)
@@ -69,7 +90,10 @@ func TestGUISourceHasPrimaryAffordances(t *testing.T) {
 		"progress",
 		"setBusyChrome",
 		"setBusyChromeForOperation",
-		"os.Remove",
+		"chooseOutputPath",
+		"validateOutputName",
+		"ensureDestinationAbsent",
+		"ShowConfirm",
 		"version.Version",
 		"dnspulse.org",
 	}
@@ -80,6 +104,9 @@ func TestGUISourceHasPrimaryAffordances(t *testing.T) {
 	}
 	if strings.Contains(code, "startUIPump") {
 		t.Error("do not use animation pump for main-thread UI; use fyne.Do")
+	}
+	if strings.Contains(code, "ShowFileSave") {
+		t.Error("vault destinations must be chosen without opening a truncating file writer")
 	}
 	if !strings.Contains(code, `runAsync("Create vault"`) {
 		t.Error("create must use runAsync")

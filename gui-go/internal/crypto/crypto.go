@@ -27,9 +27,10 @@ const (
 	ChunkSize   = 1024 * 1024
 	MaxEncChunk = 64 * 1024 * 1024
 	// 1 MiB dict = xz preset 1. 8 MiB was stupid slow.
-	xzFastDictCap = 1 << 20
-	streamCopyBuf = 128 * 1024
-	sniffBytes    = 4096
+	xzFastDictCap           = 1 << 20
+	streamCopyBuf           = 128 * 1024 // Keep large-file reads and writes batched.
+	streamInitialBufferSize = 128 * 1024 // Default for unknown or compressible inputs.
+	sniffBytes              = 4096
 	// jpgs/video usually hit this; source code doesn't.
 	uniqueByteSkip = 240
 
@@ -139,17 +140,20 @@ func SplitV3Key(key64 []byte) (chachaKey, aesKey []byte, err error) {
 
 func chunkNonce(base []byte, idx uint32) []byte {
 	nonce := make([]byte, NonceSize)
-	copy(nonce, base[:NonceSize])
-	var idxBytes [4]byte
-	binary.BigEndian.PutUint32(idxBytes[:], idx)
-	for i := 0; i < 4; i++ {
-		nonce[i] ^= idxBytes[i]
-	}
+	fillChunkNonce(base, idx, nonce)
 	return nonce
 }
 
-func streamAADFor(magic []byte, flag byte, chachaNonce, aesNonce []byte, idx uint32, recordKind byte) []byte {
-	aad := make([]byte, 0, len(magic)+1+len(chachaNonce)+len(aesNonce)+5)
+func fillChunkNonce(base []byte, idx uint32, nonce []byte) {
+	copy(nonce, base[:NonceSize])
+	nonce[0] ^= byte(idx >> 24)
+	nonce[1] ^= byte(idx >> 16)
+	nonce[2] ^= byte(idx >> 8)
+	nonce[3] ^= byte(idx)
+}
+
+func appendStreamAAD(dst, magic []byte, flag byte, chachaNonce, aesNonce []byte, idx uint32, recordKind byte) []byte {
+	aad := dst[:0]
 	aad = append(aad, magic...)
 	aad = append(aad, flag)
 	aad = append(aad, chachaNonce...)
@@ -163,6 +167,10 @@ func streamAADFor(magic []byte, flag byte, chachaNonce, aesNonce []byte, idx uin
 	binary.BigEndian.PutUint32(idxBytes[:], idx)
 	aad = append(aad, idxBytes[:]...)
 	return aad
+}
+
+func streamAADFor(magic []byte, flag byte, chachaNonce, aesNonce []byte, idx uint32, recordKind byte) []byte {
+	return appendStreamAAD(nil, magic, flag, chachaNonce, aesNonce, idx, recordKind)
 }
 
 func streamAAD(flag byte, chachaNonce, aesNonce []byte, idx uint32) []byte {
@@ -302,6 +310,29 @@ func EncryptStreamV5(key64 []byte, src io.Reader, dst io.Writer, compress bool) 
 	return encryptStreamV5WithNonces(key64, src, dst, compress, false, chachaNonce, aesNonce)
 }
 
+type sizeReporter interface {
+	Size() int64
+}
+
+func streamReaderSize(src io.Reader) int64 {
+	sized, ok := src.(sizeReporter)
+	if !ok {
+		return -1
+	}
+	return sized.Size()
+}
+
+func streamBufferCapacity(size int64, compressed bool) int {
+	capacity := ChunkSize
+	if compressed || size < 0 {
+		capacity = streamInitialBufferSize
+	}
+	if size >= 0 && size < int64(capacity) {
+		capacity = int(size)
+	}
+	return capacity
+}
+
 // old xz writer (flag 1). tests / compat only. new writes are zstd.
 func encryptStreamV5XZ(key64 []byte, src io.Reader, dst io.Writer) error {
 	chachaNonce := make([]byte, 16)
@@ -316,6 +347,7 @@ func encryptStreamV5XZ(key64 []byte, src io.Reader, dst io.Writer) error {
 }
 
 func encryptStreamV5WithNonces(key64 []byte, src io.Reader, dst io.Writer, compress, legacyXZ bool, chachaNonce, aesNonce []byte) error {
+	expectedSize := streamReaderSize(src)
 	chachaKey, aesKey, err := SplitV3Key(key64)
 	if err != nil {
 		return err
@@ -371,7 +403,8 @@ func encryptStreamV5WithNonces(key64 []byte, src io.Reader, dst io.Writer, compr
 		return err
 	}
 
-	innerCap := ChunkSize + aeadC.Overhead()
+	chunkCapacity := streamBufferCapacity(expectedSize, compress)
+	innerCap := chunkCapacity + aeadC.Overhead()
 	chunker := &streamChunkWriter{
 		dst:         dst,
 		magic:       StreamV5Magic,
@@ -380,7 +413,7 @@ func encryptStreamV5WithNonces(key64 []byte, src io.Reader, dst io.Writer, compr
 		aesNonce:    aesNonce,
 		aeadC:       aeadC,
 		aeadA:       aeadA,
-		buf:         make([]byte, 0, ChunkSize),
+		buf:         make([]byte, 0, chunkCapacity),
 		inner:       make([]byte, 0, innerCap),
 		outer:       make([]byte, 0, innerCap+aeadA.Overhead()),
 	}
@@ -516,6 +549,7 @@ func EncryptStreamV6(key64 []byte, src io.Reader, dst io.Writer, compress bool) 
 }
 
 func encryptStreamV6WithNonces(key64 []byte, src io.Reader, dst io.Writer, compress bool, chachaNonce, aesNonce []byte) error {
+	expectedSize := streamReaderSize(src)
 	chachaKey, aesKey, err := SplitV3Key(key64)
 	if err != nil {
 		return err
@@ -561,13 +595,14 @@ func encryptStreamV6WithNonces(key64 []byte, src io.Reader, dst io.Writer, compr
 	if err != nil {
 		return err
 	}
+	chunkCapacity := streamBufferCapacity(expectedSize, compress)
 	chunker := &streamChunkWriter{
 		dst: dst, magic: StreamV6Magic, framed: true,
 		flag: flag, chachaNonce: chachaNonce, aesNonce: aesNonce,
 		aeadC: aeadC, aeadA: aeadA,
-		buf:   make([]byte, 0, ChunkSize),
-		inner: make([]byte, 0, ChunkSize+aeadC.Overhead()),
-		outer: make([]byte, 0, ChunkSize+aeadC.Overhead()+aeadA.Overhead()),
+		buf:   make([]byte, 0, chunkCapacity),
+		inner: make([]byte, 0, chunkCapacity+aeadC.Overhead()),
+		outer: make([]byte, 0, chunkCapacity+aeadC.Overhead()+aeadA.Overhead()),
 	}
 	copyBuf := make([]byte, streamCopyBuf)
 	if compress {
@@ -696,6 +731,9 @@ type streamChunkWriter struct {
 	buf         []byte
 	inner       []byte
 	outer       []byte
+	aad         []byte
+	nonceC      [NonceSize]byte
+	nonceA      [NonceSize]byte
 	idx         uint32
 	wroteChunk  bool
 }
@@ -742,9 +780,11 @@ func (w *streamChunkWriter) flush() error {
 	if w.idx == ^uint32(0) {
 		return fmt.Errorf("%w: too many chunks", ErrCrypto)
 	}
-	aad := streamAADFor(w.magic, w.flag, w.chachaNonce, w.aesNonce, w.idx, 0)
-	w.inner = w.aeadC.Seal(w.inner[:0], chunkNonce(w.chachaNonce, w.idx), w.buf, aad)
-	w.outer = w.aeadA.Seal(w.outer[:0], chunkNonce(w.aesNonce, w.idx), w.inner, aad)
+	w.aad = appendStreamAAD(w.aad, w.magic, w.flag, w.chachaNonce, w.aesNonce, w.idx, 0)
+	fillChunkNonce(w.chachaNonce, w.idx, w.nonceC[:])
+	w.inner = w.aeadC.Seal(w.inner[:0], w.nonceC[:], w.buf, w.aad)
+	fillChunkNonce(w.aesNonce, w.idx, w.nonceA[:])
+	w.outer = w.aeadA.Seal(w.outer[:0], w.nonceA[:], w.inner, w.aad)
 	if err := w.writeRecord(0, w.outer); err != nil {
 		return err
 	}
@@ -772,9 +812,11 @@ func (w *streamChunkWriter) writeEnd() error {
 	if w.idx == ^uint32(0) {
 		return fmt.Errorf("%w: too many chunks", ErrCrypto)
 	}
-	aad := streamAADFor(w.magic, w.flag, w.chachaNonce, w.aesNonce, w.idx, 1)
-	inner := w.aeadC.Seal(nil, chunkNonce(w.chachaNonce, w.idx), []byte(streamV6EndMarker), aad)
-	outer := w.aeadA.Seal(nil, chunkNonce(w.aesNonce, w.idx), inner, aad)
+	w.aad = appendStreamAAD(w.aad, w.magic, w.flag, w.chachaNonce, w.aesNonce, w.idx, 1)
+	fillChunkNonce(w.chachaNonce, w.idx, w.nonceC[:])
+	inner := w.aeadC.Seal(nil, w.nonceC[:], []byte(streamV6EndMarker), w.aad)
+	fillChunkNonce(w.aesNonce, w.idx, w.nonceA[:])
+	outer := w.aeadA.Seal(nil, w.nonceA[:], inner, w.aad)
 	return w.writeRecord(1, outer)
 }
 
@@ -792,6 +834,9 @@ type streamChunkReader struct {
 	enc         []byte
 	inner       []byte
 	plain       []byte
+	aad         []byte
+	nonceC      [NonceSize]byte
+	nonceA      [NonceSize]byte
 	idx         uint32
 	done        bool
 	ended       bool
@@ -840,14 +885,17 @@ func (r *streamChunkReader) Read(p []byte) (int, error) {
 		}
 		aad := []byte(nil)
 		if r.bindAAD {
-			aad = streamAADFor(r.magic, r.flag, r.chachaNonce, r.aesNonce, r.idx, kind)
+			r.aad = appendStreamAAD(r.aad, r.magic, r.flag, r.chachaNonce, r.aesNonce, r.idx, kind)
+			aad = r.aad
 		}
-		inner, err := r.aeadA.Open(r.inner[:0], chunkNonce(r.aesNonce, r.idx), r.enc, aad)
+		fillChunkNonce(r.aesNonce, r.idx, r.nonceA[:])
+		inner, err := r.aeadA.Open(r.inner[:0], r.nonceA[:], r.enc, aad)
 		if err != nil {
 			return 0, fmt.Errorf("%w: cascade decrypt failed", ErrCrypto)
 		}
 		r.inner = inner
-		final, err := r.aeadC.Open(r.plain[:0], chunkNonce(r.chachaNonce, r.idx), r.inner, aad)
+		fillChunkNonce(r.chachaNonce, r.idx, r.nonceC[:])
+		final, err := r.aeadC.Open(r.plain[:0], r.nonceC[:], r.inner, aad)
 		if err != nil {
 			return 0, fmt.Errorf("%w: cascade decrypt failed", ErrCrypto)
 		}

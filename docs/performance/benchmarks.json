@@ -1,0 +1,237 @@
+{
+  "measuredOn": "2026-11-08",
+  "environment": {
+    "memorySampleIntervalMs": 20,
+    "profile": "standard",
+    "cliRepetitions": 3,
+    "cliStatistic": "median",
+    "goBenchmarkBenchtimeMs": 200,
+    "goBenchmarkRepetitions": 3,
+    "goBenchmarkStatistic": "median"
+  },
+  "cli": {
+    "stages": [
+      {
+        "name": "Create",
+        "shortName": "Create",
+        "seconds": {
+          "repeated": 0.092718,
+          "random": 0.090065
+        },
+        "rssMB": {
+          "repeated": 42.704896,
+          "random": 42.807296
+        }
+      },
+      {
+        "name": "Initial add",
+        "shortName": "Add 1",
+        "seconds": {
+          "repeated": 1.723416,
+          "random": 0.22372
+        },
+        "rssMB": {
+          "repeated": 50.225152,
+          "random": 56.967168
+        }
+      },
+      {
+        "name": "Incremental add",
+        "shortName": "Add 2",
+        "seconds": {
+          "repeated": 1.764601,
+          "random": 0.280854
+        },
+        "rssMB": {
+          "repeated": 51.879936,
+          "random": 57.83552
+        }
+      },
+      {
+        "name": "Verify",
+        "shortName": "Verify",
+        "seconds": {
+          "repeated": 0.334931,
+          "random": 0.196337
+        },
+        "rssMB": {
+          "repeated": 48.4352,
+          "random": 66.301952
+        }
+      },
+      {
+        "name": "Extract all",
+        "shortName": "Restore",
+        "seconds": {
+          "repeated": 4.32596,
+          "random": 0.269745
+        },
+        "rssMB": {
+          "repeated": 50.110464,
+          "random": 69.771264
+        }
+      },
+      {
+        "name": "Delete batch",
+        "shortName": "Delete",
+        "seconds": {
+          "repeated": 0.127247,
+          "random": 0.151831
+        },
+        "rssMB": {
+          "repeated": 51.879936,
+          "random": 44.003328
+        }
+      },
+      {
+        "name": "Verify after delete",
+        "shortName": "Check",
+        "seconds": {
+          "repeated": 0.308442,
+          "random": 0.138011
+        },
+        "rssMB": {
+          "repeated": 48.61952,
+          "random": 56.40192
+        }
+      }
+    ],
+    "workloads": {
+      "repeated": {
+        "label": "1,000 × 4 KiB repeated",
+        "files": 1000,
+        "inputBytes": 4096000,
+        "vaultBytes": 700785,
+        "vaultBytesAfterDelete": 630785,
+        "deletedFiles": 100,
+        "content": "repeated"
+      },
+      "random": {
+        "label": "8 × 10 MiB random",
+        "files": 8,
+        "inputBytes": 83886080,
+        "vaultBytes": 83894697,
+        "vaultBytesAfterDelete": 41947741,
+        "deletedFiles": 4,
+        "content": "random"
+      }
+    }
+  },
+  "search": [
+    {
+      "paths": 10000,
+      "legacy": {
+        "ns": 1333164,
+        "bytes": 803841,
+        "allocations": 10001
+      },
+      "indexedRepeat": {
+        "ns": 258851,
+        "bytes": 0,
+        "allocations": 0
+      },
+      "indexBuild": {
+        "ns": 1443804,
+        "bytes": 967680,
+        "allocations": 10002
+      }
+    },
+    {
+      "paths": 100000,
+      "legacy": {
+        "ns": 13645175,
+        "bytes": 8005632,
+        "allocations": 100001
+      },
+      "indexedRepeat": {
+        "ns": 2648448,
+        "bytes": 0,
+        "allocations": 0
+      },
+      "indexBuild": {
+        "ns": 12709262,
+        "bytes": 9611264,
+        "allocations": 100002
+      }
+    }
+  ],
+  "bulkArchiveLookup": {
+    "workloadKey": "repeated",
+    "runs": 3,
+    "stages": [
+      {
+        "name": "Verify",
+        "beforeSeconds": 0.914382
+      },
+      {
+        "name": "Extract all",
+        "beforeSeconds": 5.563527
+      },
+      {
+        "name": "Verify after delete",
+        "beforeSeconds": 0.793819
+      }
+    ],
+    "extractRssMBBefore": 54.984704
+  },
+  "zipValidation": {
+    "runs": 3,
+    "benchmarkDurationMs": 1000,
+    "results": [
+      {
+        "entries": 1000,
+        "before": { "nsPerOp": 71397, "bytesPerOp": 86608, "allocationsPerOp": 1005 },
+        "after": { "nsPerOp": 49386, "bytesPerOp": 54608, "allocationsPerOp": 5 }
+      },
+      {
+        "entries": 10000,
+        "before": { "nsPerOp": 806792, "bytesPerOp": 756866, "allocationsPerOp": 10033 },
+        "after": { "nsPerOp": 582635, "bytesPerOp": 436865, "allocationsPerOp": 33 }
+      }
+    ]
+  },
+  "pathConflict": {
+    "existingPaths": 10000,
+    "incomingPaths": 100,
+    "nestedScanNs": 23737622,
+    "foldedIndexNs": 1554626,
+    "foldedIndexBytes": 980852,
+    "foldedIndexAllocations": 10134,
+    "indexReleasedAfterAdd": true
+  },
+  "crypto": {
+    "benchmarkDurationMs": 500,
+    "repetitions": 5,
+    "v6Stream": [
+      {
+        "label": "4.14 KiB repeated",
+        "inputBytes": 4140,
+        "medianNs": 247197,
+        "bytesPerOp": 2531530,
+        "allocationsPerOp": 76
+      },
+      {
+        "label": "~1 MiB repeated",
+        "inputBytes": 1048553,
+        "medianNs": 719844,
+        "bytesPerOp": 5033348,
+        "allocationsPerOp": 112
+      },
+      {
+        "label": "10 MiB random",
+        "inputBytes": 10485760,
+        "medianNs": 6145313,
+        "bytesPerOp": 3332168,
+        "allocationsPerOp": 48
+      }
+    ]
+  },
+  "guiRowUpdate": {
+    "runs": 5,
+    "benchmarkDurationMs": 1000,
+    "medianNsPerOp": 1727,
+    "bytesPerOp": 336,
+    "allocationsPerOp": 8,
+    "scope": "One recycled Fyne row update with a container refresh; excludes canvas painting, scrolling, and window startup"
+  }
+}

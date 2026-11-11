@@ -11,7 +11,8 @@ import (
 func publicKey(t *testing.T) []byte {
 	t.Helper()
 	salt := bytes.Repeat([]byte{0x33}, pulsecrypto.SaltSize)
-	profile := pulsecrypto.Profiles["fast"]
+	// Small parameters keep test runs quick. Production should use Profiles.
+	profile := pulsecrypto.Profile{N: 16, R: 8, P: 1}
 	key, err := pulsecrypto.DeriveKeyScrypt("public-api-test-password", salt, profile.N, profile.R, profile.P)
 	if err != nil {
 		t.Fatal(err)
@@ -40,9 +41,18 @@ func TestPublicMetadataRoundTripAndTamper(t *testing.T) {
 
 func TestPublicEmptyPasswordRejected(t *testing.T) {
 	salt := bytes.Repeat([]byte{0x33}, pulsecrypto.SaltSize)
-	profile := pulsecrypto.Profiles["fast"]
+	profile := pulsecrypto.Profile{N: 16, R: 8, P: 1}
 	if _, err := pulsecrypto.DeriveKeyScrypt("", salt, profile.N, profile.R, profile.P); err == nil {
 		t.Fatal("empty password must fail")
+	}
+}
+
+func TestFastProfileIsNotExportedForProductionUse(t *testing.T) {
+	if _, ok := pulsecrypto.Profiles["fast"]; ok {
+		t.Fatal("test-only fast profile must not be listed as a production profile")
+	}
+	if _, ok := pulsecrypto.Profiles["standard"]; !ok {
+		t.Fatal("standard production profile is missing")
 	}
 }
 

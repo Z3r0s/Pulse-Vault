@@ -77,12 +77,13 @@ macOS GUI from source needs Xcode CLT (`xcode-select --install`). Linux GUI from
 
 ```bash
 pip install -U pulse-vault
+pulse-vault --launcher-install
 pulse-vault version
 pulse-vault --launcher-info
 pulse-vault --launcher-update
 ```
 
-This is live on PyPI. The wrapper downloads the official **Go** CLI and checks `SHA256SUMS`. It is not [`legacy/python/`](legacy/python/). The GitHub Release must include the `pulse-vault-*` binaries (a source-only tag is not enough).
+This is live on PyPI. The wrapper stays offline during normal use; `--launcher-install` and `--launcher-update` are explicit GitHub download actions that verify the Go CLI against `SHA256SUMS`. It is not [`legacy/python/`](legacy/python/). The GitHub Release must include the `pulse-vault-*` binaries (a source-only tag is not enough).
 
 ```bash
 sudo snap install pulse-vault    # after the snap is on the store

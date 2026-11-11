@@ -2,20 +2,24 @@
 
 Official [DNSPulse](https://dnspulse.org) installer for **Pulse-Vault**.
 
-`pip install pulse-vault` is **not** the old Python vault. It is a small launcher. On first run it downloads the official **Go** CLI from [GitHub Releases](https://github.com/Z3r0s/Pulse-Vault/releases), checks `SHA256SUMS`, then runs that binary.
+`pip install pulse-vault` is **not** the old Python vault. It is a small launcher for the official **Go** CLI. After installation, ordinary commands use a locally cached binary and make no GitHub request. If no binary is installed yet, choose the explicit download action:
 
 ```bash
 pip install -U pulse-vault
+pulse-vault --launcher-install  # explicitly download and verify the Go CLI
 pulse-vault version
 pulse-vault create demo.pulsevault --password 'choose-a-strong-password'
 ```
 
 ```text
 pulse-vault --launcher-info      # cached path, tag, sha256
-pulse-vault --launcher-update    # fetch the latest CLI again
+pulse-vault --launcher-install   # explicitly fetch the CLI if needed
+pulse-vault --launcher-update    # explicitly fetch the latest CLI again
 pulse-vault --launcher-which
 pulse-vault --launcher-help
 ```
+
+Normal CLI use stays offline. The explicit install or update command contacts GitHub, which can see the connection's source IP and request time.
 
 Pin a release:
 

@@ -17,6 +17,8 @@ data/<uuid>.enc
 
 `metadata.enc` contains authenticated encrypted JSON. It records file names, sizes, timestamps, SHA-256 digests, and blob IDs. `format.txt` and `kdf.json` are visible container metadata. V7 paths are relative and use `/` separators inside metadata; the V7 marker is checked against the authenticated metadata version to reject marker downgrades.
 
+The ZIP directory is visible. It reveals the entry count and encrypted blob sizes, while the format marker and Scrypt parameters are also readable. File names and paths are encrypted in `metadata.enc`; file lengths are still inferable from their ciphertext. This format does not pad entries to hide size or make the container impossible to inspect.
+
 ### Vaults carried after media
 
 The container can be appended after a PNG, JPEG, or supported video file. Pulse-Vault locates the ZIP directory and preserves the leading media bytes when rewriting the vault. The media may still open in an ordinary viewer. This is a convenience and disguise only; it is not steganography and does not hide the appended data from inspection.

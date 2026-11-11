@@ -60,6 +60,9 @@ func TestResponsiveWindowLayoutAcrossCommonSizes(t *testing.T) {
 		if !ui.heroTitle.Visible() || !ui.heroActions.Visible() {
 			t.Errorf("at %v, the locked-state headline and actions must remain visible", size)
 		}
+		if !ui.btnCheckUpdates.Visible() || ui.btnCheckUpdates.Size().Width <= 0 {
+			t.Errorf("at %v, the update action should remain available in the header", size)
+		}
 		if size.Height <= 360 && ui.topBar.Size().Height >= size.Height/2 {
 			t.Errorf("at %v, the brand header consumes half the window: %v", size, ui.topBar.Size())
 		}
@@ -88,6 +91,39 @@ func TestResponsiveWindowLayoutAcrossCommonSizes(t *testing.T) {
 	}
 }
 
+func TestCompactVaultActionsStayVisibleWithoutCoveringFileControls(t *testing.T) {
+	ui, _ := testUI(t, fyne.NewSize(640, 480))
+	tmp := t.TempDir()
+	v := vault.New(filepath.Join(tmp, "compact.pulsevault"))
+	if err := v.Create("test-only-passphrase", "standard"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(v.Lock)
+	source := filepath.Join(tmp, "sample.txt")
+	if err := os.WriteFile(source, []byte("sample"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.AddFile(source, false); err != nil {
+		t.Fatal(err)
+	}
+	ui.v = v
+	ui.setUnlockedUI("compact.pulsevault")
+	ui.fileList.Select(0)
+
+	if ui.compactVaultActions.Layout == nil || ui.btnCreate.Text != "New" || ui.btnOpen.Text != "Open" || ui.btnHide.Text != "Hide" {
+		t.Fatal("short windows should compact vault actions into the labeled one-row layout")
+	}
+	if !ui.compactVaultActions.Visible() || ui.compactVaultActions.Size().Width < ui.compactVaultActions.MinSize().Width {
+		t.Fatalf("compact vault actions should fit their sidebar row: size=%v min=%v", ui.compactVaultActions.Size(), ui.compactVaultActions.MinSize())
+	}
+	if !ui.btnAdd.Visible() || !ui.btnAddFolder.Visible() || !ui.btnExtract.Visible() || !ui.btnExtractAll.Visible() || !ui.btnDelete.Visible() || !ui.btnPassword.Visible() || !ui.btnLock.Visible() {
+		t.Fatal("all file and vault controls should remain present in the compact sidebar")
+	}
+	if content := ui.navScroll.Content.Size().Height; content > ui.navScroll.Size().Height+1 {
+		t.Fatalf("the compact sidebar should fit its action rows without clipping: content=%v viewport=%v", content, ui.navScroll.Size().Height)
+	}
+}
+
 func TestWindowMinimumSizeKeepsWorkspaceUsable(t *testing.T) {
 	ui, _ := testUI(t, fyne.NewSize(1120, 700))
 	tmp := t.TempDir()
@@ -106,7 +142,8 @@ func TestWindowMinimumSizeKeepsWorkspaceUsable(t *testing.T) {
 	ui.v = v
 	ui.setUnlockedUI("example.pulsevault")
 	minimum := ui.root.MinSize()
-	if minimum.Width < 640 || minimum.Height < 460 {
+	t.Logf("minimum supported content size: %v", minimum)
+	if minimum.Width < 640 || minimum.Height < 480 {
 		t.Fatalf("window minimum %v is too small for both panes and persistent controls", minimum)
 	}
 	ui.win.Resize(minimum)
@@ -132,8 +169,9 @@ func TestFileSearchFiltersWithoutChangingVaultContents(t *testing.T) {
 	ui.v = v
 	ui.files = []string{"Docs/Report.txt", "photos/image.png"}
 	ui.filterFiles()
-	if ui.search.Size().Height <= 0 || ui.fileNav.Position().Y < ui.btnHide.Position().Y+ui.btnHide.Size().Height {
-		t.Fatal("revealing file controls must relayout the navigation and search field")
+	actionsBottom := ui.compactVaultActions.Position().Y + ui.compactVaultActions.Size().Height
+	if ui.search.Size().Height <= 0 || ui.fileNav.Position().Y < actionsBottom {
+		t.Fatalf("revealing file controls must relayout below vault actions and show search: search=%v fileNav=%v actionGroup=%v+%v", ui.search.Size(), ui.fileNav.Position(), ui.compactVaultActions.Position(), ui.compactVaultActions.Size())
 	}
 	ui.selected = "Docs/Report.txt"
 	ui.search.SetText("PHOTO")
@@ -151,6 +189,36 @@ func TestFileSearchFiltersWithoutChangingVaultContents(t *testing.T) {
 	if len(ui.visibleFiles) != 2 || !ui.fileList.Visible() || ui.noSearchResults.Visible() {
 		t.Fatal("clearing the filter should restore the complete list")
 	}
+}
+
+func TestShortcutGuardProtectsTypingAndBusyFlows(t *testing.T) {
+	ui, _ := testUI(t, fyne.NewSize(800, 600))
+	ui.search.Show()
+	canv := ui.win.Canvas()
+	canv.Focus(ui.search)
+	if ui.canUseShortcut(false) {
+		t.Fatal("global file actions must not fire while a text field is focused")
+	}
+	if !ui.canUseShortcut(true) {
+		t.Fatal("Find should remain available while the search field is focused")
+	}
+	canv.Unfocus()
+	if err := ui.jobs.Begin("Add file", "Encrypting…"); err != nil {
+		t.Fatal(err)
+	}
+	if ui.canUseShortcut(true) {
+		t.Fatal("global shortcuts must be ignored while a vault operation is running")
+	}
+	ui.jobs.Finish("done")
+	if !ui.canUseShortcut(false) {
+		t.Fatal("global shortcuts should be available again when the workspace is idle")
+	}
+	overlay := canvas.NewRectangle(colBg)
+	canv.Overlays().Add(overlay)
+	if ui.canUseShortcut(false) {
+		t.Fatal("global shortcuts must not fire under an open dialog")
+	}
+	canv.Overlays().Remove(overlay)
 }
 
 func TestShortWindowRendersWithProductTheme(t *testing.T) {
@@ -194,11 +262,17 @@ func TestControlStatesAcrossLockedBusyAndUnlocked(t *testing.T) {
 	if !ui.heroLockedActions.Visible() || ui.heroEmptyActions.Visible() || ui.fileNav.Visible() {
 		t.Fatal("locked users should see only the start actions, not file-management controls")
 	}
+	if ui.btnCreate.Importance != widget.HighImportance || ui.btnLock.Importance == widget.DangerImportance {
+		t.Fatal("locked-state emphasis should favor creating or opening a vault and keep Lock out of the destructive style")
+	}
 	if !ui.btnAdd.Disabled() || !ui.btnExtract.Disabled() || !ui.btnLock.Disabled() {
 		t.Fatal("file operations and lock should be disabled while locked")
 	}
 	if ui.btnCancel.Visible() {
 		t.Fatal("cancel should be hidden while idle")
+	}
+	if ui.btnCheckUpdates.Disabled() {
+		t.Fatal("the optional update check should be available while the vault is locked")
 	}
 
 	ui.setBusyChromeForOperation(true, false)
@@ -208,7 +282,13 @@ func TestControlStatesAcrossLockedBusyAndUnlocked(t *testing.T) {
 	if !ui.btnCreate.Disabled() || !ui.btnOpen.Disabled() {
 		t.Fatal("vault switching should be disabled during work")
 	}
+	if !ui.btnCheckUpdates.Disabled() {
+		t.Fatal("the update request should not start while a vault operation is running")
+	}
 	ui.setBusyChromeForOperation(false, false)
+	if ui.btnCheckUpdates.Disabled() {
+		t.Fatal("the update action should return after the vault operation finishes")
+	}
 
 	ui.setBusyChromeForOperation(true, true)
 	if !ui.btnCancel.Visible() || ui.btnCancel.Disabled() {
@@ -245,11 +325,17 @@ func TestControlStatesAcrossLockedBusyAndUnlocked(t *testing.T) {
 	}
 	ui.v = v
 	ui.setUnlockedUI(vaultPath)
+	if ui.pathLabel.Text != filepath.Base(vaultPath) {
+		t.Fatalf("unlocked path label = %q; want only vault filename %q", ui.pathLabel.Text, filepath.Base(vaultPath))
+	}
 	if !ui.heroCard.Visible() || ui.fileList.Visible() || ui.btnAdd.Disabled() {
 		t.Fatal("an empty unlocked vault should show its empty state and allow adding files")
 	}
 	if !ui.heroEmptyActions.Visible() || ui.heroLockedActions.Visible() || ui.heroAddFile.OnTapped == nil || ui.heroAddFolder.OnTapped == nil {
 		t.Fatal("the empty vault should offer direct, working add-file and add-folder actions")
+	}
+	if ui.btnCreate.Importance == widget.HighImportance || ui.btnAdd.Importance == widget.HighImportance {
+		t.Fatal("an empty unlocked vault should emphasize the direct workspace Add action instead of vault navigation")
 	}
 	if !ui.fileNav.Visible() || !ui.btnAdd.Visible() || !ui.btnAddFolder.Visible() {
 		t.Fatal("add actions should remain available in the unlocked navigation")
@@ -271,6 +357,9 @@ func TestControlStatesAcrossLockedBusyAndUnlocked(t *testing.T) {
 	ui.setUnlockedUI(vaultPath)
 	if ui.btnAdd.Disabled() || ui.btnAddFolder.Disabled() || ui.btnExtractAll.Disabled() || ui.btnLock.Disabled() {
 		t.Fatal("file actions should be enabled while unlocked")
+	}
+	if ui.btnAdd.Importance != widget.HighImportance || ui.btnCreate.Importance == widget.HighImportance {
+		t.Fatal("a populated vault should emphasize Add file and demote vault navigation")
 	}
 	if ui.heroCard.Visible() || !ui.fileList.Visible() {
 		t.Fatal("a non-empty vault should show the file list and hide the empty state")
@@ -297,26 +386,37 @@ func TestControlStatesAcrossLockedBusyAndUnlocked(t *testing.T) {
 }
 
 func TestLongFileNamesStayInsideNarrowRows(t *testing.T) {
-	row, ok := newFileListRow().(*fyne.Container)
+	a := test.NewApp()
+	defer a.Quit()
+	rowObject, ok := newFileListRow().(*fileListRow)
 	if !ok {
-		t.Fatal("file row should be a layout container")
+		t.Fatal("file row should be a Fyne widget")
 	}
+	if renderer := test.WidgetRenderer(rowObject); renderer == nil {
+		t.Fatal("file row must provide a renderer so its contents are painted")
+	} else {
+		renderer.Layout(fyne.NewSize(300, 64))
+		renderer.Refresh()
+	}
+	row := rowObject.content
 	var name *widget.Label
-	var encrypted *canvas.Text
-	var markerPosition fyne.Position
-	var markerSize fyne.Size
+	var namePosition fyne.Position
+	var nameSize fyne.Size
+	var details *canvas.Text
+	var detailsPosition fyne.Position
+	var detailsSize fyne.Size
 	var visit func(fyne.CanvasObject, fyne.Position)
 	visit = func(object fyne.CanvasObject, parent fyne.Position) {
 		position := parent.Add(object.Position())
 		switch child := object.(type) {
 		case *widget.Label:
 			name = child
+			namePosition = position
+			nameSize = child.Size()
 		case *canvas.Text:
-			if child.Text == "ENCRYPTED" {
-				encrypted = child
-				markerPosition = position
-				markerSize = child.Size()
-			}
+			details = child
+			detailsPosition = position
+			detailsSize = child.Size()
 		case *fyne.Container:
 			for _, nested := range child.Objects {
 				visit(nested, position)
@@ -324,22 +424,28 @@ func TestLongFileNamesStayInsideNarrowRows(t *testing.T) {
 		}
 	}
 	visit(row, fyne.NewPos(0, 0))
-	if name == nil || encrypted == nil {
-		t.Fatal("file row should contain a filename and encrypted marker")
+	if name == nil || details == nil {
+		t.Fatal("file row should contain a filename and metadata")
 	}
-	name.SetText(strings.Repeat("very-long-project-name-", 20) + ".csv")
-	row.Resize(fyne.NewSize(220, 42))
-	row.Refresh()
-	markerPosition = fyne.NewPos(0, 0)
-	markerSize = fyne.NewSize(0, 0)
+	longName := strings.Repeat("very-long-project-name-", 20) + ".csv"
+	updateFileListRow(rowObject, longName, "2.4 MB · Added Nov 7")
+	rowObject.Resize(fyne.NewSize(300, 64))
+	rowObject.Refresh()
+	namePosition = fyne.NewPos(0, 0)
+	nameSize = fyne.NewSize(0, 0)
+	detailsPosition = fyne.NewPos(0, 0)
+	detailsSize = fyne.NewSize(0, 0)
 	visit(row, fyne.NewPos(0, 0))
 	if name.Truncation != fyne.TextTruncateEllipsis || name.Wrapping != fyne.TextWrapOff {
 		t.Fatal("long file names should truncate on one line")
 	}
-	if name.Position().X+name.Size().Width > markerPosition.X+1 {
-		t.Fatalf("filename overlaps the encrypted marker: name=%v+%v marker=%v+%v", name.Position(), name.Size(), markerPosition, markerSize)
+	if details.Text != "2.4 MB · Added Nov 7" {
+		t.Fatalf("row details = %q", details.Text)
 	}
-	if markerPosition.X+markerSize.Width > row.Size().Width-12 {
-		t.Fatalf("encrypted marker needs a visible right gutter: row=%v marker=%v+%v", row.Size(), markerPosition, markerSize)
+	if nameSize.Width < 50 || namePosition.X+nameSize.Width > detailsPosition.X+1 {
+		t.Fatalf("filename has no usable space or overlaps metadata: name=%v+%v details=%v+%v", namePosition, nameSize, detailsPosition, detailsSize)
+	}
+	if detailsPosition.X+detailsSize.Width > row.Size().Width-12 || detailsPosition.Y+detailsSize.Height > row.Size().Height {
+		t.Fatalf("metadata needs a visible right gutter and must fit vertically: details=%v+%v row=%v", detailsPosition, detailsSize, row.Size())
 	}
 }

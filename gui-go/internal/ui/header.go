@@ -6,27 +6,46 @@ import (
 )
 
 const (
-	headerStackGap   float32 = 8
-	headerSideGap    float32 = 16
-	navTargetWidth   float32 = 228
-	shellMinWidth    float32 = 640
-	shellMinHeight   float32 = 328
-	stageBodyReserve float32 = 72
+	headerStackGap            float32 = 8
+	headerSideGap             float32 = 16
+	navTargetWidth            float32 = 228
+	shellMinWidth             float32 = 640
+	shellMinHeight            float32 = 480
+	stageBodyReserve          float32 = 72
+	compactPathCollapseHeight float32 = 420
+	compactNavHeight          float32 = 520
+	resizeHysteresis          float32 = 14
 )
 
 // stageContentLayout gives the workspace priority in short windows. The
 // contextual header returns as soon as there is room for it and the actions.
-type stageContentLayout struct{}
+type stageContentLayout struct {
+	pathLabel     fyne.CanvasObject
+	compactHeight float32
+	compact       bool
+}
 
 func (stageContentLayout) MinSize(_ []fyne.CanvasObject) fyne.Size {
 	return fyne.NewSize(0, 80)
 }
 
-func (stageContentLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+func (l *stageContentLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	if len(objects) < 2 {
 		return
 	}
 	header, content := objects[0], objects[1]
+	if l.pathLabel != nil && l.compactHeight > 0 {
+		compact := compactAtHeight(l.compact, size.Height, l.compactHeight)
+		if compact != l.compact {
+			l.compact = compact
+			if compact {
+				l.pathLabel.Hide()
+			} else {
+				l.pathLabel.Show()
+			}
+			header.Refresh()
+		}
+	}
 	headerHeight := header.MinSize().Height
 	if size.Height < headerHeight+stageBodyReserve {
 		header.Hide()
@@ -43,7 +62,9 @@ func (stageContentLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 
 // headerWrapLayout places left/right header groups side by side when they
 // fit, and stacks them when the window is too narrow so chips are not clipped.
-type headerWrapLayout struct{}
+type headerWrapLayout struct {
+	stacked bool
+}
 
 func (headerWrapLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 	if len(objects) == 0 {
@@ -64,7 +85,7 @@ func (headerWrapLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 	)
 }
 
-func (headerWrapLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+func (l *headerWrapLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	if len(objects) == 0 {
 		return
 	}
@@ -74,32 +95,46 @@ func (headerWrapLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 		return
 	}
 	left, right := objects[0], objects[1]
-	l, r := left.MinSize(), right.MinSize()
-	need := l.Width + r.Width + headerSideGap
-	if size.Width < need {
-		left.Resize(fyne.NewSize(fyne.Min(size.Width, l.Width), l.Height))
+	leftSize, rightSize := left.MinSize(), right.MinSize()
+	need := leftSize.Width + rightSize.Width + headerSideGap
+	if l.stacked {
+		if size.Width >= need+resizeHysteresis {
+			l.stacked = false
+		}
+	} else if size.Width < need {
+		l.stacked = true
+	}
+	if l.stacked {
+		left.Resize(fyne.NewSize(fyne.Min(size.Width, leftSize.Width), leftSize.Height))
 		left.Move(fyne.NewPos(0, 0))
-		right.Resize(fyne.NewSize(fyne.Min(size.Width, r.Width), r.Height))
-		right.Move(fyne.NewPos(0, l.Height+headerStackGap))
+		right.Resize(fyne.NewSize(fyne.Min(size.Width, rightSize.Width), rightSize.Height))
+		right.Move(fyne.NewPos(0, leftSize.Height+headerStackGap))
 		return
 	}
-	yL := (size.Height - l.Height) / 2
+	yL := (size.Height - leftSize.Height) / 2
 	if yL < 0 {
 		yL = 0
 	}
-	yR := (size.Height - r.Height) / 2
+	yR := (size.Height - rightSize.Height) / 2
 	if yR < 0 {
 		yR = 0
 	}
-	left.Resize(l)
+	left.Resize(leftSize)
 	left.Move(fyne.NewPos(0, yL))
-	right.Resize(r)
-	right.Move(fyne.NewPos(size.Width-r.Width, yR))
+	right.Resize(rightSize)
+	right.Move(fyne.NewPos(size.Width-rightSize.Width, yR))
 }
 
 // splitFitLayout fills the body and keeps the split wide enough for both
 // panes; each pane handles its own scrolling when the window is short.
-type splitFitLayout struct{ lastWidth float32 }
+type splitFitLayout struct {
+	lastWidth     float32
+	compactHeight float32
+	compact       bool
+	compactHide   []fyne.CanvasObject
+	compactChange func(bool)
+	refresh       func()
+}
 
 func sidebarWidth(available float32) float32 {
 	if available < 800 {
@@ -146,10 +181,38 @@ func (l *splitFitLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	if len(objects) == 0 {
 		return
 	}
+	if l.compactHeight > 0 {
+		compact := compactAtHeight(l.compact, size.Height, l.compactHeight)
+		if compact != l.compact {
+			l.compact = compact
+			for _, obj := range l.compactHide {
+				if compact {
+					obj.Hide()
+				} else {
+					obj.Show()
+				}
+			}
+			if l.compactChange != nil {
+				l.compactChange(compact)
+			}
+			if l.refresh != nil {
+				l.refresh()
+			}
+		}
+	}
 	if split, ok := objects[0].(*container.Split); ok && size.Width > 0 && size.Width != l.lastWidth {
 		split.Offset = float64(sidebarWidth(size.Width) / size.Width)
 		l.lastWidth = size.Width
 	}
 	objects[0].Resize(size)
 	objects[0].Move(fyne.NewPos(0, 0))
+}
+
+// compactAtHeight adds a small dead band around responsive breakpoints so a
+// drag near the threshold does not repeatedly hide and restore interface rows.
+func compactAtHeight(current bool, height, threshold float32) bool {
+	if current {
+		return height < threshold+resizeHysteresis
+	}
+	return height < threshold-resizeHysteresis
 }

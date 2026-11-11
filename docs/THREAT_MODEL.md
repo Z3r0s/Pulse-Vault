@@ -5,6 +5,7 @@ This describes the security goals and limits of the Go application and its publi
 ## Security goals
 
 - Protect stored file contents from someone who has the vault file but not its password, subject to the password's strength and the selected Scrypt cost.
+- Accept only persisted Scrypt parameter sets that match a supported profile; the low-cost profile is test-only and is not accepted by normal builds.
 - Detect modification, truncation, reordering, or substitution of authenticated metadata and V6 stream records.
 - Use random base nonces and authenticated chunk indexes to separate stream records.
 - Keep V5 and older supported data readable without treating legacy streams as if they had V6's final-record guarantee.
@@ -13,6 +14,8 @@ This describes the security goals and limits of the Go application and its publi
 ## Assumptions
 
 - The password is sufficiently strong, kept private, and not reused elsewhere.
+- The password-derived key is only as resistant to offline guessing as the password and recorded KDF cost. Standard uses a 32 MiB Scrypt memory term; hardened uses 1 GiB. Neither profile makes a weak or reused password safe.
+- KDF profile fields are visible and attacker-controlled before unlock. The Go reader allowlists the supported parameter tuples and rejects weak custom tuples or a profile label that disagrees with its parameters.
 - The operating system, Go runtime, and release artifact have not been compromised.
 - Operating-system randomness is functioning.
 - Users protect the computer and the unlocked session.
@@ -26,6 +29,9 @@ This describes the security goals and limits of the Go application and its publi
 - Secure deletion from disks, swap, backups, filesystem snapshots, or crash dumps.
 - Metadata leakage such as approximate stored sizes, visible KDF parameters, or the presence of a vault appended to media.
 - Detection of every possible filesystem or operating-system side channel.
+- Network privacy if a user chooses the optional update check. GitHub sees the source IP and request time; a chosen release asset can disclose the requested platform. A VPN or configured HTTPS proxy changes the network route but does not hide the request from the VPN or proxy operator.
+
+An encrypted vault and the application that reads it remain inspectable. Someone with the file can examine its container structure, count encrypted entries, and estimate their sizes; someone with the binary can disassemble or debug that program. Release builds strip symbol and DWARF debug tables, omit local source paths, and disable embedded VCS build metadata to reduce incidental build information and add modest analysis friction. A local application cannot make reverse engineering impossible. Obfuscation and anti-debugging do not replace encryption and are not part of Pulse-Vault's security guarantees. The security goal is to protect file contents and authenticate metadata when the password is kept secret.
 
 Appending a vault to a picture or video is not cryptographic hiding. It keeps the media prefix intact for ordinary viewing, but a reviewer can inspect the appended ZIP data.
 

@@ -118,7 +118,7 @@ func handleConsole(v *vault.Vault, line string, in *bufio.Reader) error {
 			cyan("add") + muted(" <file-or-folder> seal files or a folder tree"),
 			cyan("extract") + muted(" <name> [dir]  write a file out"),
 			cyan("extract-all") + muted(" [dir]       restore every file"),
-			cyan("delete") + muted(" <name>        remove a sealed file"),
+			cyan("delete") + muted(" <name> [...]  remove sealed files"),
 			cyan("verify") + muted("               integrity check"),
 			cyan("info") + muted("                 container card"),
 			cyan("password") + muted(" [new]       rotate the key (hidden prompts)"),
@@ -166,12 +166,16 @@ func handleConsole(v *vault.Vault, line string, in *bufio.Reader) error {
 		return nil
 	case "delete", "rm", "del":
 		if len(rest) < 1 {
-			return fmt.Errorf("usage: delete <name>")
+			return fmt.Errorf("usage: delete <name> [more names ...]")
 		}
-		if err := v.DeleteFile(rest[0]); err != nil {
+		if err := v.DeleteFiles(rest); err != nil {
 			return err
 		}
-		printDeleted(rest[0])
+		if len(rest) == 1 {
+			printDeleted(rest[0])
+		} else {
+			printDeletedBatch(len(rest))
+		}
 		return nil
 	case "verify":
 		fc, bc, hc, err := v.VerifyAll()
@@ -207,7 +211,7 @@ func handleConsole(v *vault.Vault, line string, in *bufio.Reader) error {
 		if err := v.ChangePassword(old, newPassword); err != nil {
 			return err
 		}
-		printPasswordChanged()
+		printPasswordChanged(v.Profile)
 		return nil
 	case "quit", "exit", "q", "lock":
 		return errConsoleQuit

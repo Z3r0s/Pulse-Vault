@@ -17,7 +17,7 @@ func printBanner() {
 	ver := version.Version
 	lines := []string{
 		bold(fg("PULSE-VAULT")) + muted("   v"+ver),
-		muted("offline sealed storage  ·  V6 finalized cascade"),
+		muted("offline sealed storage  ·  V6 streams  ·  V7 paths"),
 	}
 	fmt.Fprintln(out(), box("⬡  "+productName, lines, 56))
 }
@@ -42,11 +42,11 @@ func printHelp() {
 		{"add", "Encrypt files or a folder tree into the vault"},
 		{"extract", "Decrypt a file out to disk"},
 		{"extract-all", "Restore every sealed file"},
-		{"delete", "Remove a sealed file"},
+		{"delete", "Remove one or more sealed files in one rewrite"},
 		{"verify", "Integrity-check every entry"},
 		{"info", "Inspect the container (no password)"},
 		{"change-password", "Rotate the key (full re-encrypt)"},
-		{"migrate", "Upgrade a legacy vault to V6"},
+		{"migrate", "Upgrade legacy streams to V6"},
 		{"version", "Print product version"},
 		{"help", "This screen"},
 	}
@@ -62,9 +62,9 @@ func printHelp() {
 		"add     <vault> <file-or-folder> [more paths ...] [--overwrite]",
 		"extract <vault> <name> <outdir> [--overwrite]",
 		"extract-all <vault> <outdir> [--overwrite]",
-		"delete  <vault> <name>",
+		"delete  <vault> <name> [more names ...]",
 		"verify  <vault>",
-		"change-password <vault>",
+		"change-password <vault> [--profile standard|hardened]",
 		"migrate <vault>",
 		"info    <vault>",
 	}
@@ -186,6 +186,19 @@ func printDeleted(name string) {
 	fmt.Fprintf(out(), "Deleted %s\n", name)
 }
 
+func printDeletedBatch(count int) {
+	printSlimHead("delete")
+	label := "files"
+	if count == 1 {
+		label = "file"
+	}
+	fmt.Fprintln(out(), box("delete", []string{
+		markOK() + "  " + bold("removed  ") + fg(fmt.Sprintf("%d %s", count, label)),
+		muted("all entries removed in one vault rewrite"),
+	}, 56))
+	fmt.Fprintf(out(), "Deleted %d %s in one vault rewrite\n", count, label)
+}
+
 func printVerified(fc int, bc int64, hc int) {
 	printSlimHead("verify")
 	fmt.Fprintln(out(), box("verify", []string{
@@ -197,12 +210,16 @@ func printVerified(fc int, bc int64, hc int) {
 	fmt.Fprintf(out(), "Verify OK: %d files, %d bytes checked, %d full hash-verified.\n", fc, bc, hc)
 }
 
-func printPasswordChanged() {
+func printPasswordChanged(profile string) {
 	printSlimHead("change-password")
-	fmt.Fprintln(out(), box("key rotate", []string{
+	lines := []string{
 		markOK() + "  " + bold("password rotated"),
 		muted("full re-encrypt with a new salt + key"),
-	}, 52))
+	}
+	if profile != "" {
+		lines = append(lines, kv("kdf", profile))
+	}
+	fmt.Fprintln(out(), box("key rotate", lines, 52))
 	fmt.Fprintln(out(), "Password rotated successfully (full re-encrypt with new key).")
 }
 

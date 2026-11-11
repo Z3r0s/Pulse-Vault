@@ -9,7 +9,7 @@ import (
 
 func TestStreamExample(t *testing.T) {
 	salt := bytes.Repeat([]byte{0x42}, pulsecrypto.SaltSize)
-	profile := pulsecrypto.Profiles["fast"]
+	profile := pulsecrypto.Profiles["standard"]
 	key, err := pulsecrypto.DeriveKeyScrypt("example-password", salt, profile.N, profile.R, profile.P)
 	if err != nil {
 		t.Fatal(err)

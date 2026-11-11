@@ -1,9 +1,11 @@
 import hashlib
+import io
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+from contextlib import redirect_stderr, redirect_stdout
 
 # Keep the package tests runnable from the repository root as well as from
 # the CI working directory, which supplies PYTHONPATH=src.
@@ -13,7 +15,9 @@ from pulse_vault.launcher import (
     LauncherError,
     asset_name,
     asset_url,
+    cached_binary,
     dispatch_launcher,
+    main,
     parse_sha256sums,
     release_has_cli,
     sha256_file,
@@ -102,6 +106,45 @@ class LauncherCommandTests(unittest.TestCase):
     def test_help_and_version(self):
         self.assertEqual(dispatch_launcher("--launcher-help"), 0)
         self.assertEqual(dispatch_launcher("--launcher-version"), 0)
+
+    def test_normal_cli_command_does_not_contact_github_when_cache_is_empty(self):
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch("pulse_vault.launcher.cache_dir", return_value=Path(td)), \
+                    mock.patch("pulse_vault.launcher.asset_name", return_value="pulse-vault-test"), \
+                    mock.patch("pulse_vault.launcher.fetch_release") as fetch, \
+                    redirect_stderr(io.StringIO()):
+                self.assertEqual(main(["version"]), 2)
+            fetch.assert_not_called()
+
+    def test_launcher_install_is_an_explicit_download_action(self):
+        binary = Path("pulse-vault-test")
+        with mock.patch("pulse_vault.launcher.ensure_binary", return_value=binary) as install, \
+                mock.patch("pulse_vault.launcher.print_info"), \
+                redirect_stdout(io.StringIO()):
+            self.assertEqual(dispatch_launcher("--launcher-install"), 0)
+        install.assert_called_once_with()
+
+    def test_launcher_update_is_an_explicit_forced_download_action(self):
+        binary = Path("pulse-vault-test")
+        with mock.patch("pulse_vault.launcher.ensure_binary", return_value=binary) as update, \
+                mock.patch("pulse_vault.launcher.print_info"), \
+                redirect_stdout(io.StringIO()):
+            self.assertEqual(dispatch_launcher("--launcher-update"), 0)
+        update.assert_called_once_with(force=True)
+
+    def test_verified_cached_binary_is_used_offline(self):
+        with tempfile.TemporaryDirectory() as td:
+            binary = Path(td) / "pulse-vault-test"
+            binary.write_bytes(b"verified test binary")
+            digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+            binary.with_suffix(binary.suffix + ".meta.json").write_text(
+                '{"tag":"v1.2.3","sha256":"' + digest + '"}', encoding="utf-8"
+            )
+            with mock.patch("pulse_vault.launcher.cache_dir", return_value=Path(td)), \
+                    mock.patch("pulse_vault.launcher.asset_name", return_value=binary.name), \
+                    mock.patch("pulse_vault.launcher.fetch_release") as fetch:
+                self.assertEqual(cached_binary(), binary)
+            fetch.assert_not_called()
 
 
 if __name__ == "__main__":

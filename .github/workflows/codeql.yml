@@ -18,8 +18,8 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version: "1.27.3"
           cache-dependency-path: go.sum
@@ -27,11 +27,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc pkg-config libglvnd-dev libgl-dev libx11-dev libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev wayland-protocols
-      - uses: github/codeql-action/init@v4
+      - uses: github/codeql-action/init@v4.39.3
         with:
           languages: go
           config-file: ./.github/codeql/codeql-config.yml
-      - uses: github/codeql-action/autobuild@v4
-      - uses: github/codeql-action/analyze@v4
+      - uses: github/codeql-action/autobuild@v4.39.3
+      - uses: github/codeql-action/analyze@v4.39.3
         with:
           category: "/language:go"

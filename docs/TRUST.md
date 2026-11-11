@@ -13,9 +13,12 @@ Pulse-Vault does not contain malware. False positives happen because:
 
 - Company / product / copyright / icon in the PE resource (`gui-go/versioninfo.json`)
 - Windows compatibility manifest (`gui-go/app.manifest`) — `asInvoker`, no admin prompt
-- `-trimpath -buildvcs=false` so the binary does not embed your home path or git identity
+- `-trimpath -buildvcs=false -ldflags "-s -w"` so builds omit local source paths, VCS metadata, and symbol/debug tables. These flags add modest analysis friction; they do not prevent disassembly.
 - No UPX / no packer (packers get you boxed as malware)
-- SHA-256 on GitHub Releases (`SHA256SUMS`); install scripts check that hash
+- SHA-256 on GitHub Releases (`SHA256SUMS`); install scripts and the optional desktop updater check that hash. Because the checksum is hosted by the same release, it detects mismatches but does not independently authenticate the publisher.
+
+The desktop app makes no outbound request during launch, idle use, or vault operations. Its update client is called only after the user chooses **Check now** in the explicit update prompt. GitHub can then see the source IP and request time. A user can route the request through a VPN or configure `HTTPS_PROXY` before starting the app. Downloading is a separate opt-in action and the file is never installed automatically; opening release notes is also a deliberate browser action.
+
 - Optional Authenticode: [`gui-go/scripts/sign-windows.ps1`](../gui-go/scripts/sign-windows.ps1)
 
 ## What you (the publisher) must do
@@ -49,7 +52,7 @@ Prefer, in this order:
 1. GitHub Release exe (signed, once you have a cert)
 2. `.\cli.ps1` / `./cli.sh` from a clone they fetched themselves
 3. `go install github.com/Z3r0s/Pulse-Vault/gui-go/cmd/pulse-vault@latest`
-4. `pip install pulse-vault` after you publish it (downloads the Release CLI)
+4. `pip install pulse-vault` after you publish it; then use `pulse-vault --launcher-install` to explicitly download the Release CLI when needed
 
 Avoid advertising `irm ... | iex` as the main Windows path. It works, but Defender is trained to hate it.
 

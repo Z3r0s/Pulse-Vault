@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 560"
+     role="img" aria-labelledby="title desc" aria-label="Sampled peak RSS by CLI operation">
+  <title id="title">Sampled peak RSS by CLI operation</title>
+  <desc id="desc">Line chart of approximate peak resident set size in decimal megabytes at each of seven CLI stages, including batch delete and a post-delete verification. Cyan is the repeated-data workload; blue is random data. Memory is sampled every 20 milliseconds, so short peaks can be missed.</desc>
+  <rect width="100%" height="100%" fill="#0b1117"/>
+  <text x="48.0" y="51.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" text-anchor="start">Peak resident memory by CLI operation</text>
+  <text x="48.0" y="82.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="400" text-anchor="start">Sampled RSS · decimal MB · sampled every 20 ms · synthetic CLI workloads</text>
+  <line x1="120.0" y1="406.0" x2="1365.0" y2="406.0" stroke="#30404b" stroke-width="1"/>
+  <text x="105.0" y="411.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">40</text>
+  <line x1="120.0" y1="340.0" x2="1365.0" y2="340.0" stroke="#30404b" stroke-width="1"/>
+  <text x="105.0" y="345.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">50</text>
+  <line x1="120.0" y1="274.0" x2="1365.0" y2="274.0" stroke="#30404b" stroke-width="1"/>
+  <text x="105.0" y="279.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">60</text>
+  <line x1="120.0" y1="208.0" x2="1365.0" y2="208.0" stroke="#30404b" stroke-width="1"/>
+  <text x="105.0" y="213.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">70</text>
+  <line x1="120.0" y1="142.0" x2="1365.0" y2="142.0" stroke="#30404b" stroke-width="1"/>
+  <text x="105.0" y="147.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">80</text>
+  <polyline points="120.0,388.1 327.5,338.5 535.0,327.6 742.5,350.3 950.0,339.3 1157.5,327.6 1365.0,349.1" fill="none" stroke="#22d3d5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="120.0" cy="388.1" r="6" fill="#22d3d5" stroke="#0b1117" stroke-width="2"/>
+  <text x="120.0" y="410.1" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="middle">42.7</text>
+  <circle cx="327.5" cy="338.5" r="6" fill="#22d3d5" stroke="#0b1117" stroke-width="2"/>
+  <text x="327.5" y="360.5" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="middle">50.2</text>
+  <circle cx="535.0" cy="327.6" r="6" fill="#22d3d5" stroke="#0b1117" stroke-width="2"/>
+  <text x="535.0" y="349.6" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="middle">51.9</text>
+  <circle cx="742.5" cy="350.3" r="6" fill="#22d3d5" stroke="#0b1117" stroke-width="2"/>
+  <text x="742.5" y="372.3" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="middle">48.4</text>
+  <circle cx="950.0" cy="339.3" r="6" fill="#22d3d5" stroke="#0b1117" stroke-width="2"/>
+  <text x="950.0" y="361.3" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="middle">50.1</text>
+  <circle cx="1157.5" cy="327.6" r="6" fill="#22d3d5" stroke="#0b1117" stroke-width="2"/>
+  <text x="1157.5" y="316.6" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="middle">51.9</text>
+  <circle cx="1365.0" cy="349.1" r="6" fill="#22d3d5" stroke="#0b1117" stroke-width="2"/>
+  <text x="1365.0" y="371.1" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="middle">48.6</text>
+  <polyline points="120.0,387.5 327.5,294.0 535.0,288.3 742.5,232.4 950.0,209.5 1157.5,379.6 1365.0,297.7" fill="none" stroke="#77aef7" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="120.0" cy="387.5" r="6" fill="#77aef7" stroke="#0b1117" stroke-width="2"/>
+  <text x="120.0" y="376.5" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="middle">42.8</text>
+  <circle cx="327.5" cy="294.0" r="6" fill="#77aef7" stroke="#0b1117" stroke-width="2"/>
+  <text x="327.5" y="283.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="middle">57.0</text>
+  <circle cx="535.0" cy="288.3" r="6" fill="#77aef7" stroke="#0b1117" stroke-width="2"/>
+  <text x="535.0" y="277.3" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="middle">57.8</text>
+  <circle cx="742.5" cy="232.4" r="6" fill="#77aef7" stroke="#0b1117" stroke-width="2"/>
+  <text x="742.5" y="221.4" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="middle">66.3</text>
+  <circle cx="950.0" cy="209.5" r="6" fill="#77aef7" stroke="#0b1117" stroke-width="2"/>
+  <text x="950.0" y="198.5" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="middle">69.8</text>
+  <circle cx="1157.5" cy="379.6" r="6" fill="#77aef7" stroke="#0b1117" stroke-width="2"/>
+  <text x="1157.5" y="401.6" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="middle">44.0</text>
+  <circle cx="1365.0" cy="297.7" r="6" fill="#77aef7" stroke="#0b1117" stroke-width="2"/>
+  <text x="1365.0" y="286.7" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="650" text-anchor="middle">56.4</text>
+  <line x1="120.0" y1="406.0" x2="120.0" y2="413.0" stroke="#30404b" stroke-width="1"/>
+  <text x="120.0" y="437.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Create</text>
+  <line x1="327.5" y1="406.0" x2="327.5" y2="413.0" stroke="#30404b" stroke-width="1"/>
+  <text x="327.5" y="437.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Initial add</text>
+  <line x1="535.0" y1="406.0" x2="535.0" y2="413.0" stroke="#30404b" stroke-width="1"/>
+  <text x="535.0" y="437.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Incremental add</text>
+  <line x1="742.5" y1="406.0" x2="742.5" y2="413.0" stroke="#30404b" stroke-width="1"/>
+  <text x="742.5" y="437.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Verify</text>
+  <line x1="950.0" y1="406.0" x2="950.0" y2="413.0" stroke="#30404b" stroke-width="1"/>
+  <text x="950.0" y="437.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Extract all</text>
+  <line x1="1157.5" y1="406.0" x2="1157.5" y2="413.0" stroke="#30404b" stroke-width="1"/>
+  <text x="1157.5" y="437.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Delete batch</text>
+  <line x1="1365.0" y1="406.0" x2="1365.0" y2="413.0" stroke="#30404b" stroke-width="1"/>
+  <text x="1365.0" y="437.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Verify after delete</text>
+  <rect x="483.0" y="487.0" width="18.0" height="12.0" rx="2" fill="#22d3d5"/>
+  <text x="510.0" y="499.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">1,000 × 4 KiB repeated</text>
+  <rect x="735.0" y="487.0" width="18.0" height="12.0" rx="2" fill="#77aef7"/>
+  <text x="762.0" y="499.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">8 × 10 MiB random</text>
+  <line x1="48.0" y1="528.0" x2="1392.0" y2="528.0" stroke="#30404b" stroke-width="1"/>
+  <text x="48.0" y="550.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start">RSS is sampled every 20 ms. Short memory peaks can fall between samples; use these as approximate stage peaks.</text>
+</svg>

@@ -35,14 +35,16 @@ var ErrCrypto = inner.ErrCrypto
 // Profile describes one supported Scrypt cost profile.
 type Profile = inner.Profile
 
-// Profiles contains the built-in Scrypt profiles. Callers should treat this
-// map as read-only; changing it does not change the validation limits.
+// Profiles contains the built-in production Scrypt profiles. Callers should
+// treat this map as read-only; changing it does not change the validation limits.
 var Profiles = map[string]Profile{
-	"fast":     inner.Profiles["fast"],
 	"standard": inner.Profiles["standard"],
 	"hardened": inner.Profiles["hardened"],
 }
 
+// DeriveKeyScrypt derives a key with the supplied Scrypt parameters. Custom
+// values can be weaker than the production profiles; use Profiles for normal
+// applications and treat this low-level function as a protocol building block.
 func DeriveKeyScrypt(password string, salt []byte, n, r, p int) ([]byte, error) {
 	return inner.DeriveKeyScrypt(password, salt, n, r, p)
 }

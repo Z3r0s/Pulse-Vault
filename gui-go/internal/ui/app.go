@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"image/color"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +17,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -29,10 +29,11 @@ const AppTitle = "Pulse-Vault"
 
 // App is the multi-pane vault desktop UI.
 type App struct {
-	fyneApp fyne.App
-	win     fyne.Window
-	v       *vault.Vault
-	jobs    JobState
+	fyneApp      fyne.App
+	win          fyne.Window
+	v            *vault.Vault
+	jobs         JobState
+	updateClient updateService
 
 	pathLabel         *widget.Label
 	status            *widget.Label
@@ -40,6 +41,8 @@ type App struct {
 	cancelJob         context.CancelFunc
 	fileList          *widget.List
 	files             []string
+	fileSummaries     map[string]vault.FileSummary
+	searchNames       []string
 	visibleFiles      []string
 	search            *widget.Entry
 	noSearchResults   *widget.Label
@@ -72,17 +75,24 @@ type App struct {
 	mainStage         *fyne.Container
 	root              *fyne.Container
 
-	btnCreate     *widget.Button
-	btnOpen       *widget.Button
-	btnHide       *widget.Button
-	btnAdd        *widget.Button
-	btnAddFolder  *widget.Button
-	btnExtract    *widget.Button
-	btnExtractAll *widget.Button
-	btnCancel     *widget.Button
-	btnDelete     *widget.Button
-	btnPassword   *widget.Button
-	btnLock       *widget.Button
+	btnCreate           *widget.Button
+	btnOpen             *widget.Button
+	btnHide             *widget.Button
+	compactVaultActions *fyne.Container
+	fileAddRow          *fyne.Container
+	fileSaveRow         *fyne.Container
+	fileSecurityRow     *fyne.Container
+	navScroll           *container.Scroll
+	shortcutGuide       *widget.Label
+	btnAdd              *widget.Button
+	btnAddFolder        *widget.Button
+	btnExtract          *widget.Button
+	btnExtractAll       *widget.Button
+	btnCancel           *widget.Button
+	btnDelete           *widget.Button
+	btnPassword         *widget.Button
+	btnLock             *widget.Button
+	btnCheckUpdates     *widget.Button
 }
 
 // Run launches the desktop window (blocks until closed).
@@ -93,13 +103,17 @@ func Run(a fyne.App) {
 	ui.win = a.NewWindow(AppTitle + "  ·  " + version.Version)
 	ui.win.SetIcon(mark)
 	ui.win.SetPadded(false)
-	ui.win.Resize(fyne.NewSize(1120, 740))
+	ui.win.Resize(fyne.NewSize(1240, 800))
 	ui.win.SetFixedSize(false)
 	ui.win.SetMaster()
 	ui.build()
 	ui.bindShortcuts()
 	ui.win.SetOnDropped(ui.onDropped)
 	ui.setLockedUI()
+	a.Lifecycle().SetOnStarted(func() {
+		ui.installSystemTray(mark)
+		ui.promptForUpdateAtStartup()
+	})
 	ui.win.ShowAndRun()
 }
 
@@ -108,22 +122,24 @@ func (ui *App) build() {
 
 	ui.brandTitle = canvas.NewText("PULSE-VAULT", colFg)
 	ui.brandTitle.TextStyle = fyne.TextStyle{Bold: true}
-	ui.brandTitle.TextSize = 22
+	ui.brandTitle.TextSize = textSizeBrandTitle
 
 	ui.brandSub = canvas.NewText("DNSPulse  ·  dnspulse.org  ·  offline", colMuted)
-	ui.brandSub.TextSize = 12
+	ui.brandSub.TextSize = textSizeBrandSubtitle
 
 	versionLabel := "v" + version.Version
 	if version.Version == "dev" {
 		versionLabel = "DEV"
 	}
 	ui.versionChip = canvas.NewText("  "+versionLabel+"  ", colPrimary)
-	ui.versionChip.TextSize = 11
+	ui.versionChip.TextSize = textSizeVersionChip
 	ui.versionChip.TextStyle = fyne.TextStyle{Bold: true}
+	ui.btnCheckUpdates = widget.NewButtonWithIcon("Check updates", theme.DownloadIcon(), ui.onCheckUpdates)
+	ui.btnCheckUpdates.Importance = widget.LowImportance
 
 	ui.lockBadge = canvas.NewText("  ●  LOCKED  ", colLockRed)
 	ui.lockBadge.TextStyle = fyne.TextStyle{Bold: true}
-	ui.lockBadge.TextSize = 12
+	ui.lockBadge.TextSize = textSizeLockBadge
 
 	ui.pathLabel = widget.NewLabel("No vault selected")
 	ui.pathLabel.Truncation = fyne.TextTruncateEllipsis
@@ -142,7 +158,7 @@ func (ui *App) build() {
 	ui.busyPip.SetMinSize(fyne.NewSize(8, 8))
 	ui.busyPip.Hide()
 
-	ui.listHeader = widget.NewLabelWithStyle("Secure files", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	ui.listHeader = widget.NewLabelWithStyle("Encrypted files", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	ui.countLabel = widget.NewLabel("0 items")
 	ui.countLabel.Importance = widget.LowImportance
 
@@ -156,13 +172,13 @@ func (ui *App) build() {
 		func() int { return len(ui.visibleFiles) },
 		newFileListRow,
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
-			row := obj.(*fyne.Container)
-			for _, child := range row.Objects {
-				if lab, ok := child.(*widget.Label); ok {
-					lab.SetText(ui.visibleFiles[id])
-					return
-				}
+			row := obj.(*fileListRow)
+			name := ui.visibleFiles[id]
+			details := ""
+			if summary, ok := ui.fileSummaries[name]; ok {
+				details = formatFileSummary(summary)
 			}
+			updateFileListRow(row, name, details)
 		},
 	)
 	ui.fileList.OnSelected = func(id widget.ListItemID) {
@@ -184,14 +200,14 @@ func (ui *App) build() {
 
 	ui.heroTitle = canvas.NewText("Get started", colFg)
 	ui.heroTitle.TextStyle = fyne.TextStyle{Bold: true}
-	ui.heroTitle.TextSize = 24
+	ui.heroTitle.TextSize = textSizeHeroTitle
 	ui.heroTitle.Alignment = fyne.TextAlignCenter
 	ui.heroBody = widget.NewLabel(
 		"Create or open a vault. Adding files copies them; originals stay in place.",
 	)
 	ui.heroBody.Alignment = fyne.TextAlignCenter
 	ui.heroBody.Wrapping = fyne.TextWrapWord
-	ui.heroLogo = newBrandImage(108)
+	ui.heroLogo = newHeroMark()
 	heroNew := widget.NewButton("Create vault", ui.onCreate)
 	heroNew.Importance = widget.HighImportance
 	heroOpen := widget.NewButton("Open vault", ui.onOpen)
@@ -205,13 +221,8 @@ func (ui *App) build() {
 	heroInner := container.New(&heroContentLayout{}, ui.heroLogo, ui.heroTitle, ui.heroBody, ui.heroActions)
 	heroBg := canvas.NewRectangle(colCard)
 	heroBg.CornerRadius = 12
-	heroGlow := canvas.NewRadialGradient(
-		color.NRGBA{R: 0x00, G: 0xe5, B: 0xc0, A: 0x28},
-		color.NRGBA{A: 0x00},
-	)
 	ui.heroCard = container.NewStack(
 		heroBg,
-		heroGlow,
 		container.NewPadded(heroInner),
 	)
 
@@ -222,6 +233,7 @@ func (ui *App) build() {
 	ui.btnCreate.Importance = widget.HighImportance
 	ui.btnOpen = widget.NewButtonWithIcon("  Open vault", theme.FolderOpenIcon(), ui.onOpen)
 	ui.btnHide = widget.NewButtonWithIcon("  Hide in picture", theme.MediaPhotoIcon(), ui.onHide)
+	ui.compactVaultActions = container.NewVBox(ui.btnCreate, ui.btnOpen, ui.btnHide)
 	ui.btnAdd = widget.NewButtonWithIcon("  Add file", theme.ContentAddIcon(), ui.onAdd)
 	ui.btnAddFolder = widget.NewButtonWithIcon("  Add folder", theme.FolderOpenIcon(), ui.onAddFolder)
 	ui.btnExtract = widget.NewButtonWithIcon("  Save a copy", theme.DownloadIcon(), ui.onExtract)
@@ -229,7 +241,9 @@ func (ui *App) build() {
 	ui.btnDelete = widget.NewButtonWithIcon("  Delete", theme.DeleteIcon(), ui.onDelete)
 	ui.btnPassword = widget.NewButtonWithIcon("  Change password", theme.LoginIcon(), ui.onPassword)
 	ui.btnLock = widget.NewButtonWithIcon("  Lock vault", theme.LogoutIcon(), ui.onLock)
-	ui.btnLock.Importance = widget.DangerImportance
+	ui.fileAddRow = container.NewGridWithColumns(2, ui.btnAdd, ui.btnAddFolder)
+	ui.fileSaveRow = container.NewGridWithColumns(2, ui.btnExtract, ui.btnExtractAll)
+	ui.fileSecurityRow = container.NewGridWithColumns(2, ui.btnPassword, ui.btnLock)
 
 	accentBar := canvas.NewRectangle(colPrimary)
 	accentBar.CornerRadius = 2
@@ -245,6 +259,7 @@ func (ui *App) build() {
 	ui.lockBadgeBg = canvas.NewRectangle(colSidebar)
 	ui.lockBadgeBg.CornerRadius = 10
 	topRight := container.NewHBox(
+		ui.btnCheckUpdates,
 		container.NewStack(chipBg, container.NewPadded(ui.versionChip)),
 		widget.NewLabel(" "),
 		container.NewStack(ui.lockBadgeBg, container.NewPadded(ui.lockBadge)),
@@ -259,41 +274,37 @@ func (ui *App) build() {
 	)
 
 	privacy := canvas.NewText("dnspulse.org  ·  No cloud  ·  No telemetry", colMuted)
-	privacy.TextSize = 11
-	shortcuts := widget.NewLabel("Ctrl+N  New vault\nCtrl+O  Open vault\nCtrl+F  Find file\nCtrl+L  Lock vault")
-	shortcuts.Importance = widget.LowImportance
+	privacy.TextSize = textSizePrivacyNote
+	privacyNote := container.NewPadded(privacy)
+	ui.shortcutGuide = widget.NewLabel("")
+	ui.shortcutGuide.Importance = widget.LowImportance
 	ui.fileNav = container.NewVBox(
 		widget.NewSeparator(),
 		ui.sectionFiles,
-		ui.btnAdd,
-		ui.btnAddFolder,
-		ui.btnExtract,
-		ui.btnExtractAll,
+		ui.fileAddRow,
+		ui.fileSaveRow,
 		ui.btnDelete,
 		widget.NewSeparator(),
-		ui.btnPassword,
-		ui.btnLock,
+		ui.fileSecurityRow,
 	)
 	ui.fileNav.Hide()
 	nav := container.NewVBox(
 		ui.sectionVault,
-		ui.btnCreate,
-		ui.btnOpen,
-		ui.btnHide,
+		ui.compactVaultActions,
 		ui.fileNav,
-		shortcuts,
-		container.NewPadded(privacy),
+		ui.shortcutGuide,
+		privacyNote,
 	)
 	railAccent := canvas.NewRectangle(colPrimary)
 	railAccent.SetMinSize(fyne.NewSize(3, 1))
 	railBg := canvas.NewRectangle(colSidebar)
-	navFloor := canvas.NewRectangle(color.Transparent)
+	navFloor := canvas.NewRectangle(colTransparent)
 	navFloor.SetMinSize(fyne.NewSize(navTargetWidth, 1))
-	navScroll := container.NewVScroll(container.NewPadded(nav))
+	ui.navScroll = container.NewVScroll(container.NewPadded(nav))
 	ui.navRail = container.NewStack(
 		railBg,
 		navFloor,
-		container.NewBorder(nil, nil, railAccent, nil, navScroll),
+		container.NewBorder(nil, nil, railAccent, nil, ui.navScroll),
 	)
 
 	headerRow := container.NewBorder(nil, nil, ui.listHeader, ui.countLabel)
@@ -304,7 +315,11 @@ func (ui *App) build() {
 		widget.NewSeparator(),
 	)
 	stageBg := canvas.NewRectangle(colPanel)
-	stageInner := container.New(&stageContentLayout{}, container.NewPadded(stageHeader), listPane)
+	stageInner := container.New(
+		&stageContentLayout{pathLabel: ui.pathLabel, compactHeight: compactPathCollapseHeight},
+		container.NewPadded(stageHeader),
+		listPane,
+	)
 	ui.mainStage = container.NewStack(stageBg, stageInner)
 
 	statusBg := canvas.NewRectangle(colTopBar)
@@ -314,9 +329,23 @@ func (ui *App) build() {
 
 	ui.split = container.NewHSplit(ui.navRail, ui.mainStage)
 	ui.split.Offset = 0.24
-	fitted := container.New(&splitFitLayout{}, ui.split)
+	fitted := container.New(&splitFitLayout{
+		compactHeight: compactNavHeight,
+		compactHide:   []fyne.CanvasObject{ui.shortcutGuide, privacyNote},
+		compactChange: ui.setCompactSidebar,
+		refresh:       ui.navScroll.Refresh,
+	}, ui.split)
 	ui.root = container.NewBorder(ui.topBar, statusDock, nil, nil, fitted)
 	ui.win.SetContent(ui.root)
+}
+
+// fileListRow is a widget so Fyne's renderer paints its nested container in
+// both the desktop app and the screenshot/test drivers.
+type fileListRow struct {
+	widget.BaseWidget
+	content *fyne.Container
+	name    *widget.Label
+	details *canvas.Text
 }
 
 func newFileListRow() fyne.CanvasObject {
@@ -325,35 +354,180 @@ func newFileListRow() fyne.CanvasObject {
 	name.TextStyle = fyne.TextStyle{Bold: true}
 	name.Wrapping = fyne.TextWrapOff
 	name.Truncation = fyne.TextTruncateEllipsis
-	tag := canvas.NewText("ENCRYPTED", colPrimary)
-	tag.TextSize = 10
-	// Keep the state marker away from the window edge. Without a trailing
-	// gutter, Fyne's border layout places the marker flush against the viewport
-	// and its final letters look clipped in compact windows.
-	trailingGutter := canvas.NewRectangle(color.Transparent)
+	details := canvas.NewText(" ", colMuted)
+	details.TextSize = (&PulseTheme{}).Size(theme.SizeNameCaptionText)
+	// Keep metadata away from the window edge so its final characters stay visible.
+	trailingGutter := canvas.NewRectangle(colTransparent)
 	trailingGutter.SetMinSize(fyne.NewSize(12, 1))
-	trailing := container.NewHBox(tag, trailingGutter)
-	return container.NewBorder(nil, nil, icon, trailing, name)
+	trailing := container.NewHBox(details, trailingGutter)
+	row := &fileListRow{
+		content: container.NewBorder(nil, nil, icon, trailing, name),
+		name:    name,
+		details: details,
+	}
+	row.ExtendBaseWidget(row)
+	return row
+}
+
+func (row *fileListRow) CreateRenderer() fyne.WidgetRenderer {
+	row.ExtendBaseWidget(row)
+	return widget.NewSimpleRenderer(row.content)
+}
+
+func updateFileListRow(row *fileListRow, name, details string) {
+	// Update both children before refreshing the container once. Refreshing
+	// the label and metadata separately would repaint the same virtual row
+	// multiple times during a list scroll or search.
+	row.name.Text = name
+	if details == "" {
+		details = " "
+	}
+	row.details.Text = details
+	row.Refresh()
+}
+
+func (ui *App) setCompactSidebar(compact bool) {
+	if compact {
+		ui.compactVaultActions.Layout = layout.NewGridLayoutWithColumns(3)
+		ui.btnCreate.SetText("New")
+		ui.btnCreate.SetIcon(nil)
+		ui.btnOpen.SetText("Open")
+		ui.btnOpen.SetIcon(nil)
+		ui.btnHide.SetText("Hide")
+		ui.btnHide.SetIcon(nil)
+		ui.btnAdd.SetText("Add file")
+		ui.btnAdd.SetIcon(nil)
+		ui.btnAddFolder.SetText("Add folder")
+		ui.btnAddFolder.SetIcon(nil)
+		ui.btnExtract.SetText("Save a copy")
+		ui.btnExtract.SetIcon(nil)
+		ui.btnExtractAll.SetText("Save all")
+		ui.btnDelete.SetText("Delete")
+		ui.btnDelete.SetIcon(nil)
+		ui.btnPassword.SetText("Password")
+		ui.btnPassword.SetIcon(nil)
+		ui.btnLock.SetText("Lock")
+		ui.btnLock.SetIcon(nil)
+	} else {
+		ui.compactVaultActions.Layout = layout.NewVBoxLayout()
+		ui.btnCreate.SetText("  Create vault")
+		ui.btnCreate.SetIcon(theme.DocumentCreateIcon())
+		ui.btnOpen.SetText("  Open vault")
+		ui.btnOpen.SetIcon(theme.FolderOpenIcon())
+		ui.btnHide.SetText("  Hide in picture")
+		ui.btnHide.SetIcon(theme.MediaPhotoIcon())
+		ui.btnAdd.SetText("  Add file")
+		ui.btnAdd.SetIcon(theme.ContentAddIcon())
+		ui.btnAddFolder.SetText("  Add folder")
+		ui.btnAddFolder.SetIcon(theme.FolderOpenIcon())
+		ui.btnExtract.SetText("  Save a copy")
+		ui.btnExtract.SetIcon(theme.DownloadIcon())
+		ui.btnExtractAll.SetText("  Save all files")
+		ui.btnDelete.SetText("  Delete")
+		ui.btnDelete.SetIcon(theme.DeleteIcon())
+		ui.btnPassword.SetText("  Change password")
+		ui.btnPassword.SetIcon(theme.LoginIcon())
+		ui.btnLock.SetText("  Lock vault")
+		ui.btnLock.SetIcon(theme.LogoutIcon())
+	}
+	ui.compactVaultActions.Refresh()
+	ui.fileNav.Refresh()
+}
+
+func (ui *App) refreshShortcutGuide() {
+	if ui.shortcutGuide == nil {
+		return
+	}
+	lines := []string{"Ctrl+N  New vault", "Ctrl+O  Open vault"}
+	if ui.v != nil && ui.v.IsUnlocked() {
+		if len(ui.files) > 0 {
+			lines = append(lines,
+				"Ctrl+F  Find file",
+				"Ctrl+E  Save selected",
+				"Ctrl+Shift+S  Save all",
+				"Delete  Remove selected",
+			)
+		}
+		lines = append(lines, "Ctrl+L  Lock vault")
+	}
+	ui.shortcutGuide.SetText(strings.Join(lines, "\n"))
+}
+
+func formatFileSummary(summary vault.FileSummary) string {
+	details := formatBytes(summary.Size)
+	if summary.AddedAt > 0 {
+		details += " · Added " + time.Unix(summary.AddedAt, 0).Local().Format("Jan 2")
+	}
+	return details
 }
 
 func (ui *App) bindShortcuts() {
 	c := ui.win.Canvas()
 	c.AddShortcut(&desktop.CustomShortcut{
 		KeyName: fyne.KeyN, Modifier: fyne.KeyModifierControl,
-	}, func(fyne.Shortcut) { ui.onCreate() })
+	}, func(fyne.Shortcut) {
+		if ui.canUseShortcut(false) {
+			ui.onCreate()
+		}
+	})
 	c.AddShortcut(&desktop.CustomShortcut{
 		KeyName: fyne.KeyO, Modifier: fyne.KeyModifierControl,
-	}, func(fyne.Shortcut) { ui.onOpen() })
+	}, func(fyne.Shortcut) {
+		if ui.canUseShortcut(false) {
+			ui.onOpen()
+		}
+	})
 	c.AddShortcut(&desktop.CustomShortcut{
 		KeyName: fyne.KeyL, Modifier: fyne.KeyModifierControl,
-	}, func(fyne.Shortcut) { ui.onLock() })
+	}, func(fyne.Shortcut) {
+		if ui.canUseShortcut(false) {
+			ui.onLock()
+		}
+	})
 	c.AddShortcut(&desktop.CustomShortcut{
 		KeyName: fyne.KeyF, Modifier: fyne.KeyModifierControl,
 	}, func(fyne.Shortcut) {
-		if ui.search.Visible() && !ui.jobs.Busy() {
+		if ui.search.Visible() && ui.canUseShortcut(true) {
 			c.Focus(ui.search)
 		}
 	})
+	c.AddShortcut(&desktop.CustomShortcut{
+		KeyName: fyne.KeyE, Modifier: fyne.KeyModifierControl,
+	}, func(fyne.Shortcut) {
+		if ui.canUseShortcut(false) {
+			ui.onExtract()
+		}
+	})
+	c.AddShortcut(&desktop.CustomShortcut{
+		KeyName: fyne.KeyS, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift,
+	}, func(fyne.Shortcut) {
+		if ui.canUseShortcut(false) {
+			ui.onExtractAll()
+		}
+	})
+	c.AddShortcut(&desktop.CustomShortcut{
+		KeyName: fyne.KeyDelete,
+	}, func(fyne.Shortcut) {
+		if ui.canUseShortcut(false) {
+			ui.onDelete()
+		}
+	})
+}
+
+// canUseShortcut keeps global commands from firing while the user is typing,
+// a dialog is open, or a long-running operation owns the workspace.
+func (ui *App) canUseShortcut(allowSearchFocus bool) bool {
+	if ui.jobs.Busy() || ui.win == nil {
+		return false
+	}
+	c := ui.win.Canvas()
+	if c.Overlays().Top() != nil {
+		return false
+	}
+	if entry, ok := c.Focused().(*widget.Entry); ok {
+		return allowSearchFocus && entry == ui.search
+	}
+	return true
 }
 
 func (ui *App) onDropped(_ fyne.Position, uris []fyne.URI) {
@@ -451,7 +625,11 @@ func (ui *App) syncStage() {
 		ui.noSearchResults.Show()
 	} else {
 		ui.noSearchResults.Hide()
+		wasHidden := !ui.fileList.Visible()
 		ui.fileList.Show()
+		if wasHidden {
+			ui.fileList.Refresh()
+		}
 	}
 }
 
@@ -467,10 +645,12 @@ func (ui *App) syncNavigation(unlocked bool) {
 	if len(ui.files) == 0 {
 		ui.btnExtract.Hide()
 		ui.btnExtractAll.Hide()
+		ui.fileSaveRow.Hide()
 		ui.btnDelete.Hide()
 	} else {
 		ui.btnExtract.Show()
 		ui.btnExtractAll.Show()
+		ui.fileSaveRow.Show()
 		ui.btnDelete.Show()
 	}
 	ui.fileNav.Refresh()
@@ -511,10 +691,12 @@ func (ui *App) setBusyChromeForOperation(busy, cancellable bool) {
 		ui.btnDelete.Disable()
 		ui.btnPassword.Disable()
 		ui.btnLock.Disable()
+		ui.btnCheckUpdates.Disable()
 	} else {
 		ui.progress.Hide()
 		ui.busyPip.Hide()
 		ui.btnCancel.Hide()
+		ui.btnCheckUpdates.Enable()
 		if ui.v != nil && ui.v.IsUnlocked() {
 			ui.btnCreate.Enable()
 			ui.btnOpen.Enable()
@@ -620,7 +802,13 @@ func (ui *App) runAsyncWithOptionsAndCancel(op, pendingMsg string, work func(con
 				if errors.Is(err, context.Canceled) {
 					ui.jobs.Finish("Cancelled")
 					ui.setBusyChrome(false)
-					ui.setStatus("Cancelled — completed file outputs remain; the vault file is unchanged.")
+					if op == "Download update" {
+						ui.setStatus("Update download cancelled; the incomplete file was discarded.")
+					} else if op == "Check for updates" {
+						ui.setStatus("Update check cancelled; no update was downloaded.")
+					} else {
+						ui.setStatus("Cancelled — completed file outputs remain; the vault file is unchanged.")
+					}
 					return
 				}
 				ui.jobs.Finish("Failed: " + err.Error())
@@ -650,6 +838,8 @@ func (j *JobState) messageOr(fallback string) string {
 
 func (ui *App) setLockedUI() {
 	ui.files = nil
+	ui.fileSummaries = nil
+	ui.searchNames = nil
 	ui.visibleFiles = nil
 	ui.search.SetText("")
 	ui.selected = ""
@@ -657,7 +847,7 @@ func (ui *App) setLockedUI() {
 	ui.fileList.Refresh()
 	ui.syncStage()
 	ui.pathLabel.SetText("No vault selected")
-	ui.listHeader.SetText("Secure files")
+	ui.listHeader.SetText("Encrypted files")
 	ui.countLabel.SetText("0 items")
 	ui.lockBadge.Text = "  ●  LOCKED  "
 	ui.lockBadge.Color = colLockRed
@@ -674,18 +864,24 @@ func (ui *App) setLockedUI() {
 		ui.btnOpen.Enable()
 		ui.btnHide.Enable()
 	}
+	ui.refreshShortcutGuide()
+	ui.updateActionHierarchy(true)
 }
 
 func (ui *App) setUnlockedUI(path string) {
 	ui.search.SetText("")
 	ui.selected = ""
 	ui.fileList.UnselectAll()
-	if ui.v != nil && ui.v.HasCarrier() {
-		ui.pathLabel.SetText(fmt.Sprintf("%s  ·  hidden inside picture · %d byte prefix", path, ui.v.CarrierPrefix()))
-	} else {
-		ui.pathLabel.SetText(path)
+	vaultName := filepath.Base(path)
+	if vaultName == "" || vaultName == "." {
+		vaultName = "Vault"
 	}
-	ui.listHeader.SetText("Secure files — unlocked")
+	if ui.v != nil && ui.v.HasCarrier() {
+		ui.pathLabel.SetText(fmt.Sprintf("%s  ·  hidden inside picture · %d byte prefix", vaultName, ui.v.CarrierPrefix()))
+	} else {
+		ui.pathLabel.SetText(vaultName)
+	}
+	ui.listHeader.SetText("Encrypted files")
 	ui.lockBadge.Text = "  ●  UNLOCKED  "
 	ui.lockBadge.Color = colUnlockTeal
 	ui.lockBadge.Refresh()
@@ -707,10 +903,13 @@ func (ui *App) setUnlockedUI(path string) {
 func (ui *App) refreshList() {
 	if ui.v == nil || !ui.v.IsUnlocked() {
 		ui.files = nil
+		ui.fileSummaries = nil
+		ui.searchNames = nil
 		ui.visibleFiles = nil
 		ui.fileList.Refresh()
 		ui.countLabel.SetText("0 items")
 		ui.syncStage()
+		ui.updateActionHierarchy(true)
 		return
 	}
 	names, err := ui.v.ListFiles()
@@ -719,6 +918,15 @@ func (ui *App) refreshList() {
 		return
 	}
 	ui.files = names
+	ui.refreshShortcutGuide()
+	ui.updateActionHierarchy(false)
+	ui.fileSummaries = make(map[string]vault.FileSummary, len(names))
+	for _, name := range names {
+		if summary, summaryErr := ui.v.GetFileSummary(name); summaryErr == nil {
+			ui.fileSummaries[name] = summary
+		}
+	}
+	ui.searchNames = nil
 	if ui.selected != "" {
 		found := false
 		for _, name := range names {
@@ -748,14 +956,39 @@ func (ui *App) refreshList() {
 	}
 }
 
-func (ui *App) filterFiles() {
-	query := strings.ToLower(strings.TrimSpace(ui.search.Text))
-	ui.visibleFiles = make([]string, 0, len(ui.files))
-	for _, name := range ui.files {
-		if query == "" || strings.Contains(strings.ToLower(name), query) {
-			ui.visibleFiles = append(ui.visibleFiles, name)
-		}
+func (ui *App) updateActionHierarchy(locked bool) {
+	createImportance := widget.MediumImportance
+	addImportance := widget.MediumImportance
+	if locked {
+		createImportance = widget.HighImportance
+	} else if len(ui.files) > 0 {
+		addImportance = widget.HighImportance
 	}
+	setButtonImportance(ui.btnCreate, createImportance)
+	setButtonImportance(ui.btnOpen, widget.MediumImportance)
+	setButtonImportance(ui.btnHide, widget.MediumImportance)
+	setButtonImportance(ui.btnAdd, addImportance)
+	setButtonImportance(ui.btnAddFolder, widget.MediumImportance)
+	setButtonImportance(ui.btnLock, widget.MediumImportance)
+	// The action rail owns these controls as a group. Refreshing the parent
+	// keeps child renderers in sync when a vault transition updates importance.
+	if ui.compactVaultActions != nil {
+		ui.compactVaultActions.Refresh()
+	}
+}
+
+func setButtonImportance(button *widget.Button, importance widget.Importance) {
+	// File-list refreshes should not repaint controls whose visual priority is unchanged.
+	if button.Importance == importance {
+		return
+	}
+	button.Importance = importance
+	button.Refresh()
+}
+
+func (ui *App) filterFiles() {
+	query := strings.TrimSpace(ui.search.Text)
+	ui.searchNames, ui.visibleFiles = filterFileNames(ui.files, ui.searchNames, query, ui.visibleFiles)
 	ui.selected = ""
 	ui.fileList.UnselectAll()
 	ui.fileList.Refresh()
@@ -770,56 +1003,140 @@ func (ui *App) filterFiles() {
 	ui.setFileActionAvailability()
 }
 
+func (ui *App) chooseOutputPath(title, confirm, initialName, initialFolder string, normalize func(string) string, onSave func(string)) {
+	name := widget.NewEntry()
+	name.SetText(initialName)
+	name.SetPlaceHolder("File name")
+	name.Validator = validateOutputName
+
+	folder := widget.NewEntry()
+	folder.SetText(initialFolder)
+	folder.SetPlaceHolder("Choose a folder")
+	folder.Validator = validateOutputFolder
+	browse := widget.NewButtonWithIcon("Browse…", theme.FolderOpenIcon(), func() {
+		showLocalFolder("Save folder", folder.Text, func(uri fyne.ListableURI, err error) {
+			if err != nil {
+				dialog.ShowError(err, ui.win)
+				return
+			}
+			if uri != nil {
+				folder.SetText(uri.Path())
+			}
+		}, ui.win)
+	})
+	items := []*widget.FormItem{
+		widget.NewFormItem("Name", name),
+		widget.NewFormItem("Save folder", folder),
+		widget.NewFormItem("", browse),
+	}
+	form := dialog.NewForm(title, confirm, "Cancel", items, func(ok bool) {
+		if !ok {
+			return
+		}
+		if err := validateOutputName(name.Text); err != nil {
+			dialog.ShowError(err, ui.win)
+			return
+		}
+		if err := validateOutputFolder(folder.Text); err != nil {
+			dialog.ShowError(err, ui.win)
+			return
+		}
+		path := normalize(filepath.Join(folder.Text, name.Text))
+		if err := ensureDestinationAbsent(path); err != nil {
+			dialog.ShowError(err, ui.win)
+			return
+		}
+		onSave(path)
+	}, ui.win)
+	form.Resize(fyne.NewSize(640, 260))
+	form.Show()
+}
+
 func (ui *App) onCreate() {
 	if ui.jobs.Busy() {
 		ui.setStatus("Busy — wait for the current operation to finish.")
 		return
 	}
-	dialog.ShowFileSave(func(uc fyne.URIWriteCloser, err error) {
-		if err != nil {
-			ui.setStatus("Create cancelled: " + err.Error())
-			return
-		}
-		if uc == nil {
-			return
-		}
-		path := uc.URI().Path()
-		_ = uc.Close()
-		if path == "" {
-			return
-		}
-		final, remove := PrepareCreatePath(path)
-		for _, p := range remove {
-			_ = os.Remove(p)
-		}
-		path = final
-		ui.promptPassword("Create vault password", true, func(pw string) {
-			if pw == "" {
-				ui.setStatus("Create cancelled — empty password.")
-				return
-			}
-			if warn := vault.PasswordPolicyError(pw); warn != "" {
-				dialog.ShowInformation("Password warning", warn, ui.win)
-			}
-			var created *vault.Vault
-			ui.runAsync("Create vault", "Deriving key & writing V6 container…", func() error {
-				v := vault.New(path)
-				if err := v.Create(pw, "standard"); err != nil {
-					return err
+	folder, err := os.UserHomeDir()
+	if err != nil {
+		folder = "."
+	}
+	ui.chooseOutputPath("Create vault", "Create", "New vault", folder, PrepareCreatePath, func(path string) {
+		ui.promptNewVaultProfile("New vault password hardening", func(profile string) {
+			ui.promptPassword("Create vault password", true, func(pw string) {
+				if pw == "" {
+					ui.setStatus("Create cancelled — empty password.")
+					return
 				}
-				created = v
-				return nil
-			}, func() {
-				if ui.v != nil {
-					ui.v.Lock()
-				}
-				ui.v = created
-				ui.setUnlockedUI(path)
-				ui.jobs.Finish("Vault created: " + filepath.Base(path))
-				ui.setStatus("Vault created: " + filepath.Base(path))
+				ui.confirmPasswordPolicy(pw, func() {
+					var created *vault.Vault
+					ui.runAsync("Create vault", "Deriving key & writing V6 container…", func() error {
+						v := vault.New(path)
+						if err := v.Create(pw, profile); err != nil {
+							return err
+						}
+						created = v
+						return nil
+					}, func() {
+						if ui.v != nil {
+							ui.v.Lock()
+						}
+						ui.v = created
+						ui.setUnlockedUI(path)
+						ui.jobs.Finish("Vault created: " + filepath.Base(path))
+						ui.setStatus("Vault created: " + filepath.Base(path))
+					})
+				})
 			})
 		})
+	})
+}
+
+func (ui *App) promptNewVaultProfile(title string, done func(string)) (*dialog.ConfirmDialog, *widget.Select) {
+	standard := kdfProfileOption("standard")
+	hardened := kdfProfileOption("hardened")
+	choice := widget.NewSelect([]string{standard, hardened}, nil)
+	choice.SetSelected(standard)
+	details := wrappedLabel(kdfProfileExplanation("standard"))
+	choice.OnChanged = func(option string) {
+		details.SetText(kdfProfileExplanation(kdfProfileFromOption(option)))
+	}
+	content := container.NewVBox(
+		wrappedLabel("A copy of the vault allows offline password guesses. A long, unique passphrase matters most."),
+		container.NewGridWithColumns(2, widget.NewLabel("Key derivation"), choice),
+		details,
+	)
+	d := dialog.NewCustomConfirm(title, "Continue", "Cancel", content, func(ok bool) {
+		if !ok {
+			return
+		}
+		profile := kdfProfileFromOption(choice.Selected)
+		if profile == "" {
+			ui.setStatus("Choose a password-hardening profile to continue.")
+			return
+		}
+		done(profile)
 	}, ui.win)
+	d.Resize(fyne.NewSize(560, 310))
+	d.Show()
+	return d, choice
+}
+
+func (ui *App) confirmPasswordPolicy(password string, proceed func()) *dialog.ConfirmDialog {
+	warning := vault.PasswordPolicyError(password)
+	if warning == "" {
+		proceed()
+		return nil
+	}
+	content := wrappedLabel(warning + " This check catches a few common patterns but cannot estimate password strength. Anyone holding a vault copy can test guesses offline; use a long, unique passphrase.")
+	d := dialog.NewCustomConfirm("Password strength warning", "Use anyway", "Cancel", content, func(ok bool) {
+		if ok {
+			proceed()
+		}
+	}, ui.win)
+	d.Resize(fyne.NewSize(520, 230))
+	d.Show()
+	return d
 }
 
 func (ui *App) onOpen() {
@@ -827,7 +1144,7 @@ func (ui *App) onOpen() {
 		ui.setStatus("Busy — wait for the current operation to finish.")
 		return
 	}
-	dialog.ShowFileOpen(func(uc fyne.URIReadCloser, err error) {
+	showLocalFile("Open a vault", func(uc fyne.URIReadCloser, err error) {
 		if err != nil {
 			ui.setStatus("Open cancelled: " + err.Error())
 			return
@@ -875,7 +1192,7 @@ func (ui *App) onHide() {
 		ui.setStatus("Busy — wait for the current operation to finish.")
 		return
 	}
-	dialog.ShowFileOpen(func(uc fyne.URIReadCloser, err error) {
+	showLocalFile("Choose a picture", func(uc fyne.URIReadCloser, err error) {
 		if err != nil {
 			ui.setStatus("Hide cancelled: " + err.Error())
 			return
@@ -898,7 +1215,11 @@ func (ui *App) onHide() {
 			if chooser != nil {
 				chooser.Hide()
 			}
-			ui.hideWithDest(carrier, carrier)
+			dialog.ShowConfirm("Replace the selected media file?", "The original file will be atomically replaced by a copy with the encrypted vault appended. Choose Save a copy to keep the original media file.", func(ok bool) {
+				if ok {
+					ui.hideWithDest(carrier, carrier)
+				}
+			}, ui.win)
 		})
 		embedBtn.Importance = widget.HighImportance
 		copyBtn := widget.NewButton("Save a copy", func() {
@@ -914,53 +1235,43 @@ func (ui *App) onHide() {
 }
 
 func (ui *App) hideSaveCopy(carrier string) {
-	dialog.ShowFileSave(func(uc fyne.URIWriteCloser, err error) {
-		if err != nil {
-			ui.setStatus("Hide cancelled: " + err.Error())
-			return
-		}
-		if uc == nil {
-			return
-		}
-		path := uc.URI().Path()
-		_ = uc.Close()
-		if path == "" {
-			return
-		}
-		final, remove := PrepareHidePath(path, carrier)
-		for _, p := range remove {
-			_ = os.Remove(p)
-		}
-		ui.hideWithDest(final, carrier)
-	}, ui.win)
+	carrierBase := filepath.Base(carrier)
+	carrierExt := filepath.Ext(carrierBase)
+	defaultName := strings.TrimSuffix(carrierBase, carrierExt) + " (copy)" + carrierExt
+	ui.chooseOutputPath("Save hidden vault copy", "Save copy", defaultName, filepath.Dir(carrier), func(path string) string {
+		return PrepareHidePath(path, carrier)
+	}, func(path string) {
+		ui.hideWithDest(path, carrier)
+	})
 }
 
 func (ui *App) hideWithDest(dest, carrier string) {
-	ui.promptPassword("Hide-in-picture password", true, func(pw string) {
-		if pw == "" {
-			ui.setStatus("Hide cancelled — empty password.")
-			return
-		}
-		if warn := vault.PasswordPolicyError(pw); warn != "" {
-			dialog.ShowInformation("Password warning", warn, ui.win)
-		}
-		var created *vault.Vault
-		ui.runAsync("Hide in picture", "Embedding vault after the picture…", func() error {
-			v := vault.New(dest)
-			if err := v.CreateWithCarrier(pw, "standard", carrier); err != nil {
-				return err
+	ui.promptNewVaultProfile("Hidden vault password hardening", func(profile string) {
+		ui.promptPassword("Hide-in-picture password", true, func(pw string) {
+			if pw == "" {
+				ui.setStatus("Hide cancelled — empty password.")
+				return
 			}
-			created = v
-			return nil
-		}, func() {
-			if ui.v != nil {
-				ui.v.Lock()
-			}
-			ui.v = created
-			ui.setUnlockedUI(dest)
-			base := filepath.Base(dest)
-			ui.jobs.Finish("Hidden in picture: " + base)
-			ui.setStatus("Vault hidden in " + base + " — the file still opens as a picture.")
+			ui.confirmPasswordPolicy(pw, func() {
+				var created *vault.Vault
+				ui.runAsync("Hide in picture", "Embedding vault after the picture…", func() error {
+					v := vault.New(dest)
+					if err := v.CreateWithCarrier(pw, profile, carrier); err != nil {
+						return err
+					}
+					created = v
+					return nil
+				}, func() {
+					if ui.v != nil {
+						ui.v.Lock()
+					}
+					ui.v = created
+					ui.setUnlockedUI(dest)
+					base := filepath.Base(dest)
+					ui.jobs.Finish("Hidden in picture: " + base)
+					ui.setStatus("Vault hidden in " + base + " — the file still opens as a picture.")
+				})
+			})
 		})
 	})
 }
@@ -974,7 +1285,7 @@ func (ui *App) onAdd() {
 		ui.setStatus("Busy — wait for the current operation to finish.")
 		return
 	}
-	dialog.ShowFileOpen(func(uc fyne.URIReadCloser, err error) {
+	showLocalFile("Add a file", func(uc fyne.URIReadCloser, err error) {
 		if err != nil || uc == nil {
 			return
 		}
@@ -996,7 +1307,7 @@ func (ui *App) onAddFolder() {
 		ui.setStatus("Busy — wait for the current operation to finish.")
 		return
 	}
-	dialog.ShowFolderOpen(func(folder fyne.ListableURI, err error) {
+	showLocalFolder("Add a folder", "", func(folder fyne.ListableURI, err error) {
 		if err != nil || folder == nil {
 			return
 		}
@@ -1079,7 +1390,7 @@ func (ui *App) onExtract() {
 				ui.setStatus("No filename given.")
 				return
 			}
-			dialog.ShowFolderOpen(func(lu fyne.ListableURI, err error) {
+			showLocalFolder("Save file to folder", "", func(lu fyne.ListableURI, err error) {
 				if err != nil || lu == nil {
 					return
 				}
@@ -1106,7 +1417,7 @@ func (ui *App) onExtractAll() {
 		ui.setStatus("Vault is empty.")
 		return
 	}
-	dialog.ShowFolderOpen(func(folder fyne.ListableURI, err error) {
+	showLocalFolder("Save all files to folder", "", func(folder fyne.ListableURI, err error) {
 		if err != nil || folder == nil {
 			return
 		}
@@ -1235,6 +1546,17 @@ func (ui *App) onPassword() {
 		ui.setStatus("Busy — wait for the current operation to finish.")
 		return
 	}
+	keepCurrent := keepCurrentKDFOption(ui.v.Profile)
+	profile := widget.NewSelect([]string{keepCurrent, kdfProfileOption("standard"), kdfProfileOption("hardened")}, nil)
+	profile.SetSelected(keepCurrent)
+	profileInfo := wrappedLabel(kdfProfileExplanation(""))
+	profile.OnChanged = func(option string) {
+		if option == keepCurrent {
+			profileInfo.SetText(kdfProfileExplanation(""))
+			return
+		}
+		profileInfo.SetText(kdfProfileExplanation(kdfProfileFromOption(option)))
+	}
 	old := widget.NewPasswordEntry()
 	old.SetPlaceHolder("Current password")
 	neu := widget.NewPasswordEntry()
@@ -1245,6 +1567,8 @@ func (ui *App) onPassword() {
 		widget.NewFormItem("Current", old),
 		widget.NewFormItem("New", neu),
 		widget.NewFormItem("Confirm", conf),
+		widget.NewFormItem("KDF profile", profile),
+		widget.NewFormItem("Profile info", profileInfo),
 	}
 	d := dialog.NewForm("Change password", "OK", "Cancel", items, func(ok bool) {
 		if !ok {
@@ -1258,23 +1582,30 @@ func (ui *App) onPassword() {
 			dialog.ShowError(fmt.Errorf("password cannot be empty"), ui.win)
 			return
 		}
-		if warn := vault.PasswordPolicyError(neu.Text); warn != "" {
-			dialog.ShowInformation("Password warning", warn, ui.win)
+		profileName := ""
+		if profile.Selected != keepCurrent {
+			profileName = kdfProfileFromOption(profile.Selected)
+			if profileName == "" {
+				dialog.ShowError(fmt.Errorf("choose a supported KDF profile"), ui.win)
+				return
+			}
 		}
-		space, err := ui.v.EstimatePasswordRotationTemporaryBytes()
-		if err != nil {
-			dialog.ShowError(err, ui.win)
-			return
-		}
-		pending := fmt.Sprintf("Re-encrypting vault… temporary space may peak near %s", formatBytes(space))
-		ui.runAsyncWithOptions("Change password", pending, func(ctx context.Context, report func(vault.OperationUpdate)) error {
-			return ui.v.ChangePasswordWithOptions(old.Text, neu.Text, vault.OperationOptions{Context: ctx, Progress: report})
-		}, func() {
-			ui.jobs.Finish("Password changed")
-			ui.setStatus("Password changed.")
+		ui.confirmPasswordPolicy(neu.Text, func() {
+			space, err := ui.v.EstimatePasswordRotationTemporaryBytes()
+			if err != nil {
+				dialog.ShowError(err, ui.win)
+				return
+			}
+			pending := fmt.Sprintf("Re-encrypting vault… temporary space may peak near %s", formatBytes(space))
+			ui.runAsyncWithOptions("Change password", pending, func(ctx context.Context, report func(vault.OperationUpdate)) error {
+				return ui.v.ChangePasswordWithProfileAndOptions(old.Text, neu.Text, profileName, vault.OperationOptions{Context: ctx, Progress: report})
+			}, func() {
+				ui.jobs.Finish("Password changed")
+				ui.setStatus("Password changed.")
+			})
 		})
 	}, ui.win)
-	d.Resize(fyne.NewSize(420, 260))
+	d.Resize(fyne.NewSize(520, 390))
 	d.Show()
 }
 

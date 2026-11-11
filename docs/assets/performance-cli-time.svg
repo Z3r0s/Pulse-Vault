@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 750"
+     role="img" aria-labelledby="title desc" aria-label="CLI operation duration by workload">
+  <title id="title">CLI operation duration by workload</title>
+  <desc id="desc">Two verified CLI workloads shown on separate, clearly labeled scales. The repeated workload contains 1,000 4 KiB files. The random workload contains eight 10 MiB files. Each bar is an operation time in seconds.</desc>
+  <rect width="100%" height="100%" fill="#0b1117"/>
+  <text x="48.0" y="51.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" text-anchor="start">CLI operation duration</text>
+  <text x="48.0" y="82.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="400" text-anchor="start">Measured with the real CLI · restored paths and SHA-256 digests verified</text>
+  <text x="48.0" y="137.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="650" text-anchor="start">1,000 × 4 KiB repeated</text>
+  <text x="48.0" y="164.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">1,000 files · 4.096 MB input · 0.701 MB vault</text>
+  <text x="672.0" y="137.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">6-second scale</text>
+  <text x="180.0" y="224.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end">Create</text>
+  <line x1="194.0" y1="209.0" x2="194.0" y2="236.0" stroke="#30404b" stroke-width="1"/>
+  <rect x="194.0" y="215.0" width="6.3" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="618.0" y="228.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="650" text-anchor="start">0.093 s</text>
+  <text x="180.0" y="284.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end">Initial add</text>
+  <line x1="194.0" y1="269.0" x2="194.0" y2="296.0" stroke="#30404b" stroke-width="1"/>
+  <rect x="194.0" y="275.0" width="116.9" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="618.0" y="288.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="650" text-anchor="start">1.723 s</text>
+  <text x="180.0" y="344.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end">Incremental add</text>
+  <line x1="194.0" y1="329.0" x2="194.0" y2="356.0" stroke="#30404b" stroke-width="1"/>
+  <rect x="194.0" y="335.0" width="119.7" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="618.0" y="348.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="650" text-anchor="start">1.765 s</text>
+  <text x="180.0" y="404.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end">Verify</text>
+  <line x1="194.0" y1="389.0" x2="194.0" y2="416.0" stroke="#30404b" stroke-width="1"/>
+  <rect x="194.0" y="395.0" width="22.7" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="618.0" y="408.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="650" text-anchor="start">0.335 s</text>
+  <text x="180.0" y="464.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end">Extract all</text>
+  <line x1="194.0" y1="449.0" x2="194.0" y2="476.0" stroke="#30404b" stroke-width="1"/>
+  <rect x="194.0" y="455.0" width="293.4" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="618.0" y="468.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="650" text-anchor="start">4.326 s</text>
+  <text x="180.0" y="524.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end">Delete batch</text>
+  <line x1="194.0" y1="509.0" x2="194.0" y2="536.0" stroke="#30404b" stroke-width="1"/>
+  <rect x="194.0" y="515.0" width="8.6" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="618.0" y="528.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="650" text-anchor="start">0.127 s</text>
+  <text x="180.0" y="584.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end">Verify after delete</text>
+  <line x1="194.0" y1="569.0" x2="194.0" y2="596.0" stroke="#30404b" stroke-width="1"/>
+  <rect x="194.0" y="575.0" width="20.9" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="618.0" y="588.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="650" text-anchor="start">0.308 s</text>
+  <line x1="194.0" y1="195.0" x2="194.0" y2="601.0" stroke="#30404b" stroke-width="1"/>
+  <text x="194.0" y="616.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">0</text>
+  <line x1="261.8" y1="195.0" x2="261.8" y2="601.0" stroke="#30404b" stroke-width="1"/>
+  <text x="261.8" y="616.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">1</text>
+  <line x1="329.7" y1="195.0" x2="329.7" y2="601.0" stroke="#30404b" stroke-width="1"/>
+  <text x="329.7" y="616.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">2</text>
+  <line x1="397.5" y1="195.0" x2="397.5" y2="601.0" stroke="#30404b" stroke-width="1"/>
+  <text x="397.5" y="616.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">3</text>
+  <line x1="465.3" y1="195.0" x2="465.3" y2="601.0" stroke="#30404b" stroke-width="1"/>
+  <text x="465.3" y="616.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">4</text>
+  <line x1="533.2" y1="195.0" x2="533.2" y2="601.0" stroke="#30404b" stroke-width="1"/>
+  <text x="533.2" y="616.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">5</text>
+  <line x1="601.0" y1="195.0" x2="601.0" y2="601.0" stroke="#30404b" stroke-width="1"/>
+  <text x="601.0" y="616.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">6</text>
+  <text x="397.5" y="644.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle">Duration (seconds)</text>
+  <text x="748.0" y="137.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="650" text-anchor="start">8 × 10 MiB random</text>
+  <text x="748.0" y="164.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">8 files · 83.886 MB input · 83.895 MB vault</text>
+  <text x="1372.0" y="137.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">0.5-second scale</text>
+  <text x="880.0" y="224.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end">Create</text>
+  <line x1="894.0" y1="209.0" x2="894.0" y2="236.0" stroke="#30404b" stroke-width="1"/>
+  <rect x="894.0" y="215.0" width="73.3" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="1318.0" y="228.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="650" text-anchor="start">0.090 s</text>
+  <text x="880.0" y="284.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end">Initial add</text>
+  <line x1="894.0" y1="269.0" x2="894.0" y2="296.0" stroke="#30404b" stroke-width="1"/>
+  <rect x="894.0" y="275.0" width="182.1" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="1318.0" y="288.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="650" text-anchor="start">0.224 s</text>
+  <text x="880.0" y="344.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end">Incremental add</text>
+  <line x1="894.0" y1="329.0" x2="894.0" y2="356.0" stroke="#30404b" stroke-width="1"/>
+  <rect x="894.0" y="335.0" width="228.6" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="1318.0" y="348.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="650" text-anchor="start">0.281 s</text>
+  <text x="880.0" y="404.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end">Verify</text>
+  <line x1="894.0" y1="389.0" x2="894.0" y2="416.0" stroke="#30404b" stroke-width="1"/>
+  <rect x="894.0" y="395.0" width="159.8" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="1318.0" y="408.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="650" text-anchor="start">0.196 s</text>
+  <text x="880.0" y="464.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end">Extract all</text>
+  <line x1="894.0" y1="449.0" x2="894.0" y2="476.0" stroke="#30404b" stroke-width="1"/>
+  <rect x="894.0" y="455.0" width="219.6" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="1318.0" y="468.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="650" text-anchor="start">0.270 s</text>
+  <text x="880.0" y="524.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end">Delete batch</text>
+  <line x1="894.0" y1="509.0" x2="894.0" y2="536.0" stroke="#30404b" stroke-width="1"/>
+  <rect x="894.0" y="515.0" width="123.6" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="1318.0" y="528.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="650" text-anchor="start">0.152 s</text>
+  <text x="880.0" y="584.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="end">Verify after delete</text>
+  <line x1="894.0" y1="569.0" x2="894.0" y2="596.0" stroke="#30404b" stroke-width="1"/>
+  <rect x="894.0" y="575.0" width="112.3" height="17.0" rx="3" fill="#22d3d5"/>
+  <text x="1318.0" y="588.0" fill="#edf3f6" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="650" text-anchor="start">0.138 s</text>
+  <line x1="894.0" y1="195.0" x2="894.0" y2="601.0" stroke="#30404b" stroke-width="1"/>
+  <text x="894.0" y="616.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">0.0</text>
+  <line x1="975.4" y1="195.0" x2="975.4" y2="601.0" stroke="#30404b" stroke-width="1"/>
+  <text x="975.4" y="616.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">0.1</text>
+  <line x1="1056.8" y1="195.0" x2="1056.8" y2="601.0" stroke="#30404b" stroke-width="1"/>
+  <text x="1056.8" y="616.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">0.2</text>
+  <line x1="1138.2" y1="195.0" x2="1138.2" y2="601.0" stroke="#30404b" stroke-width="1"/>
+  <text x="1138.2" y="616.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">0.3</text>
+  <line x1="1219.6" y1="195.0" x2="1219.6" y2="601.0" stroke="#30404b" stroke-width="1"/>
+  <text x="1219.6" y="616.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">0.4</text>
+  <line x1="1301.0" y1="195.0" x2="1301.0" y2="601.0" stroke="#30404b" stroke-width="1"/>
+  <text x="1301.0" y="616.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle">0.5</text>
+  <text x="1097.5" y="644.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle">Duration (seconds)</text>
+  <line x1="720.0" y1="116.0" x2="720.0" y2="611.0" stroke="#30404b" stroke-width="1"/>
+  <line x1="48.0" y1="692.0" x2="1392.0" y2="692.0" stroke="#30404b" stroke-width="1"/>
+  <text x="48.0" y="727.0" fill="#a6b4bd" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start">Axes are scaled separately; compare the labels and workload details, not bar lengths across panels.</text>
+  <text x="1392.0" y="727.0" fill="#8798a3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end">Measured 2026-11-08 · Standard profile · synthetic workloads</text>
+</svg>

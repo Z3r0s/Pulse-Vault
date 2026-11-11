@@ -129,7 +129,7 @@ build_cli() {
   fi
   echo "  building CLI"
   mkdir -p "$(dirname "$dest")"
-  (cd "$root/gui-go" && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o "$dest" ./cmd/pulse-vault)
+  (cd "$root/gui-go" && CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags "-s -w" -o "$dest" ./cmd/pulse-vault)
 }
 
 build_gui() {
@@ -141,7 +141,7 @@ build_gui() {
   fi
   echo "  building GUI from source (needs CGO + OpenGL headers)"
   mkdir -p "$(dirname "$dest")"
-  (cd "$root/gui-go" && CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o "$dest" .)
+  (cd "$root/gui-go" && CGO_ENABLED=1 go build -trimpath -buildvcs=false -ldflags "-s -w" -o "$dest" .)
 }
 
 echo "Pulse-Vault  ·  DNSPulse  ·  $SITE"

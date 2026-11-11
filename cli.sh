@@ -30,7 +30,7 @@ build_cli() {
     exit 2
   fi
   echo "Building pulse-vault ..."
-  (cd "$ROOT" && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o "$OUT" ./gui-go/cmd/pulse-vault)
+  (cd "$ROOT" && CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags "-s -w" -o "$OUT" ./gui-go/cmd/pulse-vault)
 }
 
 if [ "$FORCE" -eq 1 ] || [ ! -x "$OUT" ]; then

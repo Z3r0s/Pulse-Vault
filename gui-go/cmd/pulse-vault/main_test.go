@@ -112,6 +112,44 @@ func TestCLIWrongPassword(t *testing.T) {
 	}
 }
 
+func TestCLIBatchDelete(t *testing.T) {
+	dir := t.TempDir()
+	vaultPath := filepath.Join(dir, "batch-delete.pulsevault")
+	password := "BatchDeleteCLIPassword!!"
+	run := func(args ...string) (string, error) {
+		return runCLI(t, args...)
+	}
+	if out, err := run("create", vaultPath, "--password", password, "--profile", "fast"); err != nil {
+		t.Fatalf("create: %v\n%s", err, out)
+	}
+	source := filepath.Join(dir, "source")
+	if err := os.Mkdir(source, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"one.txt", "two.txt", "keep.txt"} {
+		if err := os.WriteFile(filepath.Join(source, name), []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out, err := run("add", vaultPath, "--password", password, source); err != nil {
+		t.Fatalf("add: %v\n%s", err, out)
+	}
+	out, err := run("delete", vaultPath, "--password", password, "one.txt", "two.txt")
+	if err != nil {
+		t.Fatalf("batch delete: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "Deleted 2 files in one vault rewrite") {
+		t.Fatalf("batch delete summary missing: %s", out)
+	}
+	out, err = run("list", vaultPath, "--password", password)
+	if err != nil {
+		t.Fatalf("list after delete: %v\n%s", err, out)
+	}
+	if strings.Contains(out, "one.txt") || strings.Contains(out, "two.txt") || !strings.Contains(out, "keep.txt") {
+		t.Fatalf("unexpected inventory after batch delete: %s", out)
+	}
+}
+
 func TestCLIVersionBanner(t *testing.T) {
 	cmd := testCLICommand("version")
 	out, err := cmd.CombinedOutput()
@@ -125,8 +163,10 @@ func TestCLIVersionBanner(t *testing.T) {
 	if !strings.Contains(s, "version:") {
 		t.Fatalf("missing version line: %s", out)
 	}
-	if !strings.Contains(s, "V6") {
-		t.Fatalf("missing V6 format mention: %s", out)
+	for _, marker := range []string{"V6 streams", "V7 paths"} {
+		if !strings.Contains(s, marker) {
+			t.Fatalf("missing format marker %q: %s", marker, out)
+		}
 	}
 }
 
@@ -201,8 +241,12 @@ func TestCLIVerifyAndChangePassword(t *testing.T) {
 	if !strings.Contains(out, "Verify OK") {
 		t.Fatalf("verify output: %s", out)
 	}
-	if out, err := run("change-password", vault, "--password", oldPW, "--new-password", newPW); err != nil {
+	out, err = run("change-password", vault, "--password", oldPW, "--new-password", newPW, "--profile", "standard")
+	if err != nil {
 		t.Fatalf("chpw: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "kdf") || !strings.Contains(out, "standard") {
+		t.Fatalf("profile-upgrade result missing from output: %s", out)
 	}
 	if out, err := run("list", vault, "--password", newPW); err != nil {
 		t.Fatalf("list new: %v\n%s", err, out)
@@ -399,7 +443,7 @@ func TestCLIHelpMentionsOpenAndDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("help: %v\n%s", err, out)
 	}
-	for _, n := range []string{"open", "delete", "create", "extract", "--carrier"} {
+	for _, n := range []string{"open", "delete", "create", "extract", "--carrier", "V6 streams", "V7 paths", "Upgrade legacy streams to V6"} {
 		if !strings.Contains(out, n) {
 			t.Fatalf("help missing %q: %s", n, out)
 		}

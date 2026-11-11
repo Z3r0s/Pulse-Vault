@@ -10,6 +10,15 @@ import (
 //go:embed brand.jpg
 var brandJPG []byte
 
+//go:embed hero-mark.svg
+var heroMarkSVG []byte
+
+func newHeroMark() *canvas.Image {
+	img := canvas.NewImageFromResource(fyne.NewStaticResource("hero-mark.svg", heroMarkSVG))
+	img.FillMode = canvas.ImageFillContain
+	return img
+}
+
 func brandResource() fyne.Resource {
 	return fyne.NewStaticResource("brand.jpg", brandJPG)
 }

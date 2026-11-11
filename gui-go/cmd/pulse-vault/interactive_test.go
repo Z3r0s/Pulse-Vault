@@ -67,11 +67,11 @@ func TestHandleConsoleUnknown(t *testing.T) {
 }
 
 func TestSplitConsoleLinePreservesWindowsPathsAndQuotedSpaces(t *testing.T) {
-	fields, err := splitConsoleLine(`add "C:\Users\jared\My Files\note.txt"`)
+	fields, err := splitConsoleLine(`add "C:\Users\sample-user\My Files\note.txt"`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"add", `C:\Users\jared\My Files\note.txt`}
+	want := []string{"add", `C:\Users\sample-user\My Files\note.txt`}
 	if len(fields) != len(want) || fields[0] != want[0] || fields[1] != want[1] {
 		t.Fatalf("got %#v want %#v", fields, want)
 	}

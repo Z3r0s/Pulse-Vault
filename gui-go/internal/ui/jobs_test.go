@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -45,80 +47,118 @@ func TestStatusLine(t *testing.T) {
 }
 
 func TestPrepareCreatePath(t *testing.T) {
-	final, rem := PrepareCreatePath(`C:\tmp\vault`)
+	final := PrepareCreatePath(`C:\tmp\vault`)
 	if !strings.HasSuffix(strings.ToLower(final), ".pulsevault") {
 		t.Fatalf("final = %q", final)
 	}
-	if len(rem) < 1 {
-		t.Fatal("expected removals")
-	}
-	final2, rem2 := PrepareCreatePath(`C:\tmp\x.pulsevault`)
+	final2 := PrepareCreatePath(`C:\tmp\x.pulsevault`)
 	if final2 != `C:\tmp\x.pulsevault` {
 		t.Fatalf("final2 = %q", final2)
 	}
-	if len(rem2) != 1 {
-		t.Fatalf("rem2 = %v", rem2)
+	if empty := PrepareCreatePath(""); empty != "" {
+		t.Fatalf("empty path = %q", empty)
+	}
+}
+
+func TestEnsureDestinationAbsent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "new.pulsevault")
+	if err := ensureDestinationAbsent(path); err != nil {
+		t.Fatalf("new destination rejected: %v", err)
+	}
+	emptyPath := filepath.Join(dir, "empty.pulsevault")
+	if err := os.WriteFile(emptyPath, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensureDestinationAbsent(emptyPath); err == nil {
+		t.Fatal("empty existing destination should be preserved too")
+	}
+	if err := os.WriteFile(path, []byte("existing vault"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensureDestinationAbsent(path); err == nil {
+		t.Fatal("existing destination should be rejected")
+	}
+	got, err := os.ReadFile(path)
+	if err != nil || string(got) != "existing vault" {
+		t.Fatalf("existing destination changed: data=%q err=%v", got, err)
+	}
+}
+
+func TestOutputValidators(t *testing.T) {
+	for _, valid := range []string{"New vault", "records-2026", "private.pulsevault"} {
+		if err := validateOutputName(valid); err != nil {
+			t.Errorf("valid name %q rejected: %v", valid, err)
+		}
+	}
+	for _, invalid := range []string{"", " ", "..", `../vault`, `folder\vault`, "CON", "report?", "trailing."} {
+		if err := validateOutputName(invalid); err == nil {
+			t.Errorf("invalid name %q accepted", invalid)
+		}
+	}
+
+	dir := t.TempDir()
+	if err := validateOutputFolder(dir); err != nil {
+		t.Errorf("existing directory rejected: %v", err)
+	}
+	file := filepath.Join(dir, "file")
+	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateOutputFolder(file); err == nil {
+		t.Error("file path accepted as an output folder")
+	}
+	if err := validateOutputFolder(filepath.Join(dir, "missing")); err == nil {
+		t.Error("missing folder accepted")
 	}
 }
 
 func TestPrepareHidePathKeepsMediaAndVaultExt(t *testing.T) {
-	final, rem := PrepareHidePath(`C:\tmp\out.png`, `D:\cover.jpg`)
+	final := PrepareHidePath(`C:\tmp\out.png`, `D:\cover.jpg`)
 	if final != `C:\tmp\out.png` {
 		t.Fatalf("keep png = %q", final)
 	}
-	if len(rem) != 1 || rem[0] != `C:\tmp\out.png` {
-		t.Fatalf("rem = %v", rem)
-	}
 
-	final, _ = PrepareHidePath(`C:\tmp\out.JPEG`, `D:\cover.png`)
+	final = PrepareHidePath(`C:\tmp\out.JPEG`, `D:\cover.png`)
 	if final != `C:\tmp\out.JPEG` {
 		t.Fatalf("keep JPEG = %q", final)
 	}
 
-	final, rem = PrepareHidePath(`C:\tmp\secret.pulsevault`, `D:\cover.png`)
+	final = PrepareHidePath(`C:\tmp\secret.pulsevault`, `D:\cover.png`)
 	if final != `C:\tmp\secret.pulsevault` {
 		t.Fatalf("keep pulsevault = %q", final)
 	}
-	if len(rem) != 1 {
-		t.Fatalf("pulsevault rem = %v", rem)
-	}
 
-	final, _ = PrepareHidePath(`C:\tmp\clip.mp4`, `D:\cover.png`)
+	final = PrepareHidePath(`C:\tmp\clip.mp4`, `D:\cover.png`)
 	if final != `C:\tmp\clip.mp4` {
 		t.Fatalf("keep mp4 = %q", final)
 	}
 }
 
 func TestPrepareHidePathInheritsCarrierExt(t *testing.T) {
-	final, rem := PrepareHidePath(`C:\tmp\photo`, `D:\cover.png`)
+	final := PrepareHidePath(`C:\tmp\photo`, `D:\cover.png`)
 	if final != `C:\tmp\photo.png` {
 		t.Fatalf("inherit png = %q", final)
 	}
-	if len(rem) != 2 || rem[0] != `C:\tmp\photo` || rem[1] != `C:\tmp\photo.png` {
-		t.Fatalf("rem = %v", rem)
-	}
 
-	final, _ = PrepareHidePath(`C:\tmp\movie`, `D:\clip.MP4`)
+	final = PrepareHidePath(`C:\tmp\movie`, `D:\clip.MP4`)
 	if final != `C:\tmp\movie.MP4` {
 		t.Fatalf("inherit MP4 = %q", final)
 	}
 
-	final, _ = PrepareHidePath(`C:\tmp\notes.txt`, `D:\cover.png`)
+	final = PrepareHidePath(`C:\tmp\notes.txt`, `D:\cover.png`)
 	if final != `C:\tmp\notes.txt.png` {
 		t.Fatalf("unrecognized ext = %q", final)
 	}
 
-	final, rem = PrepareHidePath(`C:\tmp\bare`, `D:\noext`)
+	final = PrepareHidePath(`C:\tmp\bare`, `D:\noext`)
 	if final != `C:\tmp\bare` {
 		t.Fatalf("no carrier ext = %q", final)
 	}
-	if len(rem) != 1 {
-		t.Fatalf("noext rem = %v", rem)
-	}
 
-	final, rem = PrepareHidePath("", `D:\cover.png`)
-	if final != "" || rem != nil {
-		t.Fatalf("empty dest final=%q rem=%v", final, rem)
+	final = PrepareHidePath("", `D:\cover.png`)
+	if final != "" {
+		t.Fatalf("empty dest final=%q", final)
 	}
 }
 

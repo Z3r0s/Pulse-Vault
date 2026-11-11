@@ -11,10 +11,15 @@ For everyday use, start with the [desktop walkthrough](../docs/TWO_MINUTE_GUIDE.
 - Extract one file or restore all files, with path validation and overwrite checks.
 - Verify encrypted streams and stored file digests.
 - Change a password by verifying and re-encrypting each file stream.
+- Choose Standard or Hardened password derivation when creating a vault; raise an existing vault's KDF cost during password rotation.
 - Append a vault to supported image/video media. This preserves the media prefix but is not steganography.
 - Cancelable long-running GUI work, with progress and a temporary-space estimate before add or password rotation.
 
-The desktop window opens at 1120×740 and keeps a minimum size of about 640×480 so the navigation, file search, and workspace remain usable together. The layout tightens its header and collapses secondary context when the window is short.
+The desktop window opens at 1240×800 and keeps a minimum size of about 640×480 so the navigation, file search, and workspace remain usable together. The layout tightens its header and collapses secondary context when the window is short. On launch, the app offers an optional GitHub release check; it makes no request until confirmed.
+
+The GUI explains that a copied vault allows offline password guesses. Standard key derivation uses 32 MiB; Hardened uses 1 GiB and takes more memory and time. A long, unique passphrase remains the main defense. Password-policy warnings require an explicit choice before a new vault or rotated password is accepted.
+
+Desktop builds with Fyne system-tray support add **Show Pulse-Vault** and **Exit Pulse-Vault** actions to the notification-area menu. Closing the window locks the vault and hides the app in the tray; an active operation must finish before the window can be hidden or the app exited.
 
 New vaults use the V6 authenticated stream format. Folder trees use the V7 container marker and V6 streams; V5 streams remain readable. See [the format guide](../docs/VAULT_FORMAT.md).
 

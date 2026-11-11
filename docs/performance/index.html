@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="description" content="Measured CLI, stream-encryption, ZIP-validation, bulk archive, and GUI-search benchmarks for Pulse-Vault, with workload controls, graphs, and methodology.">
+    <title>Performance explorer · Pulse-Vault</title>
+    <link rel="stylesheet" href="./dashboard.css?v=20261108-row-update">
+    <script src="./dashboard.js?v=20261108-row-update" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="wordmark" href="https://github.com/Z3r0s/Pulse-Vault#readme" aria-label="Pulse-Vault README">Pulse-Vault</a>
+      <nav aria-label="Page navigation">
+        <a href="#overview">Performance</a>
+        <a href="#crypto">Stream crypto</a>
+        <a href="#search">Search</a>
+        <a href="#zip-validation-heading">ZIP checks</a>
+        <a href="#method">Method</a>
+        <a href="../crypto/">Cryptography &amp; research</a>
+        <a href="https://github.com/Z3r0s/Pulse-Vault/blob/main/docs/CLI_GUIDE.md">CLI guide</a>
+        <a href="https://github.com/Z3r0s/Pulse-Vault#readme">README</a>
+      </nav>
+    </header>
+
+    <main id="overview" class="page-shell">
+      <section class="intro" aria-labelledby="page-title">
+        <h1 id="page-title">Performance, with the workload shown.</h1>
+        <p class="lede">Measured runs of the real CLI and Go search code. Select a workload or move through the operation slider, including a multi-file delete and integrity check; the chart shows recorded measurements.</p>
+        <p class="environment" id="environment">Loading benchmark environment…</p>
+      </section>
+
+      <section class="operation-section" aria-labelledby="operation-heading">
+        <div class="controls-row">
+          <fieldset class="workload-control">
+            <legend>Workload</legend>
+            <label class="workload-option">
+              <input type="radio" name="workload" value="repeated" checked>
+              <span>1,000 × 4 KiB repeated</span>
+            </label>
+            <label class="workload-option">
+              <input type="radio" name="workload" value="random">
+              <span>8 × 10 MiB random</span>
+            </label>
+          </fieldset>
+
+          <div class="stage-control">
+            <label for="stage-slider">Operation <output id="stage-output" for="stage-slider">Incremental add</output></label>
+            <input id="stage-slider" type="range" min="0" max="6" step="1" value="2" aria-valuetext="Incremental add">
+            <div class="stage-labels" id="stage-labels"></div>
+          </div>
+        </div>
+
+        <div class="operation-layout">
+          <div class="operation-chart-wrap">
+            <div class="chart-heading">
+              <div>
+                <h2 id="operation-heading">CLI operation time</h2>
+                <p id="workload-summary" class="chart-note">Each workload has its own time scale; the readout also shows the other workload's value for the selected stage.</p>
+              </div>
+              <span class="unit-label">seconds</span>
+            </div>
+            <div id="operation-chart" class="horizontal-chart" role="group" aria-label="Measured duration for each CLI operation"></div>
+          <p class="chart-caption" id="operation-caption"></p>
+          </div>
+
+          <aside class="selected-stage" aria-live="polite" aria-atomic="true">
+            <p class="detail-label">Selected stage</p>
+            <h3 id="selected-stage-name">Incremental add</h3>
+            <p class="detail-label" id="selected-workload-name"></p>
+            <p class="selected-time" id="selected-time">—</p>
+            <div class="comparison">
+              <p>Same stage, other workload</p>
+              <span class="comparison-workload" id="other-workload-name"></span>
+              <strong id="other-workload-time">—</strong>
+            </div>
+          </aside>
+        </div>
+
+        <section class="rss-section" aria-labelledby="rss-heading">
+          <div class="section-heading compact-heading">
+            <div>
+              <h2 id="rss-heading">Peak memory, stage by stage</h2>
+              <p>Sampled peak resident set size (RSS). A 20 ms sample interval can miss short-lived peaks.</p>
+            </div>
+            <span class="unit-label">decimal MB</span>
+          </div>
+          <div class="rss-chart" id="rss-chart"></div>
+          <div class="table-scroll">
+            <table class="data-table" id="rss-table">
+              <caption>Peak resident memory sampled during each CLI operation</caption>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="crypto" class="detail-section crypto-section" aria-labelledby="crypto-heading">
+        <div class="section-copy">
+          <h2 id="crypto-heading">Stream encryption by file size</h2>
+          <p>The V6 benchmark compares a small repeated file, a roughly 1 MiB repeated file, and a 10 MiB random file. It runs encryption only, so it isolates the per-stream buffers and compression path from password derivation and vault rewrites.</p>
+          <p id="crypto-summary">Loading V6 stream benchmark results…</p>
+          <p class="chart-caption">Allocated bytes describe Go heap work for one encryption operation. They are not a peak-memory measurement.</p>
+        </div>
+        <div class="crypto-visual">
+          <div id="crypto-chart" class="crypto-metric-grid" role="group" aria-label="V6 stream encryption time and Go allocations for three synthetic file sizes"></div>
+        </div>
+      </section>
+
+      <section id="search" class="detail-section search-section" aria-labelledby="search-heading">
+        <div class="section-copy">
+          <h2 id="search-heading">Search stays light while you type</h2>
+          <p>The file list folds path names once while a search is active, then reuses the index and result buffer as you type. Clearing the query releases the folded-name cache.</p>
+          <p id="search-summary">Loading search benchmark summary…</p>
+        </div>
+        <div class="search-visual">
+          <div class="chart-heading">
+            <h3>Search time by path count</h3>
+            <span class="unit-label">milliseconds · lower is faster</span>
+          </div>
+          <div id="search-chart" class="search-chart" role="group" aria-label="Path filter time and one-time index build"></div>
+          <div class="legend" aria-label="Chart legend">
+            <span><i class="swatch swatch-legacy"></i>Legacy filter</span>
+            <span><i class="swatch swatch-indexed"></i>Indexed repeat</span>
+            <span><i class="swatch swatch-build"></i>Index build</span>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table" id="search-table">
+              <caption>Time, allocated bytes, and allocations per operation</caption>
+            </table>
+          </div>
+          <p class="chart-caption">These figures cover filename filtering and index construction, not Fyne painting or window startup. Index construction is paid when the search begins; indexed repeats allocate zero bytes in the benchmark.</p>
+          <div class="gui-row-result" id="gui-row-result" aria-labelledby="gui-row-heading">
+            <div>
+              <p class="eyebrow">Virtualized desktop list</p>
+              <h3 id="gui-row-heading">One recycled row update</h3>
+              <p id="gui-row-update-scope" class="chart-caption">Loading GUI row benchmark…</p>
+            </div>
+            <div class="gui-row-metrics" aria-label="GUI row update benchmark results">
+              <strong id="gui-row-update-time">—</strong>
+              <span id="gui-row-update-cost">—</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="detail-section conflict-section" aria-labelledby="conflict-heading">
+        <div class="section-copy">
+          <h2 id="conflict-heading">Bulk add conflict checks</h2>
+          <p>Before an incremental add, Pulse-Vault checks incoming paths against names already stored in the vault. A Unicode-aware case-folded index replaces the former nested scan.</p>
+          <p>The temporary index is released when the add operation finishes.</p>
+        </div>
+        <div class="conflict-visual">
+          <div class="chart-heading">
+            <h3>Time to check path conflicts</h3>
+            <span class="unit-label">milliseconds</span>
+          </div>
+          <p id="conflict-input" class="chart-note"></p>
+          <div id="conflict-chart" class="horizontal-chart" role="group" aria-label="Path conflict validation time"></div>
+          <div class="conflict-result">
+            <p class="speedup" id="conflict-speedup"></p>
+            <p id="conflict-memory"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="detail-section archive-lookup-section" aria-labelledby="archive-lookup-heading">
+        <div class="section-copy">
+          <h2 id="archive-lookup-heading">Bulk archive lookups, measured before and after</h2>
+          <p>Bulk verify and extract now validate and index the ZIP directory once, then reuse each encrypted entry. The earlier path reopened the archive and rescanned its directory for every file.</p>
+          <p id="archive-lookup-summary">Loading before-and-after measurements…</p>
+          <p class="chart-caption">The timing bars share one 0–6 second scale. Memory is a separate sampled RSS comparison; a 20 ms interval can miss brief peaks.</p>
+        </div>
+        <div class="archive-lookup-visual">
+          <div class="chart-heading">
+            <h3>Three CLI operations · same 1,000-file workload</h3>
+            <span class="unit-label">median seconds</span>
+          </div>
+          <div id="archive-lookup-chart" class="archive-lookup-chart" role="group" aria-label="Before and after timing for verify, extract all, and verify after delete"></div>
+          <div class="legend" aria-label="Chart legend">
+            <span><i class="swatch swatch-legacy"></i>Before shared index</span>
+            <span><i class="swatch swatch-indexed"></i>After shared index</span>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table" id="archive-lookup-table">
+              <caption>Three-run medians and relative time reduction</caption>
+            </table>
+          </div>
+          <p id="archive-lookup-memory" class="chart-caption"></p>
+        </div>
+      </section>
+
+      <section class="detail-section archive-lookup-section" aria-labelledby="zip-validation-heading">
+        <div class="section-copy">
+          <h2 id="zip-validation-heading">ZIP path checks use less time and memory</h2>
+          <p>ZIP entry path validation scanned each slash-delimited segment without building a temporary slice per entry. This direct Go benchmark isolates validation from ZIP opening and disk I/O.</p>
+          <p id="zip-validation-summary">Loading validation measurements…</p>
+          <p class="chart-caption">The bars use one 0–900 microsecond scale. The table separates Go heap allocations from elapsed time.</p>
+        </div>
+        <div class="archive-lookup-visual">
+          <div class="chart-heading">
+            <h3>Path validation by ZIP entry count</h3>
+            <span class="unit-label">median microseconds</span>
+          </div>
+          <div id="zip-validation-chart" class="archive-lookup-chart" role="group" aria-label="Before and after ZIP entry validation time for archives containing 1,000 and 10,000 entries"></div>
+          <div class="legend" aria-label="Chart legend">
+            <span><i class="swatch swatch-legacy"></i>Before segment scan</span>
+            <span><i class="swatch swatch-indexed"></i>After segment scan</span>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table" id="zip-validation-table">
+              <caption>Three-run medians, Go bytes allocated, and allocations per operation</caption>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="method" class="method-section" aria-labelledby="method-heading">
+        <h2 id="method-heading">How to read these numbers</h2>
+        <div class="method-grid">
+          <div>
+            <h3>What ran</h3>
+            <p>Both CLI workloads used the standard password profile. The repeated-data run used 1,000 files of 4 KiB each; the random-data run used eight 10 MiB files. Every restored path and SHA-256 digest was checked, then a batch was deleted in one rewrite and the remaining entries were verified.</p>
+          </div>
+          <div>
+            <h3>What to keep in mind</h3>
+            <p>Repeated data compresses unusually well. Storage, cache state, CPU load, and operating system affect timing. These measurements use disposable synthetic files and are not a performance guarantee.</p>
+          </div>
+        </div>
+        <p id="run-context" class="method-footnote"></p>
+        <p class="source-link"><a href="https://github.com/Z3r0s/Pulse-Vault/blob/main/docs/PERFORMANCE.md">Benchmark commands and full reference table</a> · <a href="https://github.com/Z3r0s/Pulse-Vault/blob/main/docs/CLI_GUIDE.md">CLI guide</a> · <a href="https://github.com/Z3r0s/Pulse-Vault/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/Z3r0s/Pulse-Vault#readme">Project README</a></p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Pulse-Vault · local encrypted file vault</span>
+      <a href="https://github.com/Z3r0s/Pulse-Vault#readme">Back to the README</a>
+    </footer>
+  </body>
+</html>

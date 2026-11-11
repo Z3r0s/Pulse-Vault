@@ -91,7 +91,7 @@ function Install-CliFromSource([string]$root, [string]$dest) {
     Set-Location (Join-Path $root "gui-go")
     try {
         $env:CGO_ENABLED = "0"
-        & go build -trimpath -ldflags "-s -w" -o $dest ./cmd/pulse-vault
+        & go build -trimpath -buildvcs=false -ldflags "-s -w" -o $dest ./cmd/pulse-vault
         if ($LASTEXITCODE -ne 0) { throw "go build CLI failed" }
     } finally {
         Set-Location $old
