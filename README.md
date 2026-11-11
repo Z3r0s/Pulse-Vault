@@ -5,8 +5,6 @@
 [![Latest Release](https://img.shields.io/github/v/release/Z3r0s/Pulse-Vault?sort=semver)](https://github.com/Z3r0s/Pulse-Vault/releases/latest)
 [![Changelog](https://img.shields.io/badge/CHANGELOG-Keep%20a%20Changelog-blue)](CHANGELOG.md)
 
-![Pulse-Vault secure local file vault](docs/assets/pulse-vault-hero.png)
-
 **Keep a private copy of important files on your own computer or removable drive.** Pulse-Vault stores them in one password-protected file that works offline. It has a desktop app and a command-line tool, built in Go.
 
 [Start in two minutes](docs/TWO_MINUTE_GUIDE.md) · [CLI guide](docs/CLI_GUIDE.md) · [Download](https://github.com/Z3r0s/Pulse-Vault/releases) · [Install guide](INSTALL.md) · [GitHub Issues](https://github.com/Z3r0s/Pulse-Vault/issues) · [Report a security issue](SECURITY.md)
@@ -19,6 +17,8 @@
 | [Threat model](docs/THREAT_MODEL.md) | See what the format protects, what remains visible, and where its guarantees end. |
 
 The interactive demos are published through GitHub Pages. The linked repository docs contain the static charts, benchmark commands, and protocol details for readers browsing a branch or fork.
+
+![Pulse-Vault secure local file vault](docs/assets/pulse-vault-hero.png)
 
 ## A practical use for Pulse-Vault
 
